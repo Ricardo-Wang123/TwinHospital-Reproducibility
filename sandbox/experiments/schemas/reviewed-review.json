@@ -1,0 +1,63 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://twinhospital.local/schemas/reviewed-review.json",
+  "title": "独立评价审核输入",
+  "description": "匿名评审完成后管理员连接身份字段。产物摘要绑定实际输出，source_sha256绑定独立reference行，reviewed_at不得早于对应封存/医院执行。",
+  "x-contract-status": "implemented",
+  "allOf": [
+    {
+      "$ref": "common.json#/$defs/review"
+    },
+    {
+      "type": "object",
+      "properties": {
+        "case_id": {
+          "$ref": "common.json#/$defs/longIdString"
+        },
+        "config_id": {
+          "$ref": "common.json#/$defs/longIdString"
+        },
+        "environment": {
+          "$ref": "common.json#/$defs/environment"
+        },
+        "artifact_sha256": {
+          "$ref": "common.json#/$defs/sha256"
+        },
+        "source_sha256": {
+          "$ref": "common.json#/$defs/sha256"
+        },
+        "reviewed_at": {
+          "$ref": "common.json#/$defs/timestamp"
+        },
+        "units": {
+          "type": "object",
+          "additionalProperties": {
+            "enum": [
+              "fact",
+              "claim",
+              "required_item"
+            ]
+          }
+        },
+        "artifact_stage": {
+          "enum": [
+            "final",
+            "first_handoff",
+            "first_draft"
+          ],
+          "default": "final",
+          "description": "缺省仅代表最终稿。早期版本必须独立artifact_id、实际内容摘要与两位评审；最终审核不替代早期审核。"
+        }
+      },
+      "required": [
+        "case_id",
+        "config_id",
+        "environment",
+        "artifact_sha256",
+        "source_sha256",
+        "reviewed_at"
+      ],
+      "additionalProperties": true
+    }
+  ]
+}

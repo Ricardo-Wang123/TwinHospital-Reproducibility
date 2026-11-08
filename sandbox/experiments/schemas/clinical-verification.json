@@ -1,0 +1,74 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://twinhospital.local/schemas/clinical-verification.json",
+  "title": "临床核验记录草案",
+  "description": "草案：路径存在/verification_ref非空不等于真实核验；需独立临床专家、输入/参考摘要与单故障核验。",
+  "x-contract-status": "draft-adapter",
+  "type": "object",
+  "properties": {
+    "verification_id": {
+      "$ref": "common.json#/$defs/longIdString"
+    },
+    "case_id": {
+      "$ref": "common.json#/$defs/longIdString"
+    },
+    "input_sha256": {
+      "$ref": "common.json#/$defs/sha256"
+    },
+    "reference_sha256": {
+      "$ref": "common.json#/$defs/sha256"
+    },
+    "source_kind": {
+      "$ref": "common.json#/$defs/sourceKind"
+    },
+    "reviewers": {
+      "type": "array",
+      "items": {
+        "$ref": "common.json#/$defs/longIdString"
+      },
+      "minItems": 2
+    },
+    "verified_at": {
+      "$ref": "common.json#/$defs/timestamp"
+    },
+    "rubric_version": {
+      "type": "string",
+      "minLength": 1
+    },
+    "verification_status": {
+      "enum": [
+        "accepted",
+        "rejected",
+        "pending_adjudication"
+      ]
+    },
+    "single_fault_confirmed": {
+      "anyOf": [
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "rationale": {
+      "type": "string",
+      "minLength": 1
+    }
+  },
+  "required": [
+    "verification_id",
+    "case_id",
+    "input_sha256",
+    "reference_sha256",
+    "source_kind",
+    "reviewers",
+    "verified_at",
+    "rubric_version",
+    "verification_status",
+    "single_fault_confirmed",
+    "rationale"
+  ],
+  "additionalProperties": true
+}

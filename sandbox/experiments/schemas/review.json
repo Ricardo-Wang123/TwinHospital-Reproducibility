@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://twinhospital.local/schemas/review.json",
+  "title": "单人盲评",
+  "description": "运行时必需artifact/reviewer/blinded/rubric/labels。正式协议还要求产物与来源摘要、审核时间；人员盲态须独立管理。",
+  "x-contract-status": "implemented-and-extensions",
+  "$ref": "common.json#/$defs/review",
+  "examples": [
+    {
+      "artifact_id": "blind-000001",
+      "reviewer_id": "reviewer-demo-1",
+      "blinded": true,
+      "rubric_version": "demo-r1",
+      "labels": {
+        "demo_fact": "indeterminate"
+      },
+      "artifact_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "source_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "reviewed_at": "2026-09-19T02:00:00Z",
+      "quality_source": "independent_review"
+    }
+  ]
+}

@@ -1,0 +1,34 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://twinhospital.local/schemas/calibration-activity.json",
+  "title": "校准函数活动行",
+  "description": "必须仅引用anchor目录，实测方可timing_source=measured。校准不接收嵌套小计；角色名称需与engine一致。",
+  "x-contract-status": "draft-adapter",
+  "allOf": [
+    {
+      "$ref": "common.json#/$defs/activity"
+    },
+    {
+      "type": "object",
+      "properties": {
+        "task": {
+          "$ref": "common.json#/$defs/task"
+        }
+      },
+      "required": [
+        "task"
+      ],
+      "additionalProperties": true
+    }
+  ],
+  "examples": [
+    {
+      "case_id": "demo-anchor-1",
+      "task": "preconsult",
+      "role": "doctor",
+      "activity_type": "review",
+      "active_seconds": 60,
+      "timing_source": "scripted"
+    }
+  ]
+}

@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://twinhospital.local/schemas/calibration-catalog.json",
+  "title": "校准与排除目录",
+  "description": "demo-2含3个虚构anchor和所有test元数据；不能拿它替代正式100真实anchor/任务。",
+  "x-contract-status": "implemented-and-extensions",
+  "type": "object",
+  "properties": {
+    "case_id": {
+      "$ref": "common.json#/$defs/longIdString"
+    },
+    "task": {
+      "$ref": "common.json#/$defs/task"
+    },
+    "split": {
+      "enum": [
+        "anchor",
+        "calibration",
+        "validation",
+        "test"
+      ]
+    },
+    "source_group_id": {
+      "$ref": "common.json#/$defs/longIdString"
+    },
+    "source_kind": {
+      "$ref": "common.json#/$defs/sourceKind"
+    }
+  },
+  "required": [
+    "case_id",
+    "task",
+    "split",
+    "source_group_id",
+    "source_kind"
+  ],
+  "additionalProperties": true
+}

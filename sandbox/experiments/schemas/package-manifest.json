@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://twinhospital.local/schemas/package-manifest.json",
+  "title": "医院包封存来源",
+  "description": "source_manifest_sha256与source_seal_sha256分别绑定平台封存文件；不导出平台产物或gold。",
+  "x-contract-status": "implemented-and-extensions",
+  "type": "object",
+  "properties": {
+    "schema_version": {
+      "const": "1"
+    },
+    "run_id": {
+      "$ref": "common.json#/$defs/longIdString"
+    },
+    "n_cases": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "source_manifest_sha256": {
+      "$ref": "common.json#/$defs/sha256"
+    },
+    "source_seal_sha256": {
+      "$ref": "common.json#/$defs/sha256"
+    },
+    "artifacts": {
+      "$ref": "common.json#/$defs/fileHashMap"
+    }
+  },
+  "required": [
+    "schema_version",
+    "run_id",
+    "n_cases",
+    "source_manifest_sha256",
+    "source_seal_sha256",
+    "artifacts"
+  ],
+  "additionalProperties": true
+}

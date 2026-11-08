@@ -1,0 +1,122 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://twinhospital.local/schemas/run-manifest.json",
+  "title": "冻结运行清单",
+  "description": "多任务必须configurations绑定task。单任务旧manifest可回退；研究新产物应始终显式列出配置。research仅兼容旧导入测试，runner不接受。",
+  "x-contract-status": "implemented-and-extensions",
+  "type": "object",
+  "properties": {
+    "schema_version": {
+      "const": "1"
+    },
+    "run_id": {
+      "$ref": "common.json#/$defs/longIdString"
+    },
+    "purpose": {
+      "enum": [
+        "engineering_demo",
+        "integration",
+        "study",
+        "research"
+      ]
+    },
+    "frozen_at": {
+      "$ref": "common.json#/$defs/timestamp"
+    },
+    "datasets_hash": {
+      "$ref": "common.json#/$defs/sha256"
+    },
+    "resolved_config_hash": {
+      "$ref": "common.json#/$defs/sha256"
+    },
+    "configuration_ids": {
+      "type": "array",
+      "items": {
+        "$ref": "common.json#/$defs/longIdString"
+      },
+      "minItems": 1
+    },
+    "configurations": {
+      "type": "array",
+      "items": {
+        "$ref": "common.json#/$defs/configuration"
+      },
+      "minItems": 1
+    },
+    "case_hashes": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": {
+        "$ref": "common.json#/$defs/sha256"
+      }
+    },
+    "code": {
+      "type": "object"
+    },
+    "source_hashes": {
+      "$ref": "common.json#/$defs/fileHashMap"
+    },
+    "parameter_registry": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      },
+      "minItems": 0
+    },
+    "models": {
+      "type": "object"
+    },
+    "rule_version": {
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 1
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "seed": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "research_eligible": {
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "run_id",
+    "purpose",
+    "frozen_at",
+    "datasets_hash",
+    "resolved_config_hash",
+    "configuration_ids",
+    "case_hashes"
+  ],
+  "additionalProperties": true,
+  "examples": [
+    {
+      "schema_version": "1",
+      "run_id": "demo-run",
+      "purpose": "engineering_demo",
+      "frozen_at": "2026-09-19T02:00:00Z",
+      "datasets_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "resolved_config_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "configuration_ids": [
+        "preconsult:nurse_only"
+      ],
+      "configurations": [
+        {
+          "task": "preconsult",
+          "config_id": "preconsult:nurse_only",
+          "workflow": "nurse_only",
+          "model_family": null
+        }
+      ],
+      "case_hashes": {
+        "demo-001": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      }
+    }
+  ]
+}

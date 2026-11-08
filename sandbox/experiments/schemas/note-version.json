@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://twinhospital.local/schemas/note-version.json",
+  "title": "病历版本记录",
+  "description": "生成器只建空文件；workflow实际把版本写入case_results.artifact_versions，独立JSONL需显式展开适配。",
+  "x-contract-status": "implemented-and-extensions",
+  "type": "object",
+  "properties": {
+    "case_id": {
+      "$ref": "common.json#/$defs/longIdString"
+    },
+    "config_id": {
+      "$ref": "common.json#/$defs/longIdString"
+    },
+    "artifact_id": {
+      "$ref": "common.json#/$defs/longIdString"
+    },
+    "note_id": {
+      "$ref": "common.json#/$defs/longIdString"
+    },
+    "version": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "parent_version": {
+      "anyOf": [
+        {
+          "type": "integer",
+          "minimum": 1
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "content": {},
+    "content_hash": {
+      "$ref": "common.json#/$defs/sha256"
+    },
+    "status": {
+      "enum": [
+        "draft",
+        "locked"
+      ]
+    },
+    "author_role": {
+      "$ref": "common.json#/$defs/role"
+    },
+    "signatory_id": {
+      "$ref": "common.json#/$defs/longIdString"
+    }
+  },
+  "required": [
+    "artifact_id",
+    "version",
+    "parent_version",
+    "content_hash",
+    "status"
+  ],
+  "additionalProperties": true,
+  "examples": [
+    {
+      "case_id": "demo-001",
+      "artifact_id": "demo-note",
+      "version": 1,
+      "parent_version": null,
+      "content_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "status": "draft"
+    }
+  ]
+}

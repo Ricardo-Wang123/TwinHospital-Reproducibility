@@ -1,0 +1,59 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://twinhospital.local/schemas/run-case-input.json",
+  "title": "封存执行输入行",
+  "description": "实际engine采用input；完整摘要匹配manifest。医院导出支持显式visible_inputs及initial_visible_facts/patient_known_facts/transcript/prescription白名单投影。",
+  "x-contract-status": "implemented-and-extensions",
+  "type": "object",
+  "properties": {
+    "case_id": {
+      "$ref": "common.json#/$defs/longIdString"
+    },
+    "task": {
+      "$ref": "common.json#/$defs/task"
+    },
+    "source_group_id": {
+      "$ref": "common.json#/$defs/longIdString"
+    },
+    "input": {
+      "$ref": "common.json#/$defs/input"
+    },
+    "visible_inputs": {
+      "$ref": "common.json#/$defs/executionValue"
+    },
+    "input_sha256": {
+      "$ref": "common.json#/$defs/sha256"
+    }
+  },
+  "required": [
+    "case_id",
+    "task",
+    "input_sha256"
+  ],
+  "additionalProperties": true,
+  "examples": [
+    {
+      "case_id": "demo-001",
+      "task": "preconsult",
+      "source_group_id": "demo-source-1",
+      "input": {
+        "visible_inputs": {
+          "chief_complaint": "纯工程示例"
+        }
+      },
+      "input_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    }
+  ],
+  "anyOf": [
+    {
+      "required": [
+        "input"
+      ]
+    },
+    {
+      "required": [
+        "visible_inputs"
+      ]
+    }
+  ]
+}

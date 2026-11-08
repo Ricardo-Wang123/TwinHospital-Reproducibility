@@ -1,0 +1,161 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://twinhospital.local/schemas/evaluation-report.json",
+  "title": "独立评价完整性汇总",
+  "description": "任务×配置×环境分别统计；完整性通过不自动构成临床结论或真人参与证明。",
+  "x-contract-status": "implemented",
+  "type": "object",
+  "properties": {
+    "schema_version": {
+      "const": "1"
+    },
+    "run_id": {
+      "$ref": "common.json#/$defs/longIdString"
+    },
+    "analysis_dir": {
+      "type": "string",
+      "minLength": 1
+    },
+    "n_case_metrics": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "complete": {
+      "type": "boolean"
+    },
+    "issues": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "case_id": {
+            "$ref": "common.json#/$defs/longIdString"
+          },
+          "config_id": {
+            "$ref": "common.json#/$defs/longIdString"
+          },
+          "environment": {
+            "$ref": "common.json#/$defs/environment"
+          },
+          "missing": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        },
+        "required": [
+          "case_id",
+          "config_id",
+          "environment",
+          "missing"
+        ],
+        "additionalProperties": true
+      }
+    },
+    "groups": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "task": {
+            "$ref": "common.json#/$defs/task"
+          },
+          "config_id": {
+            "$ref": "common.json#/$defs/longIdString"
+          },
+          "environment": {
+            "$ref": "common.json#/$defs/environment"
+          },
+          "effort": {
+            "$ref": "effort-summary.json"
+          },
+          "facts": {
+            "$ref": "fact-summary.json"
+          },
+          "prescription": {
+            "$ref": "prescription-summary.json"
+          }
+        },
+        "required": [
+          "task",
+          "config_id",
+          "environment",
+          "effort"
+        ],
+        "additionalProperties": true
+      }
+    },
+    "source_seal_sha256": {
+      "$ref": "common.json#/$defs/sha256"
+    },
+    "research_eligible": {
+      "const": false
+    },
+    "provenance_assurance": {
+      "type": "string",
+      "minLength": 1
+    },
+    "final_evaluation_complete": {
+      "type": "boolean"
+    },
+    "stage_evaluation_complete": {
+      "type": "boolean"
+    },
+    "stage_evaluation_requested": {
+      "type": "boolean"
+    },
+    "stage_issues": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "case_id": {
+            "$ref": "common.json#/$defs/longIdString"
+          },
+          "config_id": {
+            "$ref": "common.json#/$defs/longIdString"
+          },
+          "environment": {
+            "$ref": "common.json#/$defs/environment"
+          },
+          "missing": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "artifact_stage": {
+            "enum": [
+              "first_handoff",
+              "first_draft"
+            ]
+          }
+        },
+        "required": [
+          "case_id",
+          "config_id",
+          "environment",
+          "missing",
+          "artifact_stage"
+        ],
+        "additionalProperties": true
+      }
+    }
+  },
+  "required": [
+    "schema_version",
+    "run_id",
+    "analysis_dir",
+    "n_case_metrics",
+    "complete",
+    "issues",
+    "groups",
+    "source_seal_sha256",
+    "research_eligible",
+    "provenance_assurance"
+  ],
+  "additionalProperties": true
+}

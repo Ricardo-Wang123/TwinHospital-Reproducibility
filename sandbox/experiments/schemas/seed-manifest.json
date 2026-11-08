@@ -1,0 +1,181 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://twinhospital.local/schemas/seed-manifest.json",
+  "title": "专用实例恢复清单",
+  "description": "恢复命令由操作员审核提供argv，不能填宽泛删除。verify输出实例ID/指纹/全覆盖；文档不提供可执行破坏性示例。",
+  "x-contract-status": "implemented-and-extensions",
+  "type": "object",
+  "properties": {
+    "instance_id": {
+      "$ref": "common.json#/$defs/longIdString"
+    },
+    "dedicated_instance": {
+      "const": true
+    },
+    "coverage": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "enum": [
+          "database",
+          "sequences",
+          "cache",
+          "uploads",
+          "background_tasks",
+          "local_state"
+        ]
+      },
+      "minItems": 6
+    },
+    "artifacts": {
+      "$ref": "common.json#/$defs/fileHashMap"
+    },
+    "expected_fingerprint": {
+      "type": "string",
+      "minLength": 1
+    },
+    "drain": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "argv": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "minItems": 1
+          },
+          "timeout_s": {
+            "type": "number",
+            "minimum": 0,
+            "default": 300
+          }
+        },
+        "required": [
+          "argv"
+        ],
+        "additionalProperties": true
+      },
+      "minItems": 1
+    },
+    "restore": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "argv": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "minItems": 1
+          },
+          "timeout_s": {
+            "type": "number",
+            "minimum": 0,
+            "default": 300
+          }
+        },
+        "required": [
+          "argv"
+        ],
+        "additionalProperties": true
+      },
+      "minItems": 1
+    },
+    "verify": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "argv": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "minItems": 1
+          },
+          "timeout_s": {
+            "type": "number",
+            "minimum": 0,
+            "default": 300
+          }
+        },
+        "required": [
+          "argv"
+        ],
+        "additionalProperties": true
+      },
+      "minItems": 1
+    },
+    "start": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "argv": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "minItems": 1
+          },
+          "timeout_s": {
+            "type": "number",
+            "minimum": 0,
+            "default": 300
+          }
+        },
+        "required": [
+          "argv"
+        ],
+        "additionalProperties": true
+      },
+      "minItems": 1
+    },
+    "activate": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "argv": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "minItems": 1
+          },
+          "timeout_s": {
+            "type": "number",
+            "minimum": 0,
+            "default": 300
+          }
+        },
+        "required": [
+          "argv"
+        ],
+        "additionalProperties": true
+      },
+      "minItems": 1
+    }
+  },
+  "required": [
+    "instance_id",
+    "dedicated_instance",
+    "coverage",
+    "artifacts",
+    "expected_fingerprint",
+    "drain",
+    "restore",
+    "verify",
+    "start",
+    "activate"
+  ],
+  "additionalProperties": true
+}

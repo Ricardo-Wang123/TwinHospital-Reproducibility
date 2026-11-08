@@ -1,0 +1,227 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://twinhospital.local/schemas/case-result.json",
+  "title": "执行结果与独立评分分层",
+  "description": "completed只表示执行完成。qualified/首轮/首稿需独立评分来源；engineering_script仅可用于工程验证。封存后评价另存文件。",
+  "x-contract-status": "implemented-and-extensions",
+  "type": "object",
+  "properties": {
+    "case_id": {
+      "$ref": "common.json#/$defs/longIdString"
+    },
+    "task": {
+      "$ref": "common.json#/$defs/task"
+    },
+    "config_id": {
+      "$ref": "common.json#/$defs/longIdString"
+    },
+    "workflow": {
+      "type": "string",
+      "minLength": 1
+    },
+    "status": {
+      "enum": [
+        "running",
+        "completed",
+        "failed",
+        "timeout"
+      ]
+    },
+    "run_id": {
+      "$ref": "common.json#/$defs/longIdString"
+    },
+    "environment": {
+      "$ref": "common.json#/$defs/environment"
+    },
+    "source_group_id": {
+      "$ref": "common.json#/$defs/longIdString"
+    },
+    "input_sha256": {
+      "$ref": "common.json#/$defs/sha256"
+    },
+    "final_output": {},
+    "final_output_sha256": {
+      "anyOf": [
+        {
+          "$ref": "common.json#/$defs/sha256"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "final_decision": {
+      "anyOf": [
+        {
+          "enum": [
+            "approve",
+            "reject",
+            "block"
+          ]
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "qualified": {
+      "$ref": "common.json#/$defs/nullableBool"
+    },
+    "quality_source": {
+      "$ref": "common.json#/$defs/qualitySource"
+    },
+    "scoring_source": {
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 1
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "quality_assessment": {
+      "$ref": "common.json#/$defs/qualityAssessment"
+    },
+    "metrics": {
+      "$ref": "common.json#/$defs/metricMap"
+    },
+    "first_pass_correct": {
+      "$ref": "common.json#/$defs/nullableBool"
+    },
+    "first_pass_completed": {
+      "$ref": "common.json#/$defs/nullableBool"
+    },
+    "first_draft_accepted": {
+      "$ref": "common.json#/$defs/nullableBool"
+    },
+    "rework_rounds": {
+      "anyOf": [
+        {
+          "type": "integer",
+          "minimum": 0
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "rework_seconds": {
+      "anyOf": [
+        {
+          "type": "number",
+          "minimum": 0
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "encounter_ended_at": {
+      "anyOf": [
+        {
+          "$ref": "common.json#/$defs/timestamp"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "physician_attested_at": {
+      "anyOf": [
+        {
+          "$ref": "common.json#/$defs/timestamp"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "encounter_ended": {
+      "anyOf": [
+        {
+          "$ref": "common.json#/$defs/timestamp"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "physician_attested": {
+      "anyOf": [
+        {
+          "$ref": "common.json#/$defs/timestamp"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "turnaround_time_source": {
+      "type": "string",
+      "minLength": 1
+    },
+    "artifact_versions": {
+      "type": "array",
+      "items": {
+        "$ref": "note-version.json"
+      },
+      "minItems": 0
+    },
+    "interaction_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "failure_reason": {
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 1
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "first_handoff_output": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "description": "医生补问之前的实际首次交接，不能从最终输出推断或补造。"
+    },
+    "first_handoff_output_sha256": {
+      "anyOf": [
+        {
+          "$ref": "common.json#/$defs/sha256"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  },
+  "required": [
+    "case_id",
+    "task",
+    "config_id",
+    "workflow",
+    "status"
+  ],
+  "additionalProperties": true,
+  "examples": [
+    {
+      "case_id": "demo-001",
+      "task": "documentation",
+      "config_id": "documentation:manual_documentation",
+      "workflow": "manual_documentation",
+      "status": "completed",
+      "qualified": null,
+      "first_pass_correct": null,
+      "final_output": {
+        "text": "纯工程示例，等待独立审核"
+      }
+    }
+  ]
+}

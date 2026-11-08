@@ -1,0 +1,938 @@
+{
+  "version": "TH-CATALOGUE-3.0",
+  "subset": "first5_engineering_priorities",
+  "products": [
+    {
+      "drug_code": "SIM-METFORMIN-500",
+      "name": "metformin hydrochloride IR",
+      "display_name_zh": "盐酸二甲双胍普通片500mg",
+      "ingredient": "metformin",
+      "dosage_form": "oral_tablet_immediate_release",
+      "strength": "500 mg/tablet",
+      "dose_unit": "mg",
+      "quantity_unit": "tablet",
+      "allowed_routes": [
+        "oral"
+      ],
+      "route": "oral",
+      "components": [
+        {
+          "ingredient": "metformin hydrochloride",
+          "strength_value": 500,
+          "strength_unit": "mg",
+          "per": "tablet",
+          "basis_of_strength": "metformin hydrochloride"
+        }
+      ],
+      "identity_aliases": [
+        "metformin",
+        "metformin hydrochloride",
+        "盐酸二甲双胍",
+        "二甲双胍"
+      ],
+      "scope": "outpatient",
+      "notes": [
+        "Strength basis is metformin hydrochloride; not an extended-release product."
+      ],
+      "catalogue_version": "TH-CATALOGUE-2.0",
+      "source_kind": "simulated_catalogue_product",
+      "source_references": [
+        {
+          "provider": "DailyMed / US National Library of Medicine",
+          "url": "https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid=c2bbaa0c-5b05-4335-882f-14f1b443edd7",
+          "setid": "c2bbaa0c-5b05-4335-882f-14f1b443edd7",
+          "retrieved_on": "2026-11-07",
+          "verification_scope": "ingredient, dosage form, strength and labeled route only"
+        }
+      ],
+      "clinical_regimen": null,
+      "clinical_suitability": "not_assessed",
+      "current_use_inferred": false,
+      "rxnorm_id": null
+    },
+    {
+      "drug_code": "SIM-FUROSEMIDE-20",
+      "name": "furosemide",
+      "display_name_zh": "呋塞米片20mg",
+      "ingredient": "furosemide",
+      "dosage_form": "oral_tablet_immediate_release",
+      "strength": "20 mg/tablet",
+      "dose_unit": "mg",
+      "quantity_unit": "tablet",
+      "allowed_routes": [
+        "oral"
+      ],
+      "route": "oral",
+      "components": [
+        {
+          "ingredient": "furosemide",
+          "strength_value": 20,
+          "strength_unit": "mg",
+          "per": "tablet",
+          "basis_of_strength": "furosemide"
+        }
+      ],
+      "identity_aliases": [
+        "呋塞米"
+      ],
+      "scope": "outpatient",
+      "notes": [],
+      "catalogue_version": "TH-CATALOGUE-2.0",
+      "source_kind": "simulated_catalogue_product",
+      "source_references": [
+        {
+          "provider": "DailyMed / US National Library of Medicine",
+          "url": "https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid=cad102d7-0197-4cff-bb80-9f0b5bcb599b",
+          "setid": "cad102d7-0197-4cff-bb80-9f0b5bcb599b",
+          "retrieved_on": "2026-11-07",
+          "verification_scope": "ingredient, dosage form, strength and labeled route only"
+        }
+      ],
+      "clinical_regimen": null,
+      "clinical_suitability": "not_assessed",
+      "current_use_inferred": false,
+      "rxnorm_id": null
+    },
+    {
+      "drug_code": "SIM-ALBUTEROL-90",
+      "name": "albuterol HFA inhalation aerosol",
+      "display_name_zh": "沙丁胺醇HFA吸入器90μg/揿",
+      "ingredient": "albuterol",
+      "dosage_form": "metered_dose_inhalation_aerosol",
+      "strength": "90 mcg/actuation",
+      "dose_unit": "puff",
+      "quantity_unit": "inhaler",
+      "allowed_routes": [
+        "inhaled"
+      ],
+      "route": "inhaled",
+      "components": [
+        {
+          "ingredient": "albuterol base",
+          "strength_value": 90,
+          "strength_unit": "mcg",
+          "per": "actuation",
+          "basis_of_strength": "albuterol base"
+        }
+      ],
+      "identity_aliases": [
+        "albuterol",
+        "salbutamol",
+        "albuterol sulfate",
+        "沙丁胺醇",
+        "硫酸沙丁胺醇"
+      ],
+      "scope": "outpatient",
+      "notes": [
+        "90 mcg base delivered at mouthpiece equals 108 mcg sulfate for this label; 200 actuations/device.",
+        "Do not substitute a 100 mcg/actuation product; puff is one actuation, inhaler is one device."
+      ],
+      "catalogue_version": "TH-CATALOGUE-2.0",
+      "source_kind": "simulated_catalogue_product",
+      "source_references": [
+        {
+          "provider": "DailyMed / US National Library of Medicine",
+          "url": "https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid=17858afa-dcdf-4612-b475-3b6baadfb639",
+          "setid": "17858afa-dcdf-4612-b475-3b6baadfb639",
+          "retrieved_on": "2026-11-07",
+          "verification_scope": "ingredient, dosage form, strength and labeled route only"
+        }
+      ],
+      "clinical_regimen": null,
+      "clinical_suitability": "not_assessed",
+      "current_use_inferred": false,
+      "rxnorm_id": null
+    },
+    {
+      "drug_code": "SIM-AMOXICILLIN-500",
+      "name": "amoxicillin",
+      "display_name_zh": "阿莫西林胶囊500mg",
+      "ingredient": "amoxicillin",
+      "dosage_form": "oral_capsule",
+      "strength": "500 mg/capsule",
+      "dose_unit": "mg",
+      "quantity_unit": "capsule",
+      "allowed_routes": [
+        "oral"
+      ],
+      "route": "oral",
+      "components": [
+        {
+          "ingredient": "amoxicillin",
+          "strength_value": 500,
+          "strength_unit": "mg",
+          "per": "capsule",
+          "basis_of_strength": "amoxicillin"
+        }
+      ],
+      "identity_aliases": [
+        "阿莫西林"
+      ],
+      "scope": "outpatient",
+      "notes": [
+        "Amoxicillin strength, supplied as trihydrate; not a 250 mg capsule."
+      ],
+      "catalogue_version": "TH-CATALOGUE-2.0",
+      "source_kind": "simulated_catalogue_product",
+      "source_references": [
+        {
+          "provider": "DailyMed / US National Library of Medicine",
+          "url": "https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid=4adc198e-39d8-4b3e-bfa4-278aaf4064ae",
+          "setid": "4adc198e-39d8-4b3e-bfa4-278aaf4064ae",
+          "retrieved_on": "2026-11-07",
+          "verification_scope": "ingredient, dosage form, strength and labeled route only"
+        }
+      ],
+      "clinical_regimen": null,
+      "clinical_suitability": "not_assessed",
+      "current_use_inferred": false,
+      "rxnorm_id": null
+    },
+    {
+      "drug_code": "SIM-NITROFURANTOIN-MONO-MACRO-100",
+      "name": "nitrofurantoin monohydrate/macrocrystals",
+      "display_name_zh": "呋喃妥因一水合物/大晶体胶囊100mg",
+      "ingredient": "nitrofurantoin",
+      "dosage_form": "oral_capsule_monohydrate_macrocrystals",
+      "strength": "100 mg/capsule",
+      "dose_unit": "mg",
+      "quantity_unit": "capsule",
+      "allowed_routes": [
+        "oral"
+      ],
+      "route": "oral",
+      "components": [
+        {
+          "ingredient": "nitrofurantoin macrocrystals",
+          "strength_value": 25,
+          "strength_unit": "mg",
+          "per": "capsule",
+          "basis_of_strength": "nitrofurantoin"
+        },
+        {
+          "ingredient": "nitrofurantoin monohydrate",
+          "strength_value": 75,
+          "strength_unit": "mg",
+          "per": "capsule",
+          "basis_of_strength": "nitrofurantoin"
+        }
+      ],
+      "identity_aliases": [
+        "nitrofurantoin monohydrate/macrocrystals",
+        "nitrofurantoin mono-macro",
+        "macrobid"
+      ],
+      "scope": "outpatient",
+      "notes": [
+        "Do not equate this formulation with macrocrystals-only nitrofurantoin."
+      ],
+      "catalogue_version": "TH-CATALOGUE-2.0",
+      "source_kind": "simulated_catalogue_product",
+      "source_references": [
+        {
+          "provider": "DailyMed / US National Library of Medicine",
+          "url": "https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid=ea28d766-d6e6-43d2-8282-dc78a0381057",
+          "setid": "ea28d766-d6e6-43d2-8282-dc78a0381057",
+          "retrieved_on": "2026-11-07",
+          "verification_scope": "ingredient, dosage form, strength and labeled route only"
+        }
+      ],
+      "clinical_regimen": null,
+      "clinical_suitability": "not_assessed",
+      "current_use_inferred": false,
+      "rxnorm_id": null
+    },
+    {
+      "drug_code": "SIM-LISINOPRIL-10",
+      "name": "lisinopril",
+      "display_name_zh": "赖诺普利片10mg",
+      "ingredient": "lisinopril",
+      "dosage_form": "oral_tablet_immediate_release",
+      "strength": "10 mg/tablet",
+      "dose_unit": "mg",
+      "quantity_unit": "tablet",
+      "allowed_routes": [
+        "oral"
+      ],
+      "route": "oral",
+      "components": [
+        {
+          "ingredient": "lisinopril",
+          "strength_value": 10,
+          "strength_unit": "mg",
+          "per": "tablet",
+          "basis_of_strength": "lisinopril"
+        }
+      ],
+      "identity_aliases": [
+        "赖诺普利"
+      ],
+      "scope": "outpatient",
+      "notes": [],
+      "catalogue_version": "TH-CATALOGUE-2.0",
+      "source_kind": "simulated_catalogue_product",
+      "source_references": [
+        {
+          "provider": "DailyMed / US National Library of Medicine",
+          "url": "https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid=e927801e-5de4-44f9-b543-789c093de655",
+          "setid": "e927801e-5de4-44f9-b543-789c093de655",
+          "retrieved_on": "2026-11-07",
+          "verification_scope": "ingredient, dosage form, strength and labeled route only"
+        }
+      ],
+      "clinical_regimen": null,
+      "clinical_suitability": "not_assessed",
+      "current_use_inferred": false,
+      "rxnorm_id": null
+    },
+    {
+      "drug_code": "SIM-SPIRONOLACTONE-25",
+      "name": "spironolactone",
+      "display_name_zh": "螺内酯片25mg",
+      "ingredient": "spironolactone",
+      "dosage_form": "oral_tablet_immediate_release",
+      "strength": "25 mg/tablet",
+      "dose_unit": "mg",
+      "quantity_unit": "tablet",
+      "allowed_routes": [
+        "oral"
+      ],
+      "route": "oral",
+      "components": [
+        {
+          "ingredient": "spironolactone",
+          "strength_value": 25,
+          "strength_unit": "mg",
+          "per": "tablet",
+          "basis_of_strength": "spironolactone"
+        }
+      ],
+      "identity_aliases": [
+        "螺内酯"
+      ],
+      "scope": "outpatient",
+      "notes": [],
+      "catalogue_version": "TH-CATALOGUE-2.0",
+      "source_kind": "simulated_catalogue_product",
+      "source_references": [
+        {
+          "provider": "DailyMed / US National Library of Medicine",
+          "url": "https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid=beaf74db-4159-3b59-ef99-575c3ac99aa1",
+          "setid": "beaf74db-4159-3b59-ef99-575c3ac99aa1",
+          "retrieved_on": "2026-11-07",
+          "verification_scope": "ingredient, dosage form, strength and labeled route only"
+        }
+      ],
+      "clinical_regimen": null,
+      "clinical_suitability": "not_assessed",
+      "current_use_inferred": false,
+      "rxnorm_id": null
+    },
+    {
+      "drug_code": "SIM-EMPAGLIFLOZIN-10",
+      "name": "empagliflozin",
+      "display_name_zh": "恩格列净片10mg",
+      "ingredient": "empagliflozin",
+      "dosage_form": "oral_tablet_immediate_release",
+      "strength": "10 mg/tablet",
+      "dose_unit": "mg",
+      "quantity_unit": "tablet",
+      "allowed_routes": [
+        "oral"
+      ],
+      "route": "oral",
+      "components": [
+        {
+          "ingredient": "empagliflozin",
+          "strength_value": 10,
+          "strength_unit": "mg",
+          "per": "tablet",
+          "basis_of_strength": "empagliflozin"
+        }
+      ],
+      "identity_aliases": [
+        "jardiance",
+        "恩格列净"
+      ],
+      "scope": "outpatient",
+      "notes": [],
+      "catalogue_version": "TH-CATALOGUE-2.0",
+      "source_kind": "simulated_catalogue_product",
+      "source_references": [
+        {
+          "provider": "DailyMed / US National Library of Medicine",
+          "url": "https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid=faf3dd6a-9cd0-39c2-0d2e-232cb3f67565",
+          "setid": "faf3dd6a-9cd0-39c2-0d2e-232cb3f67565",
+          "retrieved_on": "2026-11-07",
+          "verification_scope": "ingredient, dosage form, strength and labeled route only"
+        }
+      ],
+      "clinical_regimen": null,
+      "clinical_suitability": "not_assessed",
+      "current_use_inferred": false,
+      "rxnorm_id": null
+    },
+    {
+      "drug_code": "SIM-TIOTROPIUM-18",
+      "name": "tiotropium inhalation powder capsule",
+      "display_name_zh": "噻托溴铵吸入粉末胶囊18μg",
+      "ingredient": "tiotropium",
+      "dosage_form": "inhalation_powder_capsule",
+      "strength": "18 mcg/capsule",
+      "dose_unit": "capsule",
+      "quantity_unit": "capsule",
+      "allowed_routes": [
+        "inhaled"
+      ],
+      "route": "inhaled",
+      "components": [
+        {
+          "ingredient": "tiotropium",
+          "strength_value": 18,
+          "strength_unit": "mcg",
+          "per": "capsule",
+          "basis_of_strength": "tiotropium"
+        }
+      ],
+      "identity_aliases": [
+        "tiotropium",
+        "tiotropium bromide",
+        "spiriva handihaler",
+        "噻托溴铵"
+      ],
+      "scope": "outpatient",
+      "notes": [
+        "18 mcg tiotropium equals 22.5 mcg bromide monohydrate in each capsule.",
+        "Capsules are for inhalation through the HandiHaler device; do not swallow. Device availability must be established."
+      ],
+      "catalogue_version": "TH-CATALOGUE-2.0",
+      "source_kind": "simulated_catalogue_product",
+      "source_references": [
+        {
+          "provider": "DailyMed / US National Library of Medicine",
+          "url": "https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid=820839ef-e53d-47e8-a3b9-d911ff92e6a9",
+          "setid": "820839ef-e53d-47e8-a3b9-d911ff92e6a9",
+          "retrieved_on": "2026-11-07",
+          "verification_scope": "ingredient, dosage form, strength and labeled route only"
+        }
+      ],
+      "clinical_regimen": null,
+      "clinical_suitability": "not_assessed",
+      "current_use_inferred": false,
+      "rxnorm_id": null
+    },
+    {
+      "drug_code": "SIM-PREDNISONE-20",
+      "name": "prednisone",
+      "display_name_zh": "泼尼松片20mg",
+      "ingredient": "prednisone",
+      "dosage_form": "oral_tablet_immediate_release",
+      "strength": "20 mg/tablet",
+      "dose_unit": "mg",
+      "quantity_unit": "tablet",
+      "allowed_routes": [
+        "oral"
+      ],
+      "route": "oral",
+      "components": [
+        {
+          "ingredient": "prednisone",
+          "strength_value": 20,
+          "strength_unit": "mg",
+          "per": "tablet",
+          "basis_of_strength": "prednisone"
+        }
+      ],
+      "identity_aliases": [
+        "泼尼松"
+      ],
+      "scope": "outpatient",
+      "notes": [],
+      "catalogue_version": "TH-CATALOGUE-2.0",
+      "source_kind": "simulated_catalogue_product",
+      "source_references": [
+        {
+          "provider": "DailyMed / US National Library of Medicine",
+          "url": "https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid=fec09050-5ac2-451b-a2b9-5a21b2def212",
+          "setid": "fec09050-5ac2-451b-a2b9-5a21b2def212",
+          "retrieved_on": "2026-11-07",
+          "verification_scope": "ingredient, dosage form, strength and labeled route only"
+        }
+      ],
+      "clinical_regimen": null,
+      "clinical_suitability": "not_assessed",
+      "current_use_inferred": false,
+      "rxnorm_id": null
+    },
+    {
+      "drug_code": "SIM-AZITHROMYCIN-250",
+      "name": "azithromycin",
+      "display_name_zh": "阿奇霉素片250mg",
+      "ingredient": "azithromycin",
+      "dosage_form": "oral_tablet_immediate_release",
+      "strength": "250 mg/tablet",
+      "dose_unit": "mg",
+      "quantity_unit": "tablet",
+      "allowed_routes": [
+        "oral"
+      ],
+      "route": "oral",
+      "components": [
+        {
+          "ingredient": "azithromycin",
+          "strength_value": 250,
+          "strength_unit": "mg",
+          "per": "tablet",
+          "basis_of_strength": "azithromycin"
+        }
+      ],
+      "identity_aliases": [
+        "阿奇霉素"
+      ],
+      "scope": "outpatient",
+      "notes": [
+        "Azithromycin base-equivalent strength, supplied as dihydrate."
+      ],
+      "catalogue_version": "TH-CATALOGUE-2.0",
+      "source_kind": "simulated_catalogue_product",
+      "source_references": [
+        {
+          "provider": "DailyMed / US National Library of Medicine",
+          "url": "https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid=01649d79-4677-4577-a3e4-e054f3f9fc3b",
+          "setid": "01649d79-4677-4577-a3e4-e054f3f9fc3b",
+          "retrieved_on": "2026-11-07",
+          "verification_scope": "ingredient, dosage form, strength and labeled route only"
+        }
+      ],
+      "clinical_regimen": null,
+      "clinical_suitability": "not_assessed",
+      "current_use_inferred": false,
+      "rxnorm_id": null
+    },
+    {
+      "drug_code": "SIM-TMP-SMX-160-800",
+      "name": "trimethoprim/sulfamethoxazole",
+      "display_name_zh": "复方磺胺甲噁唑片TMP160/SMX800mg",
+      "ingredient": "trimethoprim+sulfamethoxazole",
+      "dosage_form": "oral_tablet_immediate_release",
+      "strength": "160 mg trimethoprim + 800 mg sulfamethoxazole/tablet",
+      "dose_unit": "tablet",
+      "quantity_unit": "tablet",
+      "allowed_routes": [
+        "oral"
+      ],
+      "route": "oral",
+      "components": [
+        {
+          "ingredient": "trimethoprim",
+          "strength_value": 160,
+          "strength_unit": "mg",
+          "per": "tablet",
+          "basis_of_strength": "trimethoprim"
+        },
+        {
+          "ingredient": "sulfamethoxazole",
+          "strength_value": 800,
+          "strength_unit": "mg",
+          "per": "tablet",
+          "basis_of_strength": "sulfamethoxazole"
+        }
+      ],
+      "identity_aliases": [
+        "sulfamethoxazole/trimethoprim",
+        "trimethoprim/sulfamethoxazole",
+        "tmp-smx",
+        "co-trimoxazole",
+        "bactrim ds"
+      ],
+      "scope": "outpatient",
+      "notes": [
+        "Prescribe quantity of tablets; unqualified mg dose is ambiguous between two components."
+      ],
+      "catalogue_version": "TH-CATALOGUE-2.0",
+      "source_kind": "simulated_catalogue_product",
+      "source_references": [
+        {
+          "provider": "DailyMed / US National Library of Medicine",
+          "url": "https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid=c4da9c4f-0704-4ed5-9d19-5c949f37f726",
+          "setid": "c4da9c4f-0704-4ed5-9d19-5c949f37f726",
+          "retrieved_on": "2026-11-07",
+          "verification_scope": "ingredient, dosage form, strength and labeled route only"
+        }
+      ],
+      "clinical_regimen": null,
+      "clinical_suitability": "not_assessed",
+      "current_use_inferred": false,
+      "rxnorm_id": null
+    },
+    {
+      "drug_code": "SIM-WARFARIN-5",
+      "name": "warfarin sodium",
+      "display_name_zh": "华法林钠片5mg",
+      "ingredient": "warfarin",
+      "dosage_form": "oral_tablet_immediate_release",
+      "strength": "5 mg/tablet",
+      "dose_unit": "mg",
+      "quantity_unit": "tablet",
+      "allowed_routes": [
+        "oral"
+      ],
+      "route": "oral",
+      "components": [
+        {
+          "ingredient": "warfarin sodium",
+          "strength_value": 5,
+          "strength_unit": "mg",
+          "per": "tablet",
+          "basis_of_strength": "warfarin sodium"
+        }
+      ],
+      "identity_aliases": [
+        "warfarin",
+        "华法林",
+        "华法林钠"
+      ],
+      "scope": "outpatient",
+      "notes": [],
+      "catalogue_version": "TH-CATALOGUE-2.0",
+      "source_kind": "simulated_catalogue_product",
+      "source_references": [
+        {
+          "provider": "DailyMed / US National Library of Medicine",
+          "url": "https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid=72d3ea20-27e4-4368-a666-a9b76530dbb9",
+          "setid": "72d3ea20-27e4-4368-a666-a9b76530dbb9",
+          "retrieved_on": "2026-11-07",
+          "verification_scope": "ingredient, dosage form, strength and labeled route only"
+        }
+      ],
+      "clinical_regimen": null,
+      "clinical_suitability": "not_assessed",
+      "current_use_inferred": false,
+      "rxnorm_id": null
+    },
+    {
+      "drug_code": "SIM-ACETAMINOPHEN-500",
+      "name": "acetaminophen",
+      "display_name_zh": "对乙酰氨基酚片500mg",
+      "ingredient": "acetaminophen",
+      "dosage_form": "oral_tablet_immediate_release",
+      "strength": "500 mg/tablet",
+      "dose_unit": "mg",
+      "quantity_unit": "tablet",
+      "allowed_routes": [
+        "oral"
+      ],
+      "route": "oral",
+      "components": [
+        {
+          "ingredient": "acetaminophen",
+          "strength_value": 500,
+          "strength_unit": "mg",
+          "per": "tablet",
+          "basis_of_strength": "acetaminophen"
+        }
+      ],
+      "identity_aliases": [
+        "paracetamol",
+        "tylenol extra strength",
+        "对乙酰氨基酚"
+      ],
+      "scope": "outpatient",
+      "notes": [],
+      "catalogue_version": "TH-CATALOGUE-2.0",
+      "source_kind": "simulated_catalogue_product",
+      "source_references": [
+        {
+          "provider": "DailyMed / US National Library of Medicine",
+          "url": "https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid=103d109d-f520-409c-8da2-eb6b0fbec891",
+          "setid": "103d109d-f520-409c-8da2-eb6b0fbec891",
+          "retrieved_on": "2026-11-07",
+          "verification_scope": "ingredient, dosage form, strength and labeled route only"
+        }
+      ],
+      "clinical_regimen": null,
+      "clinical_suitability": "not_assessed",
+      "current_use_inferred": false,
+      "rxnorm_id": null
+    },
+    {
+      "drug_code": "SIM-METFORMIN-ER-500",
+      "name": "metformin hydrochloride ER",
+      "display_name_zh": "盐酸二甲双胍缓释片500mg",
+      "ingredient": "metformin",
+      "dosage_form": "oral_tablet_extended_release",
+      "strength": "500 mg/tablet",
+      "dose_unit": "mg",
+      "quantity_unit": "tablet",
+      "allowed_routes": [
+        "oral"
+      ],
+      "route": "oral",
+      "components": [
+        {
+          "ingredient": "metformin hydrochloride",
+          "strength_value": 500,
+          "strength_unit": "mg",
+          "per": "tablet",
+          "basis_of_strength": "metformin hydrochloride"
+        }
+      ],
+      "identity_aliases": [],
+      "scope": "outpatient",
+      "notes": [
+        "Separate from IR. Reference label is an osmotic 24-hour ER tablet; historical XR release technology is unverified."
+      ],
+      "catalogue_version": "TH-CATALOGUE-3.0",
+      "source_kind": "simulated_catalogue_product",
+      "source_references": [
+        {
+          "provider": "DailyMed / US National Library of Medicine",
+          "url": "https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid=ef77c7dd-a65f-4adc-a0d9-a93779b459a0",
+          "setid": "ef77c7dd-a65f-4adc-a0d9-a93779b459a0",
+          "retrieved_on": "2026-11-07",
+          "verification_scope": "ingredient, dosage form, strength and labeled route only",
+          "source_file_sha256": null,
+          "source_file_hash_status": "official_page_read; full_SPL_bytes_not_archived",
+          "support_sections": [
+            "Description",
+            "Dosage forms and strengths",
+            "Ingredients and appearance / principal display"
+          ]
+        }
+      ],
+      "clinical_regimen": null,
+      "clinical_suitability": "not_assessed",
+      "current_use_inferred": false,
+      "rxnorm_id": null,
+      "allowed_dose_units": [
+        "mg"
+      ],
+      "dose_basis": "mg of metformin hydrochloride, not metformin base",
+      "label_package": null,
+      "active_salt_mass": null,
+      "historical_product_identity": "unverified",
+      "historical_ndc_verified": false,
+      "independent_review_status": "pending",
+      "clinical_rule_gold": false,
+      "native_product_scope": "new_independent_simulated_hospital_generic_product"
+    },
+    {
+      "drug_code": "SIM-METOPROLOL-SUCCINATE-ER-25",
+      "name": "metoprolol succinate ER (labeled 25 mg)",
+      "display_name_zh": "琥珀酸美托洛尔缓释片（标示25mg）",
+      "ingredient": "metoprolol",
+      "dosage_form": "oral_tablet_extended_release",
+      "strength": "25 mg tartrate-equivalent/tablet",
+      "dose_unit": "mg",
+      "quantity_unit": "tablet",
+      "allowed_routes": [
+        "oral"
+      ],
+      "route": "oral",
+      "components": [
+        {
+          "ingredient": "metoprolol succinate",
+          "strength_value": 25,
+          "strength_unit": "mg",
+          "per": "tablet",
+          "basis_of_strength": "metoprolol tartrate equivalent"
+        }
+      ],
+      "identity_aliases": [],
+      "scope": "outpatient",
+      "notes": [
+        "Extended-release succinate, distinct from tartrate immediate-release. Do not alter a proposed dose by salt-mass conversion."
+      ],
+      "catalogue_version": "TH-CATALOGUE-3.0",
+      "source_kind": "simulated_catalogue_product",
+      "source_references": [
+        {
+          "provider": "DailyMed / US National Library of Medicine",
+          "url": "https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid=58441cd3-6043-4bb8-adab-1b32a203bfb2",
+          "setid": "58441cd3-6043-4bb8-adab-1b32a203bfb2",
+          "retrieved_on": "2026-11-07",
+          "verification_scope": "ingredient, dosage form, strength and labeled route only",
+          "source_file_sha256": null,
+          "source_file_hash_status": "official_page_read; full_SPL_bytes_not_archived",
+          "support_sections": [
+            "Description",
+            "Dosage forms and strengths",
+            "Ingredients and appearance / principal display"
+          ]
+        }
+      ],
+      "clinical_regimen": null,
+      "clinical_suitability": "not_assessed",
+      "current_use_inferred": false,
+      "rxnorm_id": null,
+      "allowed_dose_units": [
+        "mg"
+      ],
+      "dose_basis": "labeled mg expressed as metoprolol tartrate equivalent; delivered as succinate ER",
+      "label_package": null,
+      "active_salt_mass": {
+        "ingredient": "metoprolol succinate",
+        "value": 23.75,
+        "unit": "mg",
+        "per": "tablet"
+      },
+      "historical_product_identity": "unverified",
+      "historical_ndc_verified": false,
+      "independent_review_status": "pending",
+      "clinical_rule_gold": false,
+      "native_product_scope": "new_independent_simulated_hospital_generic_product"
+    },
+    {
+      "drug_code": "SIM-FLUTICASONE-SALMETEROL-DISKUS-250-50",
+      "name": "fluticasone propionate/salmeterol Diskus 250/50",
+      "display_name_zh": "氟替卡松/沙美特罗Diskus吸入粉250/50μg",
+      "ingredient": "fluticasone propionate+salmeterol",
+      "dosage_form": "dry_powder_inhaler_diskus",
+      "strength": "250 mcg fluticasone propionate + 50 mcg salmeterol/inhalation",
+      "dose_unit": "inhalation",
+      "quantity_unit": "inhaler",
+      "allowed_routes": [
+        "inhaled"
+      ],
+      "route": "inhaled",
+      "components": [
+        {
+          "ingredient": "fluticasone propionate",
+          "strength_value": 250,
+          "strength_unit": "mcg",
+          "per": "inhalation",
+          "basis_of_strength": "fluticasone propionate"
+        },
+        {
+          "ingredient": "salmeterol xinafoate",
+          "strength_value": 50,
+          "strength_unit": "mcg",
+          "per": "inhalation",
+          "basis_of_strength": "salmeterol base"
+        }
+      ],
+      "identity_aliases": [],
+      "scope": "outpatient",
+      "notes": [
+        "One inhalation uses one pre-metered blister. No mg or mcg dose accepted for this combination."
+      ],
+      "catalogue_version": "TH-CATALOGUE-3.0",
+      "source_kind": "simulated_catalogue_product",
+      "source_references": [
+        {
+          "provider": "DailyMed / US National Library of Medicine",
+          "url": "https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid=4eeb5f6a-593f-4a9e-9692-adefa2caf8fc",
+          "setid": "4eeb5f6a-593f-4a9e-9692-adefa2caf8fc",
+          "retrieved_on": "2026-11-07",
+          "verification_scope": "ingredient, dosage form, strength and labeled route only",
+          "source_file_sha256": null,
+          "source_file_hash_status": "official_page_read; full_SPL_bytes_not_archived",
+          "support_sections": [
+            "Description",
+            "Dosage forms and strengths",
+            "Ingredients and appearance / principal display"
+          ]
+        }
+      ],
+      "clinical_regimen": null,
+      "clinical_suitability": "not_assessed",
+      "current_use_inferred": false,
+      "rxnorm_id": null,
+      "allowed_dose_units": [
+        "inhalation"
+      ],
+      "dose_basis": "count of 250/50 mcg metered blister inhalations, not devices or component mass",
+      "label_package": {
+        "device": "Diskus",
+        "metered_inhalations_per_device": 60
+      },
+      "active_salt_mass": {
+        "ingredient": "salmeterol xinafoate",
+        "value": 72.5,
+        "unit": "mcg",
+        "per": "inhalation"
+      },
+      "historical_product_identity": "unverified",
+      "historical_ndc_verified": false,
+      "independent_review_status": "pending",
+      "clinical_rule_gold": false,
+      "native_product_scope": "new_independent_simulated_hospital_generic_product"
+    },
+    {
+      "drug_code": "SIM-LEVOFLOXACIN-750",
+      "name": "levofloxacin",
+      "display_name_zh": "左氧氟沙星片750mg",
+      "ingredient": "levofloxacin",
+      "dosage_form": "oral_tablet_immediate_release",
+      "strength": "750 mg/tablet",
+      "dose_unit": "mg",
+      "quantity_unit": "tablet",
+      "allowed_routes": [
+        "oral"
+      ],
+      "route": "oral",
+      "components": [
+        {
+          "ingredient": "levofloxacin hemihydrate",
+          "strength_value": 750,
+          "strength_unit": "mg",
+          "per": "tablet",
+          "basis_of_strength": "levofloxacin"
+        }
+      ],
+      "identity_aliases": [],
+      "scope": "outpatient",
+      "notes": [],
+      "catalogue_version": "TH-CATALOGUE-3.0",
+      "source_kind": "simulated_catalogue_product",
+      "source_references": [
+        {
+          "provider": "DailyMed / US National Library of Medicine",
+          "url": "https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid=c6027cde-b9fe-e593-e053-2995a90ac2c1",
+          "setid": "c6027cde-b9fe-e593-e053-2995a90ac2c1",
+          "retrieved_on": "2026-11-07",
+          "verification_scope": "ingredient, dosage form, strength and labeled route only",
+          "source_file_sha256": null,
+          "source_file_hash_status": "official_page_read; full_SPL_bytes_not_archived",
+          "support_sections": [
+            "Description",
+            "Dosage forms and strengths",
+            "Ingredients and appearance / principal display"
+          ]
+        }
+      ],
+      "clinical_regimen": null,
+      "clinical_suitability": "not_assessed",
+      "current_use_inferred": false,
+      "rxnorm_id": null,
+      "allowed_dose_units": [
+        "mg"
+      ],
+      "dose_basis": "mg of levofloxacin equivalent, supplied as hemihydrate",
+      "label_package": null,
+      "active_salt_mass": null,
+      "historical_product_identity": "unverified",
+      "historical_ndc_verified": false,
+      "independent_review_status": "pending",
+      "clinical_rule_gold": false,
+      "native_product_scope": "new_independent_simulated_hospital_generic_product"
+    }
+  ],
+  "source_evidence_files": [
+    {
+      "file": "catalogue_v4_antimicrobial_label_facts.json",
+      "sha256": "ce4fa6768fb70a8393bcb372b45050b84f4d401bb5f4f4d18fcc65a39ed4e68c"
+    },
+    {
+      "file": "catalogue-evidence-root-cardiometabolic-v1.json",
+      "sha256": "7a1e6e6ce6b2681d78dc9acf8d9ac4d217790cc1eb45d844d6c4f41cfe7ab9e2"
+    }
+  ],
+  "previous_mapping_sha256": "c93c8e384286c0da127ccdde83cb263c142bca9a769a727ed13b25463dc9e345",
+  "source_patient_ndc_identity_verified": false,
+  "clinical_gold": false,
+  "mapping_policy": "new generic simulated hospital products; do not automatically reconcile historical NDCs, salt masses, release technology or devices",
+  "price_and_stock": "constructed: 1 CNY per independently specified dispense unit, 100000 units",
+  "raw_label_bytes_archived": false,
+  "regimen_assigned": false
+}

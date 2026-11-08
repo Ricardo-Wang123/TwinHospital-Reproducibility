@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://twinhospital.local/schemas/patient-view.json",
+  "title": "标准化患者/主持者专用材料",
+  "description": "仅标准化患者/主持者读取，包含患者已知事实与阶段转写；不得直接交采集护士/医生/AI。按release_on和available_at_ms释放。",
+  "x-contract-status": "implemented",
+  "type": "object",
+  "properties": {
+    "case_id": {
+      "$ref": "common.json#/$defs/longIdString"
+    },
+    "task": {
+      "$ref": "common.json#/$defs/task"
+    },
+    "input_sha256": {
+      "$ref": "common.json#/$defs/sha256"
+    },
+    "view_role": {
+      "const": "standardized_patient_or_moderator"
+    },
+    "material": {
+      "$ref": "common.json#/$defs/executionValue"
+    },
+    "material_sha256": {
+      "$ref": "common.json#/$defs/sha256"
+    },
+    "release_policy": {
+      "type": "string",
+      "minLength": 1
+    }
+  },
+  "required": [
+    "case_id",
+    "task",
+    "input_sha256",
+    "view_role",
+    "material",
+    "material_sha256",
+    "release_policy"
+  ],
+  "additionalProperties": true
+}

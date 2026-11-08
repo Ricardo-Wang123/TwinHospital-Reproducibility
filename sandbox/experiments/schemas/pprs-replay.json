@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://twinhospital.local/schemas/pprs-replay.json",
+  "title": "冻结PPRS规则回放",
+  "description": "ReplayPPRS以input_hash(prescription,context)连接冻结规则结果，规则版本必须一致；不是input_sha256，缺匹配拒绝，不调用真实API。",
+  "x-contract-status": "implemented-and-extensions",
+  "type": "object",
+  "properties": {
+    "rule_version": {
+      "type": "string",
+      "minLength": 1
+    },
+    "input_hash": {
+      "$ref": "common.json#/$defs/sha256"
+    },
+    "result": {
+      "type": "object",
+      "properties": {
+        "decision": {
+          "enum": [
+            "pass",
+            "flag",
+            "reject"
+          ]
+        }
+      },
+      "required": [
+        "decision"
+      ],
+      "additionalProperties": true
+    }
+  },
+  "required": [
+    "rule_version",
+    "input_hash",
+    "result"
+  ],
+  "additionalProperties": true
+}

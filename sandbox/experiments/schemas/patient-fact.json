@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://twinhospital.local/schemas/patient-fact.json",
+  "title": "患者已知事实逐项记录",
+  "description": "已知不等于已披露。release_on由患者角色和询问主题控制，不能整表注入护士/医生观察。",
+  "x-contract-status": "implemented-and-extensions",
+  "allOf": [
+    {
+      "$ref": "common.json#/$defs/fact"
+    },
+    {
+      "type": "object",
+      "properties": {
+        "case_id": {
+          "$ref": "common.json#/$defs/longIdString"
+        }
+      },
+      "required": [
+        "case_id"
+      ],
+      "additionalProperties": true
+    }
+  ],
+  "examples": [
+    {
+      "case_id": "demo-001",
+      "fact_id": "demo_fact",
+      "value": "示例内容",
+      "status": "known",
+      "release_on": [
+        "chief_complaint"
+      ]
+    }
+  ]
+}

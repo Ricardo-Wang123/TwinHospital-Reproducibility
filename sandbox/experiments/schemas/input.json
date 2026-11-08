@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://twinhospital.local/schemas/input.json",
+  "title": "原始执行输入",
+  "description": "只含可按角色/阶段释放的执行材料，reference独立保存；input摘要按规范JSON计算。",
+  "x-contract-status": "implemented-and-extensions",
+  "type": "object",
+  "properties": {
+    "case_id": {
+      "$ref": "common.json#/$defs/longIdString"
+    },
+    "input": {
+      "$ref": "common.json#/$defs/input"
+    }
+  },
+  "required": [
+    "case_id",
+    "input"
+  ],
+  "additionalProperties": true,
+  "examples": [
+    {
+      "case_id": "demo-001",
+      "input": {
+        "initial_visible_facts": [],
+        "patient_known_facts": [],
+        "transcript": [],
+        "native_refs": {}
+      }
+    }
+  ]
+}

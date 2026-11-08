@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://twinhospital.local/schemas/attestation-row.json",
+  "title": "签署CSV原始行",
+  "description": "生成器为空表。转医院attestation时signatory_id->signer_id，attested_at->signed_at，另需role=physician及实际artifact_sha256。",
+  "x-contract-status": "draft-adapter",
+  "type": "object",
+  "properties": {
+    "case_id": {
+      "$ref": "common.json#/$defs/longIdString"
+    },
+    "artifact_id": {
+      "$ref": "common.json#/$defs/longIdString"
+    },
+    "version": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "signatory_id": {
+      "$ref": "common.json#/$defs/longIdString"
+    },
+    "attested_at": {
+      "$ref": "common.json#/$defs/timestamp"
+    }
+  },
+  "required": [
+    "case_id",
+    "artifact_id",
+    "version",
+    "signatory_id",
+    "attested_at"
+  ],
+  "additionalProperties": true,
+  "examples": [
+    {
+      "case_id": "demo-001",
+      "artifact_id": "demo-note",
+      "version": 1,
+      "signatory_id": "doctor-demo",
+      "attested_at": "2026-09-19T02:00:00Z"
+    }
+  ]
+}

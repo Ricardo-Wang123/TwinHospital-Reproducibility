@@ -1,0 +1,112 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://twinhospital.local/schemas/import-report.json",
+  "title": "医院导入完整性报告",
+  "description": "source_sha256是原导入文件字节摘要。相同输出仅标potential_reuse；需独立日志证据才完整，不据此推断真人或造假。",
+  "x-contract-status": "implemented-and-extensions",
+  "type": "object",
+  "properties": {
+    "schema_version": {
+      "const": "1"
+    },
+    "run_id": {
+      "$ref": "common.json#/$defs/longIdString"
+    },
+    "imported_rows": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "complete": {
+      "type": "boolean"
+    },
+    "issues": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "case_id": {
+            "$ref": "common.json#/$defs/longIdString"
+          },
+          "config_id": {
+            "$ref": "common.json#/$defs/longIdString"
+          },
+          "missing": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "minItems": 1
+          }
+        },
+        "required": [
+          "case_id",
+          "config_id",
+          "missing"
+        ],
+        "additionalProperties": true
+      },
+      "minItems": 0
+    },
+    "missing_pairs": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "case_id": {
+            "$ref": "common.json#/$defs/longIdString"
+          },
+          "config_id": {
+            "$ref": "common.json#/$defs/longIdString"
+          }
+        },
+        "required": [
+          "case_id",
+          "config_id"
+        ],
+        "additionalProperties": true
+      },
+      "minItems": 0
+    },
+    "source_sha256": {
+      "$ref": "common.json#/$defs/sha256"
+    },
+    "source_seal_sha256": {
+      "$ref": "common.json#/$defs/sha256"
+    },
+    "import_dir": {
+      "type": "string",
+      "minLength": 1
+    },
+    "provenance_assurance": {
+      "type": "string",
+      "minLength": 1
+    },
+    "potential_reuse_cases": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "evidence_artifacts": {
+      "$ref": "common.json#/$defs/fileHashMap"
+    },
+    "results_sha256": {
+      "$ref": "common.json#/$defs/sha256"
+    }
+  },
+  "required": [
+    "schema_version",
+    "run_id",
+    "imported_rows",
+    "complete",
+    "issues",
+    "missing_pairs",
+    "source_sha256",
+    "source_seal_sha256",
+    "import_dir",
+    "provenance_assurance",
+    "potential_reuse_cases",
+    "evidence_artifacts",
+    "results_sha256"
+  ],
+  "additionalProperties": true
+}

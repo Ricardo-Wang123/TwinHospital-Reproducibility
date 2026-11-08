@@ -1,0 +1,31 @@
+{
+  "version": "prospective-workflow-window/1",
+  "status": "frozen_before_execution",
+  "window_seconds": 7200,
+  "clock": "per_run_monotonic_seconds",
+  "start_boundary": "queue_entry_persisted",
+  "end_boundary": "target_payment_readback",
+  "workers": 20,
+  "admission_policy": "closed_loop_worker_availability",
+  "submission_window": {
+    "unadmitted_cases": "retain_in_planned_denominator"
+  },
+  "resources": {
+    "deployment": "isolated_local_OpenHIS",
+    "native_write_concurrency": 1,
+    "cash_settlement": "local_simulation_only",
+    "model_endpoint": "https://apius.shubiaobiao.cn/v1",
+    "purpose": "Prospectively scheduled isolated TwinHospital run",
+    "registration_slot_capacity": 20000
+  },
+  "denominator": "all_frozen_complete_encounter_cases",
+  "constraints": [
+    "patient_encounter_linkage",
+    "queue_linkage_before_consultation",
+    "locked_note_immutability",
+    "authorized_signatory_before_payment",
+    "target_medication_payment_uniqueness"
+  ],
+  "late_outcomes": "retain_effects_and_final_disposition_exclude_late_completion",
+  "clinical_reference_scope": "declared_programmatic_checks_not_unrestricted_gold_labels"
+}

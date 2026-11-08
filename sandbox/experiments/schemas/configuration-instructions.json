@@ -1,0 +1,250 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://twinhospital.local/schemas/configuration-instructions.json",
+  "title": "医院配置说明",
+  "description": "逐任务可执行步骤、PPRS顺序与并行升级、共享问答预算、分阶段病历审核和真实人员规则。仅复制被测AI非secret规格，不复制actors或认证。",
+  "x-contract-status": "implemented-and-extensions",
+  "type": "object",
+  "properties": {
+    "schema_version": {
+      "const": "1"
+    },
+    "run_id": {
+      "$ref": "common.json#/$defs/longIdString"
+    },
+    "configuration_ids": {
+      "type": "array",
+      "items": {
+        "$ref": "common.json#/$defs/longIdString"
+      },
+      "minItems": 1
+    },
+    "configurations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "config_id": {
+            "$ref": "common.json#/$defs/longIdString"
+          },
+          "task": {
+            "$ref": "common.json#/$defs/task"
+          },
+          "workflow": {
+            "type": "string",
+            "minLength": 1
+          },
+          "model_family": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "human_review": {
+            "type": "boolean"
+          },
+          "requires_physician_attestation": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "config_id",
+          "task"
+        ],
+        "additionalProperties": true
+      },
+      "minItems": 0
+    },
+    "protocol": {
+      "type": "string",
+      "minLength": 1
+    },
+    "execution_not_before": {
+      "$ref": "common.json#/$defs/timestamp"
+    },
+    "instruction_version": {
+      "const": "outpatient-hospital-1"
+    },
+    "source_purpose": {
+      "type": "string",
+      "minLength": 1
+    },
+    "staff_policy": {
+      "type": "string",
+      "minLength": 1
+    },
+    "view_access": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "max_interactions": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "workflow_instructions": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "task": {
+            "$ref": "common.json#/$defs/task"
+          },
+          "workflow": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "steps": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "supported": {
+            "type": "boolean"
+          },
+          "max_interactions": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "round_definition": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "task",
+          "workflow",
+          "steps",
+          "supported",
+          "max_interactions",
+          "round_definition"
+        ],
+        "additionalProperties": true
+      }
+    },
+    "tested_models": {
+      "type": "object",
+      "propertyNames": {
+        "enum": [
+          "medical",
+          "foundation"
+        ]
+      },
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "provider": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "model": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "revision": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "temperature": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "max_tokens": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 1
+          }
+        },
+        "required": [
+          "provider",
+          "model",
+          "revision",
+          "temperature",
+          "max_tokens"
+        ],
+        "additionalProperties": true
+      }
+    },
+    "pprs": {
+      "type": "object",
+      "properties": {
+        "provider": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "version": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "provider",
+        "version"
+      ],
+      "additionalProperties": true
+    },
+    "execution_spec_complete": {
+      "type": "boolean"
+    },
+    "required_before_execution": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "recording_requirements": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string",
+        "minLength": 1
+      }
+    }
+  },
+  "required": [
+    "schema_version",
+    "run_id",
+    "configuration_ids",
+    "configurations",
+    "protocol",
+    "execution_not_before",
+    "instruction_version",
+    "source_purpose",
+    "staff_policy",
+    "view_access",
+    "max_interactions",
+    "workflow_instructions",
+    "tested_models",
+    "pprs",
+    "execution_spec_complete",
+    "required_before_execution",
+    "recording_requirements"
+  ],
+  "additionalProperties": true
+}

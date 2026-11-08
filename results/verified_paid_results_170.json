@@ -1,0 +1,104 @@
+{
+  "scope": "descriptive analysis of verified paid linked encounters only",
+  "source_cases": 10,
+  "verified_paid": 170,
+  "groups": {
+    "copd": 35,
+    "type2_diabetes": 35,
+    "heart_failure": 33,
+    "pneumonia": 33,
+    "uti": 34
+  },
+  "task": {
+    "preconsult": {
+      "ai_nurse_review": {
+        "observed": 56,
+        "qualified": 56,
+        "unknown": 0,
+        "failed": 0,
+        "mean_modeled_minutes": 5.956845238095238,
+        "failed_checks": {}
+      },
+      "ai_only": {
+        "observed": 58,
+        "qualified": 58,
+        "unknown": 0,
+        "failed": 0,
+        "mean_modeled_minutes": 4.041666666666667,
+        "failed_checks": {}
+      },
+      "nurse_only": {
+        "observed": 56,
+        "qualified": 56,
+        "unknown": 0,
+        "failed": 0,
+        "mean_modeled_minutes": 6.208333333333333,
+        "failed_checks": {}
+      }
+    },
+    "documentation": {
+      "manual_documentation": {
+        "observed": 60,
+        "qualified": 60,
+        "unknown": 0,
+        "failed": 0,
+        "mean_modeled_minutes": 5.7444444444444445,
+        "failed_checks": {},
+        "saved_note_versions": 73,
+        "saved_physician_revisions": 13
+      },
+      "postvisit": {
+        "observed": 55,
+        "qualified": 55,
+        "unknown": 0,
+        "failed": 0,
+        "mean_modeled_minutes": 4.913636363636363,
+        "failed_checks": {},
+        "saved_note_versions": 69,
+        "saved_physician_revisions": 14
+      },
+      "realtime": {
+        "observed": 55,
+        "qualified": 55,
+        "unknown": 0,
+        "failed": 0,
+        "mean_modeled_minutes": 5.468181818181818,
+        "failed_checks": {},
+        "saved_note_versions": 127,
+        "saved_physician_revisions": 16
+      }
+    },
+    "prescription": {
+      "parallel": {
+        "observed": 58,
+        "first_decision": {
+          "approve": 49,
+          "defer": 9
+        }
+      },
+      "pprs_baseline": {
+        "observed": 56,
+        "first_decision": {
+          "approve": 48,
+          "defer": 7,
+          "reject": 1
+        }
+      },
+      "sequential": {
+        "observed": 56,
+        "first_decision": {
+          "approve": 44,
+          "defer": 12
+        }
+      }
+    }
+  },
+  "full_workflow": {
+    "correct_completion": 170,
+    "observed_unsafe_execution": 0,
+    "unsafe_execution_unknown": 0,
+    "absence_within_declared_scope_verified": 170,
+    "queue_to_payment_seconds_median": 386.12071602151264,
+    "queue_to_payment_seconds_p95": 539.837372755949
+  }
+}

@@ -1,0 +1,161 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://twinhospital.local/schemas/calibration.json",
+  "title": "经验校准分布",
+  "description": "calibrate返回，冻结前生成；真实样本支持数、未用anchor和来源隔离显式记录。",
+  "x-contract-status": "implemented-and-extensions",
+  "type": "object",
+  "properties": {
+    "schema_version": {
+      "const": "1"
+    },
+    "distributions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "task": {
+            "$ref": "common.json#/$defs/task"
+          },
+          "role": {
+            "$ref": "common.json#/$defs/role"
+          },
+          "activity_type": {
+            "type": "string",
+            "minLength": 1
+          },
+          "n_intervals": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "n_cases": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "n_source_groups": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "samples_seconds": {
+            "type": "array",
+            "items": {
+              "type": "number",
+              "minimum": 0
+            },
+            "minItems": 1
+          },
+          "mean_seconds": {
+            "type": "number",
+            "minimum": 0
+          },
+          "median_seconds": {
+            "type": "number",
+            "minimum": 0
+          },
+          "p05_seconds": {
+            "type": "number",
+            "minimum": 0
+          },
+          "p95_seconds": {
+            "type": "number",
+            "minimum": 0
+          },
+          "min_seconds": {
+            "type": "number",
+            "minimum": 0
+          },
+          "max_seconds": {
+            "type": "number",
+            "minimum": 0
+          },
+          "sample_sd_seconds": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 0
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "timing_sources": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        },
+        "required": [
+          "task",
+          "role",
+          "activity_type",
+          "n_intervals",
+          "n_cases",
+          "n_source_groups",
+          "samples_seconds",
+          "mean_seconds",
+          "median_seconds",
+          "p05_seconds",
+          "p95_seconds",
+          "min_seconds",
+          "max_seconds",
+          "sample_sd_seconds",
+          "timing_sources"
+        ],
+        "additionalProperties": true
+      },
+      "minItems": 0
+    },
+    "anchor_cases": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "test_cases": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "anchors_by_task": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "integer",
+        "minimum": 0
+      }
+    },
+    "unused_anchor_cases": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "missing_source_groups": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "isolation_verified": {
+      "type": "boolean"
+    },
+    "isolation_scope": {
+      "const": "supplied_catalog_only"
+    },
+    "research_eligible": {
+      "type": "boolean"
+    },
+    "calibration_inputs_sha256": {
+      "$ref": "common.json#/$defs/sha256"
+    }
+  },
+  "required": [
+    "schema_version",
+    "distributions",
+    "anchor_cases",
+    "test_cases",
+    "anchors_by_task",
+    "unused_anchor_cases",
+    "missing_source_groups",
+    "isolation_verified",
+    "isolation_scope",
+    "research_eligible",
+    "calibration_inputs_sha256"
+  ],
+  "additionalProperties": true
+}

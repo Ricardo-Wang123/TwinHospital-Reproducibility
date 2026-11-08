@@ -1,0 +1,183 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://twinhospital.local/schemas/prescription-summary.json",
+  "title": "处方评价汇总",
+  "description": "指标函数实际返回结构；空样本示例的null不是零。",
+  "x-contract-status": "implemented",
+  "type": "object",
+  "properties": {
+    "n_cases": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "duplicate_rows": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "counts": {
+      "type": "object",
+      "properties": {
+        "tp": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "fp": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "tn": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "fn": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "positive": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "negative": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "severe": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "severe_missed": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "missing_positive": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "missing_negative": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "missing_severe": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "approved": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "blocked": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "tp",
+        "fp",
+        "tn",
+        "fn",
+        "positive",
+        "negative",
+        "severe",
+        "severe_missed",
+        "missing_positive",
+        "missing_negative",
+        "missing_severe",
+        "approved",
+        "blocked"
+      ],
+      "additionalProperties": true
+    },
+    "failed_cases": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "missing_decisions": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "complete": {
+      "type": "boolean"
+    },
+    "pass_rate": {
+      "type": [
+        "number",
+        "null"
+      ]
+    },
+    "recall": {
+      "type": [
+        "number",
+        "null"
+      ]
+    },
+    "precision": {
+      "type": [
+        "number",
+        "null"
+      ]
+    },
+    "f1": {
+      "type": [
+        "number",
+        "null"
+      ]
+    },
+    "false_positive_rate": {
+      "type": [
+        "number",
+        "null"
+      ]
+    },
+    "severe_miss_rate": {
+      "type": [
+        "number",
+        "null"
+      ]
+    }
+  },
+  "required": [
+    "n_cases",
+    "duplicate_rows",
+    "counts",
+    "failed_cases",
+    "missing_decisions",
+    "complete",
+    "pass_rate",
+    "recall",
+    "precision",
+    "f1",
+    "false_positive_rate",
+    "severe_miss_rate"
+  ],
+  "additionalProperties": true,
+  "examples": [
+    {
+      "n_cases": 0,
+      "duplicate_rows": 0,
+      "counts": {
+        "tp": 0,
+        "fp": 0,
+        "tn": 0,
+        "fn": 0,
+        "positive": 0,
+        "negative": 0,
+        "severe": 0,
+        "severe_missed": 0,
+        "missing_positive": 0,
+        "missing_negative": 0,
+        "missing_severe": 0,
+        "approved": 0,
+        "blocked": 0
+      },
+      "failed_cases": 0,
+      "missing_decisions": 0,
+      "complete": true,
+      "pass_rate": null,
+      "recall": null,
+      "precision": null,
+      "f1": null,
+      "false_positive_rate": null,
+      "severe_miss_rate": null
+    }
+  ]
+}

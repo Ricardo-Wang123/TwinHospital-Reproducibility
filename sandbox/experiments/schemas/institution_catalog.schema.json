@@ -1,0 +1,553 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://twinhospital.local/schemas/institution_catalog.schema.json",
+  "title": "Versioned institution master-data projection for OpenHIS medication mapping",
+  "description": "Local structure and evidence links only; no proof of hospital identity or clinical suitability. IDs and decimal quantities stay strings. See docs/twinhospital-study-materials.md.",
+  "x-contract-status": "implemented",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "version",
+    "instance_id",
+    "source_kind",
+    "research_eligible",
+    "verification",
+    "dictionaries",
+    "native_mapping"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "1"
+    },
+    "version": {
+      "$ref": "#/$defs/text"
+    },
+    "instance_id": {
+      "$ref": "#/$defs/text"
+    },
+    "source_kind": {
+      "enum": [
+        "engineering_example",
+        "hospital_observed"
+      ]
+    },
+    "research_eligible": {
+      "type": "boolean"
+    },
+    "verification": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "verification_id",
+        "verification_status",
+        "reviewers",
+        "verified_at",
+        "content_sha256",
+        "source_artifacts"
+      ],
+      "properties": {
+        "verification_id": {
+          "$ref": "#/$defs/text"
+        },
+        "verification_status": {
+          "enum": [
+            "accepted",
+            "rejected",
+            "pending_adjudication"
+          ]
+        },
+        "reviewers": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/text"
+          }
+        },
+        "verified_at": {
+          "$ref": "common.json#/$defs/timestamp"
+        },
+        "content_sha256": {
+          "$ref": "common.json#/$defs/sha256"
+        },
+        "source_artifacts": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "path",
+              "sha256"
+            ],
+            "properties": {
+              "path": {
+                "$ref": "common.json#/$defs/relativePath"
+              },
+              "sha256": {
+                "$ref": "common.json#/$defs/sha256"
+              }
+            }
+          }
+        }
+      }
+    },
+    "dictionaries": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "drugs",
+        "diagnoses",
+        "departments",
+        "fees",
+        "units",
+        "inventory"
+      ],
+      "properties": {
+        "drugs": {
+          "type": "object",
+          "minProperties": 1,
+          "propertyNames": {
+            "$ref": "#/$defs/text"
+          },
+          "additionalProperties": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "native_id",
+              "name",
+              "pharmacology_category_code",
+              "category_code",
+              "skin_test_flag",
+              "inject_flag",
+              "dose_units",
+              "routes",
+              "frequencies"
+            ],
+            "properties": {
+              "native_id": {
+                "$ref": "#/$defs/nativeId"
+              },
+              "name": {
+                "$ref": "#/$defs/text"
+              },
+              "pharmacology_category_code": {
+                "$ref": "#/$defs/text"
+              },
+              "category_code": {
+                "$ref": "#/$defs/text"
+              },
+              "skin_test_flag": {
+                "type": "integer",
+                "enum": [
+                  0,
+                  1
+                ]
+              },
+              "inject_flag": {
+                "type": "integer",
+                "enum": [
+                  0,
+                  1
+                ]
+              },
+              "dose_units": {
+                "$ref": "#/$defs/codeMap"
+              },
+              "routes": {
+                "$ref": "#/$defs/codeMap"
+              },
+              "frequencies": {
+                "$ref": "#/$defs/codeMap"
+              }
+            }
+          }
+        },
+        "diagnoses": {
+          "$ref": "#/$defs/namedDictionary"
+        },
+        "departments": {
+          "$ref": "#/$defs/namedDictionary"
+        },
+        "fees": {
+          "type": "object",
+          "minProperties": 1,
+          "propertyNames": {
+            "$ref": "#/$defs/nativeId"
+          },
+          "additionalProperties": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "drug_code",
+              "quantity_units"
+            ],
+            "properties": {
+              "drug_code": {
+                "$ref": "#/$defs/text"
+              },
+              "quantity_units": {
+                "$ref": "#/$defs/quantityUnits"
+              }
+            }
+          }
+        },
+        "units": {
+          "type": "object",
+          "minProperties": 1,
+          "propertyNames": {
+            "$ref": "#/$defs/text"
+          },
+          "additionalProperties": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "name"
+            ],
+            "properties": {
+              "name": {
+                "$ref": "#/$defs/text"
+              }
+            }
+          }
+        },
+        "inventory": {
+          "type": "object",
+          "minProperties": 1,
+          "propertyNames": {
+            "$ref": "#/$defs/nativeId"
+          },
+          "additionalProperties": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "drug_code",
+              "fee_id",
+              "location_id",
+              "lot_number"
+            ],
+            "properties": {
+              "drug_code": {
+                "$ref": "#/$defs/text"
+              },
+              "fee_id": {
+                "$ref": "#/$defs/nativeId"
+              },
+              "location_id": {
+                "$ref": "#/$defs/nativeId"
+              },
+              "lot_number": {
+                "$ref": "#/$defs/text"
+              }
+            }
+          }
+        }
+      }
+    },
+    "native_mapping": {
+      "$ref": "#/$defs/nativeMapping"
+    }
+  },
+  "$defs": {
+    "text": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "\\S"
+    },
+    "nativeId": {
+      "type": "string",
+      "pattern": "^[1-9][0-9]{0,18}$",
+      "description": "Runtime also checks signed int64 maximum; preserve IDs as strings."
+    },
+    "decimal": {
+      "type": "string",
+      "pattern": "^(?!0(?:\\.0{1,6})?$)(0|[1-9][0-9]*)(\\.[0-9]{1,6})?$",
+      "description": "Positive decimal with native six-place precision; no clinical threshold."
+    },
+    "codeMap": {
+      "type": "object",
+      "minProperties": 1,
+      "propertyNames": {
+        "$ref": "#/$defs/text"
+      },
+      "additionalProperties": {
+        "$ref": "#/$defs/text"
+      }
+    },
+    "quantityUnits": {
+      "type": "object",
+      "minProperties": 1,
+      "propertyNames": {
+        "$ref": "#/$defs/text"
+      },
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "code",
+          "min_units",
+          "unit_price"
+        ],
+        "properties": {
+          "code": {
+            "$ref": "#/$defs/text"
+          },
+          "min_units": {
+            "$ref": "#/$defs/decimal"
+          },
+          "unit_price": {
+            "$ref": "#/$defs/decimal"
+          }
+        }
+      }
+    },
+    "namedDictionary": {
+      "type": "object",
+      "minProperties": 1,
+      "propertyNames": {
+        "$ref": "#/$defs/text"
+      },
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "native_id",
+          "name"
+        ],
+        "properties": {
+          "native_id": {
+            "$ref": "#/$defs/nativeId"
+          },
+          "name": {
+            "$ref": "#/$defs/text"
+          }
+        }
+      }
+    },
+    "drugMapping": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "native",
+        "dose_units",
+        "routes",
+        "frequencies",
+        "quantity_units"
+      ],
+      "properties": {
+        "native": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "adviceDefinitionId",
+            "adviceTableName",
+            "definitionId",
+            "definitionDetailId",
+            "locationId",
+            "lotNumber",
+            "pharmacologyCategoryCode",
+            "categoryCode",
+            "skinTestFlag",
+            "injectFlag"
+          ],
+          "properties": {
+            "adviceDefinitionId": {
+              "$ref": "#/$defs/nativeId"
+            },
+            "adviceTableName": {
+              "const": "med_medication_definition"
+            },
+            "definitionId": {
+              "$ref": "#/$defs/nativeId"
+            },
+            "definitionDetailId": {
+              "$ref": "#/$defs/nativeId"
+            },
+            "locationId": {
+              "$ref": "#/$defs/nativeId"
+            },
+            "lotNumber": {
+              "$ref": "#/$defs/text"
+            },
+            "pharmacologyCategoryCode": {
+              "$ref": "#/$defs/text"
+            },
+            "categoryCode": {
+              "$ref": "#/$defs/text"
+            },
+            "skinTestFlag": {
+              "type": "integer",
+              "enum": [
+                0,
+                1
+              ]
+            },
+            "injectFlag": {
+              "type": "integer",
+              "enum": [
+                0,
+                1
+              ]
+            }
+          }
+        },
+        "dose_units": {
+          "$ref": "#/$defs/codeMap"
+        },
+        "routes": {
+          "$ref": "#/$defs/codeMap"
+        },
+        "frequencies": {
+          "$ref": "#/$defs/codeMap"
+        },
+        "quantity_units": {
+          "$ref": "#/$defs/quantityUnits"
+        }
+      }
+    },
+    "nativeMapping": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "drugs"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": "1"
+        },
+        "drugs": {
+          "type": "object",
+          "minProperties": 1,
+          "propertyNames": {
+            "$ref": "#/$defs/text"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/drugMapping"
+          }
+        }
+      }
+    }
+  },
+  "examples": [
+    {
+      "schema_version": "1",
+      "version": "engineering-example-1",
+      "instance_id": "example-instance",
+      "source_kind": "engineering_example",
+      "research_eligible": false,
+      "dictionaries": {
+        "drugs": {
+          "TEST-A": {
+            "native_id": "101",
+            "name": "Test drug",
+            "pharmacology_category_code": "P1",
+            "category_code": "C1",
+            "skin_test_flag": 0,
+            "inject_flag": 0,
+            "dose_units": {
+              "mg": "U-MG"
+            },
+            "routes": {
+              "oral": "R-ORAL"
+            },
+            "frequencies": {
+              "daily": "F-DAILY"
+            }
+          }
+        },
+        "diagnoses": {
+          "TEST-DX": {
+            "native_id": "501",
+            "name": "Test diagnosis"
+          }
+        },
+        "departments": {
+          "TEST-DEPT": {
+            "native_id": "601",
+            "name": "Test department"
+          }
+        },
+        "fees": {
+          "201": {
+            "drug_code": "TEST-A",
+            "quantity_units": {
+              "tablet": {
+                "code": "U-TABLET",
+                "min_units": "1",
+                "unit_price": "2.50"
+              }
+            }
+          }
+        },
+        "units": {
+          "U-MG": {
+            "name": "Test milligram"
+          },
+          "U-TABLET": {
+            "name": "Test tablet"
+          }
+        },
+        "inventory": {
+          "301": {
+            "drug_code": "TEST-A",
+            "fee_id": "201",
+            "location_id": "401",
+            "lot_number": "TEST-LOT"
+          }
+        }
+      },
+      "native_mapping": {
+        "schema_version": "1",
+        "drugs": {
+          "TEST-A": {
+            "native": {
+              "adviceDefinitionId": "101",
+              "adviceTableName": "med_medication_definition",
+              "definitionId": "201",
+              "definitionDetailId": "301",
+              "locationId": "401",
+              "lotNumber": "TEST-LOT",
+              "pharmacologyCategoryCode": "P1",
+              "categoryCode": "C1",
+              "skinTestFlag": 0,
+              "injectFlag": 0
+            },
+            "dose_units": {
+              "mg": "U-MG"
+            },
+            "routes": {
+              "oral": "R-ORAL"
+            },
+            "frequencies": {
+              "daily": "F-DAILY"
+            },
+            "quantity_units": {
+              "tablet": {
+                "code": "U-TABLET",
+                "min_units": "1",
+                "unit_price": "2.50"
+              }
+            }
+          }
+        }
+      },
+      "verification": {
+        "verification_id": "engineering-example-review",
+        "verification_status": "pending_adjudication",
+        "reviewers": [
+          "example-operator"
+        ],
+        "verified_at": "2026-09-19T10:00:00+08:00",
+        "content_sha256": "6182365b017b07df4c55b0edb7b27fae8b69d0e8c9097c7b118dc438009d533d",
+        "source_artifacts": [
+          {
+            "path": "institution-source.example.json",
+            "sha256": "73384d2ba3bc0f97a5b9bc3884a2f6286e50862a11e404b45683005e7ea821a4"
+          }
+        ]
+      }
+    }
+  ]
+}

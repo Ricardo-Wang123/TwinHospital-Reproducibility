@@ -1,0 +1,20 @@
+{
+  "mode": "recover",
+  "batch": "factorial10_resume_v1",
+  "manifest": "/absolute/path/to/authorized/frozen/manifest.json",
+  "provider_config": "/absolute/path/to/authorized/provider.local.json",
+  "key_file": "api.key",
+  "deploy": "/absolute/path/to/original/isolated/openhis/deployment",
+  "catalog": "/absolute/path/to/frozen/catalog_mapping_v6.json",
+  "diagnosis_catalog": "/absolute/path/to/frozen/diagnosis_mapping_v3.json",
+  "clinical_catalogue": "/absolute/path/to/frozen/catalogue_metadata_v5.json",
+  "workflow_policy": "/absolute/path/to/frozen/workflow_policy.json",
+  "recovery_plan": "/absolute/path/to/private/recovery_plan.json",
+  "batches": "/absolute/path/to/private/batches",
+  "model_evidence": "/absolute/path/to/private/recovery_model_calls",
+  "ledger": "/absolute/path/to/original/provider_budget.sqlite",
+  "workers": 20,
+  "patients_per_disease": 2,
+  "acceptance_attempts": 3,
+  "uncapped": true
+}

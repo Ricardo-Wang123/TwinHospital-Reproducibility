@@ -1,0 +1,89 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://twinhospital.local/schemas/subjective.json",
+  "title": "主观问卷CSV原始行",
+  "description": "demo-2当前workflow=existing/human_ai，与subjective_metrics一致；旧demo-1 baseline必须显式适配。",
+  "x-contract-status": "implemented-and-extensions",
+  "type": "object",
+  "properties": {
+    "participant_id": {
+      "$ref": "common.json#/$defs/longIdString"
+    },
+    "participant_group": {
+      "enum": [
+        "patient",
+        "clinician"
+      ]
+    },
+    "workflow": {
+      "enum": [
+        "existing",
+        "human_ai"
+      ]
+    },
+    "sequence": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "dimension": {
+      "type": "string",
+      "minLength": 1
+    },
+    "score": {
+      "anyOf": [
+        {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 5
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "source_kind": {
+      "$ref": "common.json#/$defs/sourceKind"
+    },
+    "session_id": {
+      "$ref": "common.json#/$defs/longIdString"
+    },
+    "item_id": {
+      "$ref": "common.json#/$defs/longIdString"
+    },
+    "valid": {
+      "type": "boolean"
+    },
+    "missing_reason": {
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 1
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  },
+  "required": [
+    "participant_id",
+    "participant_group",
+    "workflow",
+    "sequence",
+    "dimension",
+    "score",
+    "source_kind"
+  ],
+  "additionalProperties": true,
+  "examples": [
+    {
+      "participant_id": "patient-demo",
+      "participant_group": "patient",
+      "workflow": "existing",
+      "sequence": 1,
+      "dimension": "usability",
+      "score": 3,
+      "source_kind": "engineering_example"
+    }
+  ]
+}

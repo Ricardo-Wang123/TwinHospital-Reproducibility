@@ -1,0 +1,7 @@
+# Current HTTP experiments; use this project's .venv interpreter.
+# The optional legacy CAMEL runner uses requirements.txt separately.
+python-dotenv==1.2.1
+PyYAML==6.0.3
+requests==2.32.5
+json-repair==0.57.1
+jsonschema==4.26.0

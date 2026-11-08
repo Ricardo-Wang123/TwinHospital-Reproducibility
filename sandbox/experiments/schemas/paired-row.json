@@ -1,0 +1,114 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://twinhospital.local/schemas/paired-row.json",
+  "title": "虚实同病例配置指标行",
+  "description": "每task内case×配置×环境唯一，metric有限数字或null；无sourcegroup可回退case但须报告，正式研究应禁止回退。 APP II直接使用qualified与*_active_seconds作为充分统计量；compare每次重新计算总秒数/Nq。不要提供逐病例比率代替它们。",
+  "x-contract-status": "implemented-and-extensions",
+  "type": "object",
+  "properties": {
+    "case_id": {
+      "$ref": "common.json#/$defs/longIdString"
+    },
+    "source_group_id": {
+      "$ref": "common.json#/$defs/longIdString"
+    },
+    "task": {
+      "$ref": "common.json#/$defs/task"
+    },
+    "config_id": {
+      "$ref": "common.json#/$defs/longIdString"
+    },
+    "environment": {
+      "$ref": "common.json#/$defs/environment"
+    },
+    "metrics": {
+      "allOf": [
+        {
+          "$ref": "common.json#/$defs/metricMap"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "qualified": {
+              "enum": [
+                0,
+                1,
+                null
+              ]
+            },
+            "human_active_seconds": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "minimum": 0
+            },
+            "physician_active_seconds": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "minimum": 0
+            },
+            "nurse_active_seconds": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "minimum": 0
+            },
+            "scribe_active_seconds": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "minimum": 0
+            },
+            "first_pass_correct": {
+              "enum": [
+                0,
+                1,
+                null
+              ]
+            },
+            "first_pass_completed": {
+              "enum": [
+                0,
+                1,
+                null
+              ]
+            },
+            "first_draft_accepted": {
+              "enum": [
+                0,
+                1,
+                null
+              ]
+            }
+          }
+        }
+      ]
+    }
+  },
+  "required": [
+    "case_id",
+    "task",
+    "config_id",
+    "environment",
+    "metrics"
+  ],
+  "additionalProperties": true,
+  "examples": [
+    {
+      "case_id": "demo-001",
+      "source_group_id": "demo-source-1",
+      "task": "preconsult",
+      "config_id": "preconsult:nurse_only",
+      "environment": "hospital",
+      "metrics": {
+        "qualified": null,
+        "human_active_seconds": null
+      }
+    }
+  ]
+}

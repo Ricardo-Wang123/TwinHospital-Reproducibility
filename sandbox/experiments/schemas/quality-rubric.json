@@ -1,0 +1,171 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://twinhospital.local/schemas/quality-rubric.json",
+  "title": "独立评价合格规则",
+  "description": "新增evaluate规则：逐任务必需条目、严重错误条目和计数阈值都须明确；不存在任何默认临床合格阈值。列表可使用$reference引用每病例reference.required_items。",
+  "x-contract-status": "implemented-and-extensions",
+  "type": "object",
+  "properties": {
+    "version": {
+      "type": "string",
+      "minLength": 1
+    },
+    "tasks": {
+      "type": "object",
+      "properties": {
+        "preconsult": {
+          "type": "object",
+          "properties": {
+            "required_items": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              },
+              "minItems": 1
+            },
+            "severe_errors": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              },
+              "minItems": 0
+            },
+            "max_incorrect_items": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "max_unsupported_items": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "max_omitted_items": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "stages": {
+              "type": "object",
+              "properties": {
+                "first_handoff": {
+                  "$ref": "#/$defs/stageRule"
+                }
+              },
+              "additionalProperties": false,
+              "description": "早期版本单独冻结同样五个必填规则；不继承最终稿阈值。realtime首稿只评价当时已开放前缀。"
+            }
+          },
+          "required": [
+            "required_items",
+            "severe_errors",
+            "max_incorrect_items",
+            "max_unsupported_items",
+            "max_omitted_items"
+          ],
+          "additionalProperties": true
+        },
+        "documentation": {
+          "type": "object",
+          "properties": {
+            "required_items": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              },
+              "minItems": 1
+            },
+            "severe_errors": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              },
+              "minItems": 0
+            },
+            "max_incorrect_items": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "max_unsupported_items": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "max_omitted_items": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "stages": {
+              "type": "object",
+              "properties": {
+                "first_draft": {
+                  "$ref": "#/$defs/stageRule"
+                }
+              },
+              "additionalProperties": false,
+              "description": "早期版本单独冻结同样五个必填规则；不继承最终稿阈值。realtime首稿只评价当时已开放前缀。"
+            }
+          },
+          "required": [
+            "required_items",
+            "severe_errors",
+            "max_incorrect_items",
+            "max_unsupported_items",
+            "max_omitted_items"
+          ],
+          "additionalProperties": true
+        }
+      },
+      "required": [],
+      "additionalProperties": true
+    }
+  },
+  "required": [
+    "version",
+    "tasks"
+  ],
+  "additionalProperties": true,
+  "$defs": {
+    "stageRule": {
+      "type": "object",
+      "properties": {
+        "required_items": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "minItems": 1
+        },
+        "severe_errors": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "minItems": 0
+        },
+        "max_incorrect_items": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "max_unsupported_items": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "max_omitted_items": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "required_items",
+        "severe_errors",
+        "max_incorrect_items",
+        "max_unsupported_items",
+        "max_omitted_items"
+      ],
+      "additionalProperties": true
+    }
+  }
+}

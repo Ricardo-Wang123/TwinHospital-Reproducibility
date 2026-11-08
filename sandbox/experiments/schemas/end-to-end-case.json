@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://twinhospital.local/schemas/end-to-end-case.json",
+  "title": "完整正常流程输入",
+  "description": "独立1000正常输入，并发运行完整流程；与局部1000测试分别报告。",
+  "x-contract-status": "implemented-and-extensions",
+  "type": "object",
+  "properties": {
+    "case_id": {
+      "$ref": "common.json#/$defs/longIdString"
+    },
+    "source_kind": {
+      "$ref": "common.json#/$defs/sourceKind"
+    },
+    "input": {
+      "$ref": "common.json#/$defs/input"
+    }
+  },
+  "required": [
+    "case_id",
+    "source_kind",
+    "input"
+  ],
+  "additionalProperties": true,
+  "examples": [
+    {
+      "case_id": "demo-e2e-1",
+      "source_kind": "engineering_example",
+      "input": {
+        "initial_visible_facts": [],
+        "patient_known_facts": [],
+        "native_refs": {}
+      }
+    }
+  ]
+}

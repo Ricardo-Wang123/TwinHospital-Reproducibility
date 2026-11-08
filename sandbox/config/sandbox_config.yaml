@@ -1,0 +1,86 @@
+# All relative paths are based on the MedicalAgent repository root.
+# Optional overrides: sandbox_config.local.yaml (ignored by Git).
+experiment:
+  name: hospital_simulation
+  description: 医院流程模拟实验
+
+model:
+  model_type: "${MODEL_TYPE:-gpt-4.1-mini}"
+  api_key: "${API_KEY}"
+  api_url: "${MODEL_BASE_URL:-https://api.shubiaobiao.cn/v1}"
+  temperature: 0.2
+  max_tokens: 2000
+# Optional per-role overrides inherit model: doctor / nurse / patient / evaluation.
+models: {}
+
+paths:
+  doctor_profiles: data/profiles/doctor_profile
+  patient_profiles: sandbox/data/patients
+  openhis_persist_dir: data/openhis
+  records_save_dir: data/records
+  output: output
+
+resources:
+  num_patients: 1
+  num_doctors: 2
+  num_nurses: 2
+
+# Clock loop: triage -> consultation; evaluation runs after the queues finish.
+pipeline:
+  execution_mode: serial
+  stop_on_error: true
+  max_clocks: 100
+  stages:
+    triage:
+      enabled: true
+      mode: ai  # ai / no_ai
+      max_rounds: 10
+    consultation:
+      enabled: true
+      max_rounds: 10
+    evaluation:
+      enabled: false
+
+# Implemented tool groups only.
+tools:
+  emr:
+    enabled: true
+  exam:
+    enabled: true
+  pharmacy:
+    enabled: true
+ablation:
+  disabled_tools: []
+
+openhis_integration:
+  enabled: true
+  api_url: "${OPENHIS_API_URL:-http://localhost:18080/openhis}"
+  username: "${OPENHIS_USERNAME:-admin}"
+  password: "${OPENHIS_PASSWORD:-admin123}"
+  tenant_id: "${OPENHIS_TENANT_ID:-1}"
+  timeout: 15
+  dry_run: false
+  fail_on_error: true
+  fallback_to_local: false
+  fail_on_init_error: true
+  phases:
+    reset: false  # Explicit opt-in: deletes existing OpenHIS patients/doctors.
+    init: true
+    triage_to_registration: true
+    consultation_to_emr: true
+  department_rebuild:
+    enabled: false
+    organization_config: sandbox/config/organization.yaml
+    delete_existing: false
+    dry_run: true
+
+export:
+  medical_record_pdf:
+    enabled: true
+    output_dir: output/medical_record_pdfs
+    separate_experiment_dir: true
+    institution_name: 医疗机构名称
+    title: 初诊病历记录
+    font_path: ""
+    bold_font_path: ""
+    fail_on_error: false

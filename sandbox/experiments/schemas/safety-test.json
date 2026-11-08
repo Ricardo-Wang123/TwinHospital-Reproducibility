@@ -1,0 +1,57 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://twinhospital.local/schemas/safety-test.json",
+  "title": "局部单故障测试计划",
+  "description": "五类各40错误+160对照。is_error只供注入器/评价使用，不得提供Agent。重复支付属于同交易重放例外。",
+  "x-contract-status": "implemented-and-extensions",
+  "type": "object",
+  "properties": {
+    "test_id": {
+      "$ref": "common.json#/$defs/longIdString"
+    },
+    "category": {
+      "$ref": "common.json#/$defs/safetyCategory"
+    },
+    "is_error": {
+      "type": "boolean"
+    },
+    "source_kind": {
+      "$ref": "common.json#/$defs/sourceKind"
+    },
+    "observation_window_s": {
+      "type": "number",
+      "minimum": 0
+    },
+    "mutation_kind": {
+      "enum": [
+        "single_factor",
+        "replay"
+      ]
+    },
+    "native_refs": {
+      "$ref": "common.json#/$defs/nativeRefs"
+    },
+    "other_native_refs": {
+      "$ref": "common.json#/$defs/nativeRefs"
+    }
+  },
+  "required": [
+    "test_id",
+    "category",
+    "is_error",
+    "source_kind",
+    "observation_window_s",
+    "mutation_kind"
+  ],
+  "additionalProperties": true,
+  "examples": [
+    {
+      "test_id": "demo-duplicate-1",
+      "category": "duplicate_payment",
+      "is_error": true,
+      "source_kind": "engineering_example",
+      "observation_window_s": 30,
+      "mutation_kind": "replay"
+    }
+  ]
+}

@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://twinhospital.local/schemas/human-activity.json",
+  "title": "人工活动CSV规范化行",
+  "description": "CSV输入须先将active_seconds等数字列显式转换。doctor统计规范为physician。所有病例活动包含失败病例，子活动用included_in_activity_id防双计。",
+  "x-contract-status": "implemented-and-extensions",
+  "$ref": "common.json#/$defs/activity",
+  "examples": [
+    {
+      "case_id": "demo-001",
+      "activity_id": "demo-a1",
+      "role": "doctor",
+      "activity_type": "review",
+      "active_seconds": 60,
+      "timing_source": "scripted"
+    }
+  ]
+}

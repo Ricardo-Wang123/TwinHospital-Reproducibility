@@ -1,0 +1,6 @@
+# 当前交付的APP I/II小型验收入口；无HIS连接、无真实模型调用。
+purpose: engineering_demo
+his_backend: in_memory
+dataset: fixtures/twinhospital/demo
+output: output/twinhospital-clinical-demo
+suites: [clinical]

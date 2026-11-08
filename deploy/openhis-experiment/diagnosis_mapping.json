@@ -1,0 +1,37 @@
+{
+  "E11.9": {
+    "conditionDefinitionId": "8700000000000500001",
+    "code": "E11.9",
+    "display": "2型糖尿病，不伴有并发症",
+    "system": "ICD-10",
+    "provenance": "local_experimental_terminology_entry"
+  },
+  "I50.9": {
+    "conditionDefinitionId": "8700000000000500002",
+    "code": "I50.9",
+    "display": "心力衰竭，未特指",
+    "system": "ICD-10",
+    "provenance": "local_experimental_terminology_entry"
+  },
+  "J44.9": {
+    "conditionDefinitionId": "8700000000000500003",
+    "code": "J44.9",
+    "display": "慢性阻塞性肺病，未特指",
+    "system": "ICD-10",
+    "provenance": "local_experimental_terminology_entry"
+  },
+  "J18.9": {
+    "conditionDefinitionId": "8700000000000500004",
+    "code": "J18.9",
+    "display": "肺炎，病原体未特指",
+    "system": "ICD-10",
+    "provenance": "local_experimental_terminology_entry"
+  },
+  "N39.0": {
+    "conditionDefinitionId": "8700000000000500005",
+    "code": "N39.0",
+    "display": "泌尿道感染，部位未特指",
+    "system": "ICD-10",
+    "provenance": "local_experimental_terminology_entry"
+  }
+}

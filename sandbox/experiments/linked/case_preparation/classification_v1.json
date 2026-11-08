@@ -1,0 +1,409 @@
+{
+  "version": "twinhospital.four-system-taxonomy/20261107-v1",
+  "verified_on": "2026-11-07",
+  "purpose": "只追加历史来源分层、药物分类和审计说明，不改变已冻结病例或实验组",
+  "authority": {
+    "disease_hierarchy": "ICD-10-CM chapter hierarchy, based on WHO ICD-10",
+    "hierarchy_edition": "FY2027 (effective 2026-10-01)",
+    "source_codes": "MIMIC-IV 2.2原始icd_version、icd_code及d_icd_diagnoses释义保留；不将历史代码替换为FY2027代码",
+    "drug_hierarchy": "WHO Collaborating Centre ATC/DDD Index 2026",
+    "product_identity": "TH-CATALOGUE-2.0保留成分、盐/碱强度、剂型、途径；已查DailyMed来源；RxCUI尚未核验"
+  },
+  "disease_systems": {
+    "endocrine_metabolic": {
+      "label_zh": "内分泌、营养和代谢疾病",
+      "icd10cm_chapter": 4,
+      "icd10cm_range": "E00-E89",
+      "source_subtypes": [
+        "type2_diabetes"
+      ]
+    },
+    "circulatory": {
+      "label_zh": "循环系统疾病",
+      "icd10cm_chapter": 9,
+      "icd10cm_range": "I00-I99",
+      "source_subtypes": [
+        "heart_failure"
+      ]
+    },
+    "respiratory": {
+      "label_zh": "呼吸系统疾病",
+      "icd10cm_chapter": 10,
+      "icd10cm_range": "J00-J99",
+      "source_subtypes": [
+        "copd",
+        "pneumonia"
+      ]
+    },
+    "genitourinary": {
+      "label_zh": "泌尿生殖系统疾病",
+      "icd10cm_chapter": 14,
+      "icd10cm_range": "N00-N99",
+      "source_subtypes": [
+        "uti"
+      ]
+    }
+  },
+  "source_subtypes": {
+    "type2_diabetes": {
+      "label_zh": "二型糖尿病",
+      "system": "endocrine_metabolic",
+      "frozen_selection": {
+        "10_prefix": [
+          "E11"
+        ]
+      },
+      "scope_note": "只纳入ICD-10的E11族，不含ICD-9的250族；细码及并发症仍完整保留。"
+    },
+    "heart_failure": {
+      "label_zh": "心力衰竭",
+      "system": "circulatory",
+      "frozen_selection": {
+        "9_prefix": [
+          "428"
+        ],
+        "10_prefix": [
+          "I50"
+        ]
+      },
+      "scope_note": "覆盖428/I50族，不把所有心血管疾病或高血压并心衰都自动纳入。"
+    },
+    "copd": {
+      "label_zh": "慢性阻塞性肺疾病",
+      "system": "respiratory",
+      "frozen_selection": {
+        "10_prefix": [
+          "J44"
+        ]
+      },
+      "scope_note": "只纳入ICD-10 J44族；未扩充ICD-9 COPD或哮喘。"
+    },
+    "pneumonia": {
+      "label_zh": "肺炎（当前选病原体未指明）",
+      "system": "respiratory",
+      "frozen_selection": {
+        "9_exact": [
+          "486"
+        ],
+        "10_exact": [
+          "J189"
+        ]
+      },
+      "scope_note": "仅486/J18.9，不代表全体肺炎；不得从此码推断病原体或抗菌药适用性。"
+    },
+    "uti": {
+      "label_zh": "尿路感染（当前选部位未指明）",
+      "system": "genitourinary",
+      "frozen_selection": {
+        "9_exact": [
+          "5990"
+        ],
+        "10_exact": [
+          "N390"
+        ]
+      },
+      "scope_note": "仅599.0/N39.0，不等同已确认膀胱炎、肾盂肾炎或所有泌尿病；不能从此码推断感染部位。"
+    }
+  },
+  "source_assignment": {
+    "frozen_source_protocol": "five-group-historical-seed/20261107-v1",
+    "diagnosis_sequence": 1,
+    "sequence_interpretation": "source discharge billing priority; not a validated causal principal diagnosis or new outpatient diagnosis",
+    "normalization": "ICD代码保留字符串，仅去点号并转大写；版本9与10不可混用",
+    "patient_split": "100development + 400test per subtype; all source patient derivatives remain in one partition",
+    "multiple_conditions": "主要抽样分层只有一个，保留所有历史共病和精确子码；患者本身不被当作只有一种疾病",
+    "new_outpatient_diagnosis": "由实际新问诊产生，不由本侧车赋值"
+  },
+  "cross_chapter_policy": {
+    "selected_codes": "J18.9/486归呼吸，N39.0/599.0归泌尿生殖；本侧车只匹配已冻结五病种代码范围",
+    "infections": "器官部位与病原体是不同维度；其他病原特异码、A/B章感染、U码、产科或围产期编码等不得凭名称自动并入当前两种感染亚组",
+    "etiology_tags": "B95-B97等可为附加病原码，不能因此把整名患者改分为感染科；必须保留源序号及完整编码组合",
+    "legacy_diabetes": "ICD-9 250.x0/x2 含二型或未指明类型；x1/x3为一型。本版未纳入ICD-9糖尿病。若扩样须预先定义明确二型证据与不确定组，不能把250全族直接并入E11。",
+    "no_crosswalk_claim": "分层是研究口径映射，不声称不同ICD版本逐码等价。"
+  },
+  "medication_classification": {
+    "catalogue_version": "TH-CATALOGUE-2.0",
+    "scope": "14种共同门诊候选产品；不意味着全部MIMIC药已映射，IV/fault-only扩展不在本表",
+    "bindings": [
+      {
+        "catalogue_code": "SIM-METFORMIN-500",
+        "atc_substance_name": "metformin",
+        "display_zh": "二甲双胍",
+        "atc_code": "A10BA02",
+        "class_code": "A10BA",
+        "class_zh": "双胍类",
+        "route_scope": "oral",
+        "reference_url": "https://atcddd.fhi.no/atc_ddd_index/?code=A10BA02",
+        "index_updated": "2026-01-20",
+        "verification_scope": "ATC substance and class identity, not indication, regimen or patient suitability",
+        "rxnorm_id": null
+      },
+      {
+        "catalogue_code": "SIM-EMPAGLIFLOZIN-10",
+        "atc_substance_name": "empagliflozin",
+        "display_zh": "恩格列净",
+        "atc_code": "A10BK03",
+        "class_code": "A10BK",
+        "class_zh": "SGLT2抑制剂",
+        "route_scope": "oral",
+        "reference_url": "https://atcddd.fhi.no/atc_ddd_index/?code=A10BK03",
+        "index_updated": "2026-01-20",
+        "verification_scope": "ATC substance and class identity, not indication, regimen or patient suitability",
+        "rxnorm_id": null
+      },
+      {
+        "catalogue_code": "SIM-FUROSEMIDE-20",
+        "atc_substance_name": "furosemide",
+        "display_zh": "呋塞米",
+        "atc_code": "C03CA01",
+        "class_code": "C03C",
+        "class_zh": "袢利尿剂",
+        "route_scope": "oral",
+        "reference_url": "https://atcddd.fhi.no/atc_ddd_index/?code=C03CA01",
+        "index_updated": "2026-01-20",
+        "verification_scope": "ATC substance and class identity, not indication, regimen or patient suitability",
+        "rxnorm_id": null
+      },
+      {
+        "catalogue_code": "SIM-SPIRONOLACTONE-25",
+        "atc_substance_name": "spironolactone",
+        "display_zh": "螺内酯",
+        "atc_code": "C03DA01",
+        "class_code": "C03DA",
+        "class_zh": "醛固酮拮抗剂",
+        "route_scope": "oral",
+        "reference_url": "https://atcddd.fhi.no/atc_ddd_index/?code=C03DA01",
+        "index_updated": "2026-01-20",
+        "verification_scope": "ATC substance and class identity, not indication, regimen or patient suitability",
+        "rxnorm_id": null
+      },
+      {
+        "catalogue_code": "SIM-LISINOPRIL-10",
+        "atc_substance_name": "lisinopril",
+        "display_zh": "赖诺普利",
+        "atc_code": "C09AA03",
+        "class_code": "C09AA",
+        "class_zh": "ACE抑制剂",
+        "route_scope": "oral",
+        "reference_url": "https://atcddd.fhi.no/atc_ddd_index/?code=C09AA03",
+        "index_updated": "2026-01-20",
+        "verification_scope": "ATC substance and class identity, not indication, regimen or patient suitability",
+        "rxnorm_id": null
+      },
+      {
+        "catalogue_code": "SIM-ALBUTEROL-90",
+        "atc_substance_name": "salbutamol",
+        "display_zh": "沙丁胺醇 / albuterol",
+        "atc_code": "R03AC02",
+        "class_code": "R03AC",
+        "class_zh": "吸入选择性β2受体激动剂",
+        "route_scope": "inhaled",
+        "reference_url": "https://atcddd.fhi.no/atc_ddd_index/?code=R03AC02",
+        "index_updated": "2026-01-20",
+        "verification_scope": "ATC substance and class identity, not indication, regimen or patient suitability",
+        "rxnorm_id": null
+      },
+      {
+        "catalogue_code": "SIM-TIOTROPIUM-18",
+        "atc_substance_name": "tiotropium bromide",
+        "display_zh": "噻托溴铵",
+        "atc_code": "R03BB04",
+        "class_code": "R03BB",
+        "class_zh": "吸入抗胆碱药",
+        "route_scope": "inhaled",
+        "reference_url": "https://atcddd.fhi.no/atc_ddd_index/?code=R03BB04",
+        "index_updated": "2026-01-20",
+        "verification_scope": "ATC substance and class identity, not indication, regimen or patient suitability",
+        "rxnorm_id": null
+      },
+      {
+        "catalogue_code": "SIM-PREDNISONE-20",
+        "atc_substance_name": "prednisone",
+        "display_zh": "泼尼松",
+        "atc_code": "H02AB07",
+        "class_code": "H02AB",
+        "class_zh": "全身用糖皮质激素",
+        "route_scope": "oral",
+        "reference_url": "https://atcddd.fhi.no/atc_ddd_index/?code=H02AB07",
+        "index_updated": "2026-01-20",
+        "verification_scope": "ATC substance and class identity, not indication, regimen or patient suitability",
+        "rxnorm_id": null
+      },
+      {
+        "catalogue_code": "SIM-AMOXICILLIN-500",
+        "atc_substance_name": "amoxicillin",
+        "display_zh": "阿莫西林",
+        "atc_code": "J01CA04",
+        "class_code": "J01CA",
+        "class_zh": "广谱青霉素类",
+        "route_scope": "oral",
+        "reference_url": "https://atcddd.fhi.no/atc_ddd_index/?code=J01CA04",
+        "index_updated": "2026-01-20",
+        "verification_scope": "ATC substance and class identity, not indication, regimen or patient suitability",
+        "rxnorm_id": null
+      },
+      {
+        "catalogue_code": "SIM-AZITHROMYCIN-250",
+        "atc_substance_name": "azithromycin",
+        "display_zh": "阿奇霉素",
+        "atc_code": "J01FA10",
+        "class_code": "J01FA",
+        "class_zh": "大环内酯类",
+        "route_scope": "oral",
+        "reference_url": "https://atcddd.fhi.no/atc_ddd_index/?code=J01FA10",
+        "index_updated": "2026-01-20",
+        "verification_scope": "ATC substance and class identity, not indication, regimen or patient suitability",
+        "rxnorm_id": null
+      },
+      {
+        "catalogue_code": "SIM-NITROFURANTOIN-MONO-MACRO-100",
+        "atc_substance_name": "nitrofurantoin",
+        "display_zh": "呋喃妥因",
+        "atc_code": "J01XE01",
+        "class_code": "J01XE",
+        "class_zh": "硝基呋喃衍生物",
+        "route_scope": "oral",
+        "reference_url": "https://atcddd.fhi.no/atc_ddd_index/?code=J01XE01",
+        "index_updated": "2026-01-20",
+        "verification_scope": "ATC substance and class identity, not indication, regimen or patient suitability",
+        "rxnorm_id": null
+      },
+      {
+        "catalogue_code": "SIM-TMP-SMX-160-800",
+        "atc_substance_name": "sulfamethoxazole and trimethoprim",
+        "display_zh": "复方磺胺甲噁唑",
+        "atc_code": "J01EE01",
+        "class_code": "J01EE",
+        "class_zh": "磺胺与甲氧苄啶复方",
+        "route_scope": "oral",
+        "reference_url": "https://atcddd.fhi.no/atc_ddd_index/?code=J01EE01",
+        "index_updated": "2026-01-20",
+        "verification_scope": "ATC substance and class identity, not indication, regimen or patient suitability",
+        "rxnorm_id": null
+      },
+      {
+        "catalogue_code": "SIM-WARFARIN-5",
+        "atc_substance_name": "warfarin",
+        "display_zh": "华法林",
+        "atc_code": "B01AA03",
+        "class_code": "B01AA",
+        "class_zh": "维生素K拮抗剂",
+        "route_scope": "oral",
+        "reference_url": "https://atcddd.fhi.no/atc_ddd_index/?code=B01AA03",
+        "index_updated": "2026-01-20",
+        "verification_scope": "ATC substance and class identity, not indication, regimen or patient suitability",
+        "rxnorm_id": null
+      },
+      {
+        "catalogue_code": "SIM-ACETAMINOPHEN-500",
+        "atc_substance_name": "paracetamol",
+        "display_zh": "对乙酰氨基酚 / acetaminophen",
+        "atc_code": "N02BE01",
+        "class_code": "N02BE",
+        "class_zh": "苯胺类解热镇痛药",
+        "route_scope": "oral",
+        "reference_url": "https://atcddd.fhi.no/atc_ddd_index/?code=N02BE01",
+        "index_updated": "2026-01-20",
+        "verification_scope": "ATC substance and class identity, not indication, regimen or patient suitability",
+        "rxnorm_id": null
+      }
+    ],
+    "dose_policy": "不使用ATC DDD作为推荐剂量、患者实际剂量或剂量上限。",
+    "identity_policy": "ATC相同也不能替代剂型、盐/碱基准、强度、复方组分和给药装置校核。",
+    "diagnosis_link_policy": "药与病多对多；只凭同次住院共同出现不确定适应证。源关联记录same_encounter，只有明确诊疗证据才填indication_confirmed。历史处方不得自动改成当前服用。"
+  },
+  "scenario_drug_class_examples": [
+    {
+      "source_subtype": "type2_diabetes",
+      "candidate_atc_classes": [
+        "A10BA",
+        "A10BK"
+      ]
+    },
+    {
+      "source_subtype": "heart_failure",
+      "candidate_atc_classes": [
+        "C03C",
+        "C03DA",
+        "C09AA"
+      ]
+    },
+    {
+      "source_subtype": "copd",
+      "candidate_atc_classes": [
+        "R03AC",
+        "R03BB"
+      ]
+    },
+    {
+      "source_subtype": "pneumonia",
+      "candidate_atc_classes": [
+        "J01CA",
+        "J01FA"
+      ]
+    },
+    {
+      "source_subtype": "uti",
+      "candidate_atc_classes": [
+        "J01XE",
+        "J01EE"
+      ]
+    }
+  ],
+  "scenario_examples_status": "用于说明每种病可有多药物类别的待审设计例子，不是治疗方案；各患者是否适用、药敏、过敏、肾功能、病情与疗程须逐例判断，医生仍可不处方/转诊。",
+  "reporting_limits": [
+    "当前MIMIC素材是五个亚组各500人；归到四系统后为500/500/1000/500，不是四系统均衡队列。",
+    "开发/测试仍各亚组100/400；另500独立构造开发病例不计入此2500人来源统计。",
+    "当前呼吸系统含COPD和肺炎，其他三个系统各只有一个已选亚组；并发症子码不应充当多个独立病种来夸大覆盖。",
+    "T2当前500例优先序1均为并发症子码；COPD多数源住院为急性加重/感染。历史素材可用于显式构造新就诊，但分类本身不证明稳定门诊适用性。",
+    "系统级比较须报告亚组构成；若改为四系统均衡或每系统多个小病，另立抽样/分析版本，不重写已冻结分区。",
+    "来源候选人数、场景资料充分性和最终临床可运行资格须分别统计，不能把2500当作已审定三任务病例。"
+  ],
+  "references": {
+    "mimic_diagnoses": {
+      "title": "MIMIC diagnoses_icd 表说明",
+      "url": "https://mimic.mit.edu/docs/iv/modules/hosp/diagnoses_icd.html",
+      "supports": "ICD版本、优先序、出院计费来源；优先序不等同临床因果判断"
+    },
+    "mimic_dictionary": {
+      "title": "MIMIC d_icd_diagnoses 字典说明",
+      "url": "https://mimic.mit.edu/docs/iv/modules/hosp/d_icd_diagnoses.html",
+      "supports": "以 icd_version + icd_code 连接原库字典；原始细码保留字符串"
+    },
+    "cdc_guidelines": {
+      "title": "CDC/NCHS、CMS：FY2027 ICD-10-CM 官方编码指南",
+      "url": "https://ftp.cdc.gov/pub/Health_Statistics/NCHS/Publications/ICD10CM/2027/ICD-10-CM-October-1-2026-FY27-Guidelines.pdf",
+      "supports": "四个疾病章节、病原体附加编码与疾病部位分离、门诊未确诊不能当确诊",
+      "locations": [
+        "第3–4页目录",
+        "I.C.1.b",
+        "IV.H"
+      ]
+    },
+    "cdc_releases": {
+      "title": "CDC ICD-10-CM 正式版本目录",
+      "url": "https://www.cdc.gov/nchs/icd/icd-10-cm/files.html",
+      "supports": "FY2027生效于2026-10-01；仅用作本分类说明，不替换MIMIC历史字典"
+    },
+    "cms_diabetes_legacy": {
+      "title": "CMS ICD-9-CM 糖尿病编码表",
+      "url": "https://www.cms.gov/Regulations-and-Guidance/Guidance/Transmittals/downloads/R1504OTN.pdf",
+      "supports": "250.x0/x2 含二型或未指明类型，不可无条件当作纯二型糖尿病；并非一对一跨版本映射"
+    },
+    "atc_principles": {
+      "title": "WHO Collaborating Centre：ATC 分类结构与原则",
+      "url": "https://atcddd.fhi.no/atc/structure_and_principles/",
+      "supports": "药物按成分及给药途径分类；同类可有多适应证、同适应证可跨药物类别"
+    },
+    "atc_ddd": {
+      "title": "WHO Collaborating Centre：DDD 的定义",
+      "url": "https://atcddd.fhi.no/ddd/definition_and_general_considera/",
+      "supports": "DDD是药物利用统计单位，不是患者处方推荐剂量或安全上限"
+    },
+    "rxnorm": {
+      "title": "NLM RxNorm Overview",
+      "url": "https://www.nlm.nih.gov/research/umls/rxnorm/overview.html",
+      "supports": "具体药物以成分、强度、剂型和规范标识表达；本项目尚未核验RxCUI，不生成假编码"
+    }
+  }
+}

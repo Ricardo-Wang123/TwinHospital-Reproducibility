@@ -1,0 +1,70 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://twinhospital.local/schemas/stage-assessment.json",
+  "title": "独立早期版本评价",
+  "description": "只绑定封存或医院导入收据中的实际早期版本；与最终稿分开审核和仲裁。qualified不是工作流自报。",
+  "x-contract-status": "implemented",
+  "type": "object",
+  "properties": {
+    "qualified": {
+      "$ref": "common.json#/$defs/nullableBool"
+    },
+    "quality_source": {
+      "const": "independent_review"
+    },
+    "quality_basis": {
+      "type": "string",
+      "minLength": 1
+    },
+    "artifact_sha256": {
+      "anyOf": [
+        {
+          "$ref": "common.json#/$defs/sha256"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "source_sha256": {
+      "$ref": "common.json#/$defs/sha256"
+    },
+    "review_artifact_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "annotations": {
+      "type": "array",
+      "items": {
+        "$ref": "fact-annotation.json"
+      }
+    },
+    "missing": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "artifact_stage": {
+      "enum": [
+        "first_handoff",
+        "first_draft"
+      ]
+    }
+  },
+  "required": [
+    "qualified",
+    "quality_source",
+    "quality_basis",
+    "artifact_sha256",
+    "source_sha256",
+    "review_artifact_id",
+    "annotations",
+    "missing",
+    "artifact_stage"
+  ],
+  "additionalProperties": true
+}

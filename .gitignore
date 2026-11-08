@@ -1,0 +1,46 @@
+# Python environments and generated files
+.venv/
+venv/
+env/
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.benchmarks/
+.coverage
+.coverage.*
+htmlcov/
+
+# Local credentials (keep the configuration template)
+.env
+.env.*
+!.env.example
+*.local.yaml
+*.local.yml
+*.local.json
+/private/
+/runs/
+**/runtime/
+*.key
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+*.dump
+
+# Local datasets, patient records, and experiment artifacts
+data/
+output/
+logs/
+*.log
+
+# Editors and operating systems
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+*.swp
+*.swo

@@ -1,0 +1,19 @@
+{
+  "mode": "factorial",
+  "batch": "factorial10_new_01",
+  "manifest": "/absolute/path/to/authorized/new_wave/manifest.json",
+  "provider_config": "/absolute/path/to/authorized/provider.local.json",
+  "key_file": "api.key",
+  "deploy": "/absolute/path/to/isolated/openhis/deployment",
+  "catalog": "/absolute/path/to/frozen/catalog_mapping_v6.json",
+  "diagnosis_catalog": "/absolute/path/to/frozen/diagnosis_mapping_v3.json",
+  "clinical_catalogue": "/absolute/path/to/frozen/catalogue_metadata_v5.json",
+  "workflow_policy": "workflow.local.json",
+  "batches": "batches",
+  "model_evidence": "model_calls",
+  "ledger": "budget.sqlite",
+  "workers": 20,
+  "patients_per_disease": 2,
+  "acceptance_attempts": 3,
+  "uncapped": false
+}

@@ -1,0 +1,576 @@
+{
+  "version": "product-applicability-development-1",
+  "checked_on": "2026-11-07",
+  "status": "technical_primary_source_identity_checked_independent_review_pending",
+  "enabled_as_clinical_gold": false,
+  "clinical_gold_label": null,
+  "archive_status": "Curated factual identity/applicability records only. Full SPL/PDF label snapshots are not archived; direct download failed TLS. These hashes identify the curated records, not full label bytes.",
+  "scope": "SIM product definition and named narrow rule applicability; not therapeutically substitutable marketed products, patient-specific suitability, or whole-prescription normality.",
+  "products": {
+    "SIM-METFORMIN-500": {
+      "reference_product_id": "metformin_ir",
+      "expected_formulary_identity": {
+        "ingredient": "metformin",
+        "dosage_form": "oral_tablet_immediate_release",
+        "strength": "500 mg/tablet",
+        "components": [
+          {
+            "ingredient": "metformin hydrochloride",
+            "strength_value": 500,
+            "strength_unit": "mg",
+            "per": "tablet",
+            "basis_of_strength": "metformin hydrochloride"
+          }
+        ],
+        "quantity_unit": "tablet",
+        "allowed_routes": [
+          "oral"
+        ]
+      },
+      "catalogue_set_ids": [
+        "c2bbaa0c-5b05-4335-882f-14f1b443edd7"
+      ],
+      "reference_set_id": "4ac6d01a-af26-44e7-ae2e-3618de0080aa",
+      "label_identity": {
+        "active_ingredient": "metformin hydrochloride",
+        "active_moiety": "metformin",
+        "strength_value": 500,
+        "strength_unit": "mg",
+        "strength_basis": "metformin hydrochloride",
+        "per": "tablet",
+        "form": "oral coated tablet",
+        "release": "immediate_release",
+        "device": null
+      },
+      "required_label_facts": [
+        "oral_500mg_metformin_hydrochloride_tablet",
+        "adult_max_2550mg_per_day"
+      ],
+      "rule_scope": [
+        "metformin_ir_adult_daily_max",
+        "exact_unintended_active_order_clone"
+      ],
+      "mapping_type": "cross_label_named_scope_identity_and_restriction",
+      "independent_review_status": "independent_review_pending",
+      "basis_summary": "Both labels identify oral 500mg metformin hydrochloride tablets and the adult 2550mg/day ceiling. Duplication intent still requires independent plan evidence."
+    },
+    "SIM-AMOXICILLIN-500": {
+      "reference_product_id": "amoxicillin",
+      "expected_formulary_identity": {
+        "ingredient": "amoxicillin",
+        "dosage_form": "oral_capsule",
+        "strength": "500 mg/capsule",
+        "components": [
+          {
+            "ingredient": "amoxicillin",
+            "strength_value": 500,
+            "strength_unit": "mg",
+            "per": "capsule",
+            "basis_of_strength": "amoxicillin"
+          }
+        ],
+        "quantity_unit": "capsule",
+        "allowed_routes": [
+          "oral"
+        ]
+      },
+      "catalogue_set_ids": [
+        "4adc198e-39d8-4b3e-bfa4-278aaf4064ae"
+      ],
+      "reference_set_id": "4fb7837e-964c-4d38-a3a5-b384b1bd6e08",
+      "label_identity": {
+        "active_ingredient": "amoxicillin trihydrate",
+        "active_moiety": "amoxicillin",
+        "strength_value": 500,
+        "strength_unit": "mg",
+        "strength_basis": "amoxicillin",
+        "per": "capsule",
+        "form": "oral capsule",
+        "release": "not_modified_release",
+        "device": null
+      },
+      "required_label_facts": [
+        "oral_capsule_amoxicillin_base500mg_as_trihydrate",
+        "serious_amoxicillin_hypersensitivity_contraindication"
+      ],
+      "rule_scope": [
+        "amoxicillin_confirmed_serious_allergy"
+      ],
+      "mapping_type": "cross_label_named_scope_identity_and_restriction",
+      "independent_review_status": "independent_review_pending",
+      "basis_summary": "Both labels identify capsules containing 500mg amoxicillin as trihydrate and contraindicate serious amoxicillin hypersensitivity. Excipients are not asserted equivalent."
+    },
+    "SIM-TIOTROPIUM-18": {
+      "reference_product_id": "tiotropium_handihaler",
+      "expected_formulary_identity": {
+        "ingredient": "tiotropium",
+        "dosage_form": "inhalation_powder_capsule",
+        "strength": "18 mcg/capsule",
+        "components": [
+          {
+            "ingredient": "tiotropium",
+            "strength_value": 18,
+            "strength_unit": "mcg",
+            "per": "capsule",
+            "basis_of_strength": "tiotropium"
+          }
+        ],
+        "quantity_unit": "capsule",
+        "allowed_routes": [
+          "inhaled"
+        ]
+      },
+      "catalogue_set_ids": [
+        "820839ef-e53d-47e8-a3b9-d911ff92e6a9"
+      ],
+      "reference_set_id": "c6343458-617b-41ed-8e96-763e91dc8e90",
+      "label_identity": {
+        "active_ingredient": "tiotropium bromide monohydrate",
+        "active_moiety": "tiotropium",
+        "strength_value": 18,
+        "strength_unit": "mcg",
+        "strength_basis": "tiotropium",
+        "per": "capsule",
+        "form": "inhalation powder capsule",
+        "release": "not_applicable",
+        "device": "HANDIHALER"
+      },
+      "required_label_facts": [
+        "capsule_18mcg_tiotropium",
+        "HANDIHALER_device_required",
+        "do_not_swallow_capsule"
+      ],
+      "rule_scope": [
+        "tiotropium_handihaler_not_swallowed"
+      ],
+      "mapping_type": "cross_label_named_scope_identity_and_restriction",
+      "independent_review_status": "independent_review_pending",
+      "basis_summary": "Both labels specify 18mcg tiotropium per inhalation capsule, used only with HANDIHALER and not swallowed. Delivered lung dose is not equated to capsule content."
+    },
+    "SIM-LISINOPRIL-10": {
+      "reference_product_id": "lisinopril",
+      "expected_formulary_identity": {
+        "ingredient": "lisinopril",
+        "dosage_form": "oral_tablet_immediate_release",
+        "strength": "10 mg/tablet",
+        "components": [
+          {
+            "ingredient": "lisinopril",
+            "strength_value": 10,
+            "strength_unit": "mg",
+            "per": "tablet",
+            "basis_of_strength": "lisinopril"
+          }
+        ],
+        "quantity_unit": "tablet",
+        "allowed_routes": [
+          "oral"
+        ]
+      },
+      "catalogue_set_ids": [
+        "e927801e-5de4-44f9-b543-789c093de655"
+      ],
+      "reference_set_id": "e927801e-5de4-44f9-b543-789c093de655",
+      "label_identity": {
+        "active_ingredient": "lisinopril",
+        "active_moiety": "lisinopril",
+        "strength_value": 10,
+        "strength_unit": "mg",
+        "strength_basis": "lisinopril",
+        "per": "tablet",
+        "form": "oral tablet",
+        "release": "not_modified_release",
+        "device": null
+      },
+      "required_label_facts": [
+        "oral_lisinopril10mg_tablet",
+        "neprilysin_inhibitor_concomitant_contraindication"
+      ],
+      "rule_scope": [
+        "lisinopril_sacubitril_concomitant"
+      ],
+      "mapping_type": "same_label",
+      "independent_review_status": "independent_review_pending",
+      "basis_summary": "The same label identifies oral lisinopril 10mg tablets and prohibits concomitant neprilysin-inhibitor treatment. Temporal use and washout require separate evidence."
+    },
+    "SIM-SACUBITRIL-VALSARTAN-24-26": {
+      "reference_product_id": "entresto",
+      "expected_formulary_identity": {
+        "ingredient": "sacubitril+valsartan",
+        "dosage_form": "oral_tablet_immediate_release",
+        "strength": "24 mg sacubitril + 26 mg valsartan/tablet",
+        "components": [
+          {
+            "ingredient": "sacubitril",
+            "strength_value": 24,
+            "strength_unit": "mg",
+            "per": "tablet",
+            "basis_of_strength": "sacubitril"
+          },
+          {
+            "ingredient": "valsartan",
+            "strength_value": 26,
+            "strength_unit": "mg",
+            "per": "tablet",
+            "basis_of_strength": "valsartan"
+          }
+        ],
+        "quantity_unit": "tablet",
+        "allowed_routes": [
+          "oral"
+        ]
+      },
+      "catalogue_set_ids": [
+        "000dc81d-ab91-450c-8eae-8eb74e72296f"
+      ],
+      "reference_set_id": "000dc81d-ab91-450c-8eae-8eb74e72296f",
+      "label_identity": {
+        "active_ingredient": [
+          "sacubitril",
+          "valsartan"
+        ],
+        "active_moiety": [
+          "sacubitril",
+          "valsartan"
+        ],
+        "strength_value": [
+          24,
+          26
+        ],
+        "strength_unit": "mg",
+        "strength_basis": [
+          "sacubitril",
+          "valsartan"
+        ],
+        "per": "tablet",
+        "form": "oral film-coated tablet",
+        "release": "not_modified_release",
+        "device": null
+      },
+      "required_label_facts": [
+        "sacubitril24mg_valsartan26mg_tablet",
+        "ACE_inhibitor_concomitant_contraindication"
+      ],
+      "rule_scope": [
+        "lisinopril_sacubitril_concomitant"
+      ],
+      "mapping_type": "same_label",
+      "independent_review_status": "independent_review_pending",
+      "basis_summary": "The label distinguishes the 24/26mg film-coated tablet from pellets and contraindicates ACE-inhibitor coadministration. This fault-only catalogue entry is not a treatment recommendation."
+    },
+    "SIM-CEFTRIAXONE-1G": {
+      "reference_product_id": "ceftriaxone",
+      "expected_formulary_identity": {
+        "ingredient": "ceftriaxone",
+        "dosage_form": "powder_for_injection",
+        "strength": "1 g/vial",
+        "components": [
+          {
+            "ingredient": "ceftriaxone",
+            "strength_value": 1000,
+            "strength_unit": "mg",
+            "per": "vial",
+            "basis_of_strength": "ceftriaxone"
+          }
+        ],
+        "quantity_unit": "vial",
+        "allowed_routes": [
+          "intravenous_infusion"
+        ]
+      },
+      "catalogue_set_ids": [
+        "03283208-8616-4117-9d2b-aa8046017a4f"
+      ],
+      "reference_set_id": "03283208-8616-4117-9d2b-aa8046017a4f",
+      "label_identity": {
+        "active_ingredient": "ceftriaxone sodium",
+        "active_moiety": "ceftriaxone",
+        "strength_value": 1000,
+        "strength_unit": "mg",
+        "strength_basis": "ceftriaxone",
+        "per": "vial",
+        "form": "powder for injection",
+        "release": "not_applicable",
+        "device": null
+      },
+      "required_label_facts": [
+        "ceftriaxone_equivalent1g_vial",
+        "no_calcium_diluent_for_reconstitution_or_further_IV_dilution"
+      ],
+      "rule_scope": [
+        "ceftriaxone_calcium_iv_diluent"
+      ],
+      "mapping_type": "same_label",
+      "independent_review_status": "independent_review_pending",
+      "basis_summary": "The 1g vial is ceftriaxone-equivalent sodium salt powder. The label forbids calcium-containing reconstitution or further IV dilution; patient suitability and preparation readback are not established."
+    }
+  },
+  "label_identity_records": {
+    "4ac6d01a-af26-44e7-ae2e-3618de0080aa": {
+      "url": "https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid=4ac6d01a-af26-44e7-ae2e-3618de0080aa",
+      "set_id": "4ac6d01a-af26-44e7-ae2e-3618de0080aa",
+      "sections_checked": [
+        "2.1",
+        "3",
+        "Product Information"
+      ],
+      "checked_on": "2026-11-07",
+      "identity": {
+        "active_ingredient": "metformin hydrochloride",
+        "active_moiety": "metformin",
+        "strength_value": 500,
+        "strength_unit": "mg",
+        "strength_basis": "metformin hydrochloride",
+        "per": "tablet",
+        "form": "oral coated tablet",
+        "release": "immediate_release",
+        "device": null
+      },
+      "supported_facts": [
+        "oral_500mg_metformin_hydrochloride_tablet",
+        "adult_max_2550mg_per_day"
+      ],
+      "evidence_kind": "curated_factual_record_from_official_DailyMed_page",
+      "verification": "assistant_primary_source_check_not_independent_clinical_review",
+      "raw_label_archive_sha256": null
+    },
+    "c2bbaa0c-5b05-4335-882f-14f1b443edd7": {
+      "url": "https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid=c2bbaa0c-5b05-4335-882f-14f1b443edd7",
+      "set_id": "c2bbaa0c-5b05-4335-882f-14f1b443edd7",
+      "sections_checked": [
+        "2.1",
+        "3",
+        "Product Information"
+      ],
+      "checked_on": "2026-11-07",
+      "identity": {
+        "active_ingredient": "metformin hydrochloride",
+        "active_moiety": "metformin",
+        "strength_value": 500,
+        "strength_unit": "mg",
+        "strength_basis": "metformin hydrochloride",
+        "per": "tablet",
+        "form": "oral coated tablet",
+        "release": "immediate_release",
+        "device": null
+      },
+      "supported_facts": [
+        "oral_500mg_metformin_hydrochloride_tablet",
+        "adult_max_2550mg_per_day"
+      ],
+      "evidence_kind": "curated_factual_record_from_official_DailyMed_page",
+      "verification": "assistant_primary_source_check_not_independent_clinical_review",
+      "raw_label_archive_sha256": null
+    },
+    "4adc198e-39d8-4b3e-bfa4-278aaf4064ae": {
+      "url": "https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid=4adc198e-39d8-4b3e-bfa4-278aaf4064ae",
+      "set_id": "4adc198e-39d8-4b3e-bfa4-278aaf4064ae",
+      "sections_checked": [
+        "3",
+        "4",
+        "11"
+      ],
+      "checked_on": "2026-11-07",
+      "identity": {
+        "active_ingredient": "amoxicillin trihydrate",
+        "active_moiety": "amoxicillin",
+        "strength_value": 500,
+        "strength_unit": "mg",
+        "strength_basis": "amoxicillin",
+        "per": "capsule",
+        "form": "oral capsule",
+        "release": "not_modified_release",
+        "device": null
+      },
+      "supported_facts": [
+        "oral_capsule_amoxicillin_base500mg_as_trihydrate",
+        "serious_amoxicillin_hypersensitivity_contraindication"
+      ],
+      "evidence_kind": "curated_factual_record_from_official_DailyMed_page",
+      "verification": "assistant_primary_source_check_not_independent_clinical_review",
+      "raw_label_archive_sha256": null
+    },
+    "4fb7837e-964c-4d38-a3a5-b384b1bd6e08": {
+      "url": "https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid=4fb7837e-964c-4d38-a3a5-b384b1bd6e08",
+      "set_id": "4fb7837e-964c-4d38-a3a5-b384b1bd6e08",
+      "sections_checked": [
+        "3",
+        "4",
+        "11"
+      ],
+      "checked_on": "2026-11-07",
+      "identity": {
+        "active_ingredient": "amoxicillin trihydrate",
+        "active_moiety": "amoxicillin",
+        "strength_value": 500,
+        "strength_unit": "mg",
+        "strength_basis": "amoxicillin",
+        "per": "capsule",
+        "form": "oral capsule",
+        "release": "not_modified_release",
+        "device": null
+      },
+      "supported_facts": [
+        "oral_capsule_amoxicillin_base500mg_as_trihydrate",
+        "serious_amoxicillin_hypersensitivity_contraindication"
+      ],
+      "evidence_kind": "curated_factual_record_from_official_DailyMed_page",
+      "verification": "assistant_primary_source_check_not_independent_clinical_review",
+      "raw_label_archive_sha256": null
+    },
+    "820839ef-e53d-47e8-a3b9-d911ff92e6a9": {
+      "url": "https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid=820839ef-e53d-47e8-a3b9-d911ff92e6a9",
+      "set_id": "820839ef-e53d-47e8-a3b9-d911ff92e6a9",
+      "sections_checked": [
+        "2",
+        "3",
+        "Instructions for Use"
+      ],
+      "checked_on": "2026-11-07",
+      "identity": {
+        "active_ingredient": "tiotropium bromide monohydrate",
+        "active_moiety": "tiotropium",
+        "strength_value": 18,
+        "strength_unit": "mcg",
+        "strength_basis": "tiotropium",
+        "per": "capsule",
+        "form": "inhalation powder capsule",
+        "release": "not_applicable",
+        "device": "HANDIHALER"
+      },
+      "supported_facts": [
+        "capsule_18mcg_tiotropium",
+        "HANDIHALER_device_required",
+        "do_not_swallow_capsule"
+      ],
+      "evidence_kind": "curated_factual_record_from_official_DailyMed_page",
+      "verification": "assistant_primary_source_check_not_independent_clinical_review",
+      "raw_label_archive_sha256": null
+    },
+    "c6343458-617b-41ed-8e96-763e91dc8e90": {
+      "url": "https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid=c6343458-617b-41ed-8e96-763e91dc8e90",
+      "set_id": "c6343458-617b-41ed-8e96-763e91dc8e90",
+      "sections_checked": [
+        "2",
+        "3",
+        "Instructions for Use"
+      ],
+      "checked_on": "2026-11-07",
+      "identity": {
+        "active_ingredient": "tiotropium bromide monohydrate",
+        "active_moiety": "tiotropium",
+        "strength_value": 18,
+        "strength_unit": "mcg",
+        "strength_basis": "tiotropium",
+        "per": "capsule",
+        "form": "inhalation powder capsule",
+        "release": "not_applicable",
+        "device": "HANDIHALER"
+      },
+      "supported_facts": [
+        "capsule_18mcg_tiotropium",
+        "HANDIHALER_device_required",
+        "do_not_swallow_capsule"
+      ],
+      "evidence_kind": "curated_factual_record_from_official_DailyMed_page",
+      "verification": "assistant_primary_source_check_not_independent_clinical_review",
+      "raw_label_archive_sha256": null
+    },
+    "e927801e-5de4-44f9-b543-789c093de655": {
+      "url": "https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid=e927801e-5de4-44f9-b543-789c093de655",
+      "set_id": "e927801e-5de4-44f9-b543-789c093de655",
+      "sections_checked": [
+        "3",
+        "4"
+      ],
+      "checked_on": "2026-11-07",
+      "identity": {
+        "active_ingredient": "lisinopril",
+        "active_moiety": "lisinopril",
+        "strength_value": 10,
+        "strength_unit": "mg",
+        "strength_basis": "lisinopril",
+        "per": "tablet",
+        "form": "oral tablet",
+        "release": "not_modified_release",
+        "device": null
+      },
+      "supported_facts": [
+        "oral_lisinopril10mg_tablet",
+        "neprilysin_inhibitor_concomitant_contraindication"
+      ],
+      "evidence_kind": "curated_factual_record_from_official_DailyMed_page",
+      "verification": "assistant_primary_source_check_not_independent_clinical_review",
+      "raw_label_archive_sha256": null
+    },
+    "000dc81d-ab91-450c-8eae-8eb74e72296f": {
+      "url": "https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid=000dc81d-ab91-450c-8eae-8eb74e72296f",
+      "set_id": "000dc81d-ab91-450c-8eae-8eb74e72296f",
+      "sections_checked": [
+        "3",
+        "4",
+        "7.1"
+      ],
+      "checked_on": "2026-11-07",
+      "identity": {
+        "active_ingredient": [
+          "sacubitril",
+          "valsartan"
+        ],
+        "active_moiety": [
+          "sacubitril",
+          "valsartan"
+        ],
+        "strength_value": [
+          24,
+          26
+        ],
+        "strength_unit": "mg",
+        "strength_basis": [
+          "sacubitril",
+          "valsartan"
+        ],
+        "per": "tablet",
+        "form": "oral film-coated tablet",
+        "release": "not_modified_release",
+        "device": null
+      },
+      "supported_facts": [
+        "sacubitril24mg_valsartan26mg_tablet",
+        "ACE_inhibitor_concomitant_contraindication"
+      ],
+      "evidence_kind": "curated_factual_record_from_official_DailyMed_page",
+      "verification": "assistant_primary_source_check_not_independent_clinical_review",
+      "raw_label_archive_sha256": null
+    },
+    "03283208-8616-4117-9d2b-aa8046017a4f": {
+      "url": "https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid=03283208-8616-4117-9d2b-aa8046017a4f",
+      "set_id": "03283208-8616-4117-9d2b-aa8046017a4f",
+      "sections_checked": [
+        "Description",
+        "Dosage and Administration",
+        "Compatibility and Stability"
+      ],
+      "checked_on": "2026-11-07",
+      "identity": {
+        "active_ingredient": "ceftriaxone sodium",
+        "active_moiety": "ceftriaxone",
+        "strength_value": 1000,
+        "strength_unit": "mg",
+        "strength_basis": "ceftriaxone",
+        "per": "vial",
+        "form": "powder for injection",
+        "release": "not_applicable",
+        "device": null
+      },
+      "supported_facts": [
+        "ceftriaxone_equivalent1g_vial",
+        "no_calcium_diluent_for_reconstitution_or_further_IV_dilution"
+      ],
+      "evidence_kind": "curated_factual_record_from_official_DailyMed_page",
+      "verification": "assistant_primary_source_check_not_independent_clinical_review",
+      "raw_label_archive_sha256": null
+    }
+  },
+  "manifest_hash": "4d1d3aa2eebf078a0cd1893969a6b9575bf70300d3a23626de32bdb65da04e01"
+}

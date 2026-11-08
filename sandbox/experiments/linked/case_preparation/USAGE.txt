@@ -1,0 +1,44 @@
+TwinHospital 病例准备工具（本地处理）
+更新时间：2026-11-07
+所属项目：TwinHospital 实验
+
+一、入口与实际分工
+代码读取正式 MIMIC-IV 2.2 的 ZIP，不调用模型、不写医院服务。
+python -m sandbox.experiments.linked.case_preparation.mimic_cohort --source /path/mimic-iv-2.2.zip --out /private/path/mimic_batch
+--selection-only 只生成选择名单与汇总；--skip-labs 明确跳过检验，不能把未提取当作无检验。
+输出必须位于代码仓库之外。目录权限0700，病例及来源文件0600。相同输出目录恢复时核对原ZIP完整SHA256；不覆盖不同来源的缓存。
+参考资料：https://physionet.org/content/mimiciv/2.2/
+
+二、五组与患者级拆分
+分组取来源住院seq_num=1：E11（2型糖尿病）；428/I50（心衰）；J44（慢阻肺）；486/J189（病原体未指明肺炎）；5990/N390（部位未指明尿路感染）。全部共病仍保留。
+额外要求有效成人住院、同次合格MAIN医嘱、有同次个人病史编码或较早已结束的疾病/损伤首位诊断、来源住院未死亡且新构造就诊发生在已记录死亡之前。
+一位源患者只分配一次。使用私有HMAC身份键排序与容量匹配，每组目标100开发+400测试；短缺明确报告，不复制患者补数。
+开发样本50例清单为每组10例；不得进入测试集。来源住院作为历史，新门诊在来源出院后一天，新增主诉与患者自述均为构造信息。
+参考资料：https://mimic.mit.edu/docs/iv/modules/hosp/diagnoses_icd.html
+
+三、病例和角色输入
+case.json / scenario.json / provenance.json / evaluation.json保留来源、场景和评价分工。
+linked_case.json接入新连续流程；runtime_input.json排除评价与原始来源索引。patient_initial只给患者；其他角色仅通过问诊与HIS取得信息。
+历史处方不视为当前服药或实际给药；labevents只有记录时点已知且不晚于截止点的项目进入历史视图。90岁以上年龄保留非精确状态。
+pharmacy补充原记录单独保存，药品成分/单位与原生目录映射仍需完成。无Note、无ED；eMAR、OMR及ICU事件本轮未提取，不代表患者没有这些记录。
+参考资料：https://mimic.mit.edu/docs/iv/modules/hosp/prescriptions.html ；https://mimic.mit.edu/docs/iv/modules/hosp/labevents.html
+
+四、可以声称与尚未完成
+cohort_summary.json回答来源候选/分配数量；conversion_summary.json回答实际转换与字段覆盖。两者均不等于已验证临床适用、已调用MAS或已完成论文结果。
+独立合成病例与MIMIC衍生病例的数据类型明确分开。500例独立构造开发资料是五类模板的变体，临床参考标签仍待独立审核，不能当作500种独立病理模式。
+正式外部模型调用需核验具体服务的数据处理设置。当前mimic_derived的external_api_allowed=false；替换姓名、ID或改写文本不自动解除来源约束。
+参考资料：https://physionet.org/news/post/llm-responsible-use/
+
+五、四系统分类侧车（不改变原五组及划分）
+classification_v1.json按官方ICD-10-CM章节组织五小病，并给共同14药添加独立ATC分类；药与病多对多，不由分类器生成治疗答案。
+python -m sandbox.experiments.linked.case_preparation.taxonomy --cohort /private/path/mimic_batch --out /private/path/taxonomy_v1
+输出逐例taxonomy_private_sidecar.json及不含病例ID的taxonomy_aggregate_summary.json。输出目录已存在即拒绝，源病例保持原值。当前四系统来源人数500/500/1000/500，并非四系统均衡抽样。
+参考资料：https://www.cdc.gov/nchs/icd/icd-10-cm/files.html ；https://atcddd.fhi.no/atc/structure_and_principles/
+
+六、诊断优先序扩样可行性计数（不自动选择患者）
+python -m sandbox.experiments.linked.case_preparation.diagnosis_scope_feasibility --source /path/mimic-iv-2.2.zip --out /private/path/diagnosis_scope_feasibility_v1 --frozen-selection /private/path/mimic_batch/selection_private.json
+比较同样五个编码范围在seq_num=1和任意序号的来源人数、同次处方、明确口服/吸入及可解析字段，保持旧拆分不变。不同病组人数可重叠；“不在旧2500”只是可扩样来源，不是新分区授权或已纳入名单。
+python -m sandbox.experiments.linked.case_preparation.diagnosis_scope_labs --source /path/mimic-iv-2.2.zip --scope-folder /private/path/diagnosis_scope_feasibility_v1 --out /private/path/diagnosis_scope_labs_v2
+可选检验统计只判断原值、时间和单位是否存在。72/168小时是新就诊情境构造的探索窗口，不是现稿既定纳入标准、普遍临床有效期或用药安全结论；不按数值有利与否挑选患者。
+检验统计v1曾把文本value=___但valuenum完整的记录误排除，已标记INVALIDATED_DO_NOT_USE并保留失败记录；v2用数值/文本两条通道判断结果是否存在。原2500病例转换及处方统计不受这个新统计脚本错误影响。
+参考资料：https://mimic.mit.edu/docs/iv/modules/hosp/diagnoses_icd.html ；https://mimic.mit.edu/docs/iv/modules/hosp/labevents.html

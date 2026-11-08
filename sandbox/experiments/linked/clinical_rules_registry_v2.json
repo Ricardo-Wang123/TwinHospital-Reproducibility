@@ -1,0 +1,88 @@
+{
+  "registry_version": "clinical-reference-candidates-v2.1-adult-population-20261107",
+  "status": "independent_review_pending",
+  "enabled_as_clinical_gold": false,
+  "source_verification": "Primary DailyMed label text, exact product, section and displayed version checked on 2026-11-07. This establishes the stated label restriction, not patient-specific suitability or validated reference labels.",
+  "source_archival_status": "Set IDs and displayed versions recorded; local full-label download failed with TLS EOF and is not claimed complete.",
+  "negative_policy": "A non-trigger is only negative inside the named rule with complete required inputs. It is never an all-category clinically normal prescription. Unknown facts remain indeterminate.",
+  "product_mapping_policy": "Require an explicit binding to the exact reference formulation with a recorded evidence reference. Matching an ingredient name or a SIM code alone is insufficient.",
+  "sources": {
+    "metformin_ir": {
+      "url": "https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid=4ac6d01a-af26-44e7-ae2e-3618de0080aa",
+      "set_id": "4ac6d01a-af26-44e7-ae2e-3618de0080aa", "spl_version": "17", "page_updated": "2026-07-15", "packager": "Aurobindo Pharma Limited",
+      "product": "Metformin hydrochloride immediate-release film-coated tablet, 500 mg", "sections": ["2.1", "3"]
+    },
+    "amoxicillin": {
+      "url": "https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid=4fb7837e-964c-4d38-a3a5-b384b1bd6e08",
+      "set_id": "4fb7837e-964c-4d38-a3a5-b384b1bd6e08", "spl_version": "23", "page_updated": "2026-03-01", "packager": "Hikma Pharmaceuticals USA Inc.",
+      "product": "Amoxicillin capsule 500 mg, supplied as the trihydrate", "sections": ["3", "4"]
+    },
+    "tiotropium_handihaler": {
+      "url": "https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid=c6343458-617b-41ed-8e96-763e91dc8e90",
+      "set_id": "c6343458-617b-41ed-8e96-763e91dc8e90", "spl_version": "1", "page_updated": "2025-09-02",
+      "product": "SPIRIVA HANDIHALER tiotropium 18 microgram inhalation-powder capsule used with HANDIHALER", "sections": ["2"]
+    },
+    "lisinopril": {
+      "url": "https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid=e927801e-5de4-44f9-b543-789c093de655",
+      "set_id": "e927801e-5de4-44f9-b543-789c093de655", "spl_version": "6", "spl_effective_date": "2025-12-23", "packager": "Wockhardt USA LLC.",
+      "product": "Lisinopril tablet 10 mg", "sections": ["4"]
+    },
+    "entresto": {
+      "url": "https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid=000dc81d-ab91-450c-8eae-8eb74e72296f",
+      "set_id": "000dc81d-ab91-450c-8eae-8eb74e72296f", "spl_version": "25", "spl_effective_date": "2026-07-06", "packager": "Novartis Pharmaceuticals Corporation",
+      "product": "ENTRESTO film-coated tablet containing sacubitril 24 mg AND valsartan 26 mg", "sections": ["3", "4", "7.1"]
+    },
+    "ceftriaxone": {
+      "url": "https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid=03283208-8616-4117-9d2b-aa8046017a4f",
+      "set_id": "03283208-8616-4117-9d2b-aa8046017a4f", "spl_version": "21", "spl_effective_date": "2026-01-19", "packager": "Hospira, Inc",
+      "product": "Ceftriaxone sodium powder for injection, vial equivalent to 1 g ceftriaxone", "sections": ["WARNINGS: Interaction with Calcium-Containing Products", "DOSAGE AND ADMINISTRATION", "Compatibility and Stability"]
+    }
+  },
+  "rules": [
+    {
+      "rule_id": "metformin_ir_adult_daily_max", "category": "dosage_error", "product_id": "metformin_ir", "catalogue_code": "SIM-METFORMIN-500", "sources": ["metformin_ir"],
+      "statement": "For this adult immediate-release oral product, the labeled maximum total daily dose is 2550 mg. The rule checks that ceiling only.",
+      "required": ["exact age >=18 or an evidenced documented adult population category, without demographic conflict", "exact IR product binding", "fixed known frequency and mg dose", "complete active regimen reconciliation", "known concurrent exposure"],
+      "not_covered": ["pediatric dosing", "extended-release products", "PRN schedules", "renal or indication suitability", "titration and adherence"],
+      "mechanical_when_complete": true, "independent_review_status": "independent_review_pending"
+    },
+    {
+      "rule_id": "amoxicillin_confirmed_serious_allergy", "category": "contraindication", "product_id": "amoxicillin", "catalogue_code": "SIM-AMOXICILLIN-500", "sources": ["amoxicillin"],
+      "statement": "A documented serious hypersensitivity reaction to amoxicillin is a contraindication. This implementation uses confirmed anaphylaxis or Stevens-Johnson syndrome to the same ingredient only.",
+      "required": ["exact product binding", "current active candidate order", "confirmed serious same-ingredient allergy and evidence reference"],
+      "not_covered": ["unconfirmed patient recollection", "nausea or nonspecific intolerance", "cross-reactivity inference", "allergy delabeling", "desensitization scenarios"],
+      "mechanical_when_complete": true, "independent_review_status": "independent_review_pending"
+    },
+    {
+      "rule_id": "tiotropium_handihaler_not_swallowed", "category": "administration_route_error", "product_id": "tiotropium_handihaler", "catalogue_code": "SIM-TIOTROPIUM-18", "sources": ["tiotropium_handihaler"],
+      "statement": "The powder capsule is inhaled using the HANDIHALER device; swallowing the capsule is explicitly prohibited by the product instructions.",
+      "required": ["exact inhalation-powder capsule binding", "explicit swallowed oral route or correct inhaled route with device"],
+      "not_covered": ["Respimat or other formulations", "inhaler technique beyond declared device", "ambiguous oral-inhalation terminology"],
+      "mechanical_when_complete": true, "independent_review_status": "independent_review_pending"
+    },
+    {
+      "rule_id": "exact_unintended_active_order_clone", "category": "duplicate_medication", "product_id": "metformin_ir", "catalogue_code": "SIM-METFORMIN-500", "sources": ["metformin_ir"],
+      "statement": "Protocol-defined duplication: two distinct active orders reproduce one independently documented intended regimen, with the same product, dose, schedule and overlapping administration intent. A repeated ingredient alone is insufficient.",
+      "required": ["complete current-order scope", "independent plan specifies exactly one active order", "no split-dose/replacement/taper intent", "distinct IDs and exact clinical signature", "known overlapping exposure"],
+      "label_role": "The product label anchors formulation identity only; it does not establish a universal repeated-ingredient prohibition. The duplicate reference comes from the recorded original intended order and mutation audit.",
+      "not_covered": ["therapeutic-class overlap", "intentional combination regimens", "replacement orders", "discontinued prescriptions"],
+      "mechanical_when_complete": true, "independent_review_status": "independent_review_pending"
+    },
+    {
+      "rule_id": "lisinopril_sacubitril_concomitant", "category": "drug_drug_interaction", "product_id": "lisinopril", "catalogue_code": "SIM-LISINOPRIL-10", "co_product_id": "entresto", "co_catalogue_code": "SIM-SACUBITRIL-VALSARTAN-24-26", "sources": ["lisinopril", "entresto"],
+      "statement": "Lisinopril and sacubitril/valsartan must not be given concomitantly. The labels also require a 36-hour switching interval; this first implementation flags only known concurrent use, leaving switching cases for review.",
+      "required": ["both exact product bindings", "both active", "evidence of overlapping administration intervals", "complete reconciliation for scoped negative controls"],
+      "not_covered": ["historical exposure only", "unknown timing", "washout-only violations", "monitoring-only interactions"],
+      "catalogue_scope": "sacubitril/valsartan is optional fault-only extension, never a default treatment recommendation",
+      "mechanical_when_complete": true, "independent_review_status": "independent_review_pending"
+    },
+    {
+      "rule_id": "ceftriaxone_calcium_iv_diluent", "category": "solvent_error", "product_id": "ceftriaxone", "catalogue_code": "SIM-CEFTRIAXONE-1G", "sources": ["ceftriaxone"],
+      "statement": "Calcium-containing solutions, including Ringer/Hartmann solutions, must not reconstitute ceftriaxone or further dilute it for IV administration. The restriction is not limited to neonates.",
+      "required": ["explicit IV-appropriate scenario", "exact injectable product", "IV route", "declared reconstitution/further-dilution use", "confirmed diluent calcium status"],
+      "negative_scope": "Only checks absence of calcium incompatibility; an exact NS/D5W product with declared 10–40 mg/mL concentration is needed for a scoped non-trigger.",
+      "not_covered": ["oral outpatient prescriptions", "sequential adult line use after flushing", "neonatal co-infusion rules", "all other mixture/stability/infusion requirements"],
+      "mechanical_when_complete": true, "independent_review_status": "independent_review_pending"
+    }
+  ]
+}

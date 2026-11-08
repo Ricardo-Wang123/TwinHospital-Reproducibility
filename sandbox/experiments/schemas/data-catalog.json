@@ -1,0 +1,143 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://twinhospital.local/schemas/data-catalog.json",
+  "title": "数据来源与生成账本",
+  "description": "文件摘要、行数、来源及替换接口留账。source_materials为需人工提供的扩展，不是生成器已有真人证据。",
+  "x-contract-status": "implemented-and-extensions",
+  "type": "object",
+  "properties": {
+    "schema_version": {
+      "const": "1"
+    },
+    "data_kind": {
+      "type": "string",
+      "minLength": 1
+    },
+    "generation_method": {
+      "type": "string",
+      "minLength": 1
+    },
+    "generator_version": {
+      "type": "string",
+      "minLength": 1
+    },
+    "seed": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "scale": {
+      "enum": [
+        "small",
+        "paper",
+        "study"
+      ]
+    },
+    "generated_at": {
+      "$ref": "common.json#/$defs/timestamp"
+    },
+    "clinical_validation_status": {
+      "type": "string",
+      "minLength": 1
+    },
+    "research_eligible": {
+      "type": "boolean"
+    },
+    "artifacts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "$ref": "common.json#/$defs/relativePath"
+          },
+          "record_count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "sha256": {
+            "$ref": "common.json#/$defs/sha256"
+          },
+          "data_kind": {
+            "type": "string",
+            "minLength": 1
+          },
+          "replacement_interface": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "path",
+          "record_count",
+          "sha256",
+          "data_kind",
+          "replacement_interface"
+        ],
+        "additionalProperties": true
+      },
+      "minItems": 1
+    },
+    "note": {
+      "type": "string"
+    },
+    "source_materials": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "source_id": {
+            "$ref": "common.json#/$defs/longIdString"
+          },
+          "source_kind": {
+            "$ref": "common.json#/$defs/sourceKind"
+          },
+          "source_sha256": {
+            "$ref": "common.json#/$defs/sha256"
+          },
+          "custodian": {
+            "$ref": "common.json#/$defs/longIdString"
+          },
+          "replacement_target": {
+            "$ref": "common.json#/$defs/relativePath"
+          }
+        },
+        "required": [
+          "source_id",
+          "source_kind",
+          "source_sha256",
+          "custodian",
+          "replacement_target"
+        ],
+        "additionalProperties": true
+      },
+      "minItems": 0
+    },
+    "seed_use": {
+      "type": "string",
+      "minLength": 1
+    }
+  },
+  "required": [
+    "schema_version",
+    "data_kind",
+    "research_eligible",
+    "artifacts"
+  ],
+  "additionalProperties": true,
+  "examples": [
+    {
+      "schema_version": "1",
+      "data_kind": "engineering_example",
+      "research_eligible": false,
+      "artifacts": [
+        {
+          "path": "cases.jsonl",
+          "record_count": 0,
+          "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "data_kind": "engineering_example",
+          "replacement_interface": "CaseProvider"
+        }
+      ]
+    }
+  ]
+}

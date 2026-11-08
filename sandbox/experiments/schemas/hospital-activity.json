@@ -1,0 +1,56 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://twinhospital.local/schemas/hospital-activity.json",
+  "title": "医院实测活动输入",
+  "description": "仅医院活动；平台活动使用封存CSV。外部来源日志须核验摘要并复制；不能把simulation/scripted伪装为医院实测。",
+  "x-contract-status": "implemented",
+  "allOf": [
+    {
+      "$ref": "common.json#/$defs/activity"
+    },
+    {
+      "type": "object",
+      "properties": {
+        "config_id": {
+          "$ref": "common.json#/$defs/longIdString"
+        },
+        "environment": {
+          "const": "hospital"
+        },
+        "source_kind": {
+          "const": "hospital_observed"
+        },
+        "independent_execution": {
+          "const": true
+        },
+        "timing_source": {
+          "const": "measured"
+        },
+        "operator_id": {
+          "$ref": "common.json#/$defs/longIdString"
+        },
+        "source_run_id": {
+          "$ref": "common.json#/$defs/longIdString"
+        },
+        "source_ref": {
+          "$ref": "common.json#/$defs/relativePath"
+        },
+        "source_sha256": {
+          "$ref": "common.json#/$defs/sha256"
+        }
+      },
+      "required": [
+        "config_id",
+        "environment",
+        "source_kind",
+        "independent_execution",
+        "timing_source",
+        "operator_id",
+        "source_run_id",
+        "source_ref",
+        "source_sha256"
+      ],
+      "additionalProperties": true
+    }
+  ]
+}

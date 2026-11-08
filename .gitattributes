@@ -1,0 +1,10 @@
+# Source and guides use stable LF line endings.
+*.py text eol=lf
+*.md text eol=lf
+*.json text eol=lf
+*.jsonl text eol=lf
+*.yaml text eol=lf
+*.txt text eol=lf
+
+# These packages contain SHA256 hashes of exact file bytes. Do not convert them.
+fixtures/twinhospital/** -text

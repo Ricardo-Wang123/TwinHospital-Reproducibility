@@ -1,0 +1,180 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://twinhospital.local/schemas/hospital-result.json",
+  "title": "医院离线执行导入行",
+  "description": "此Schema允许不完整观测归档；无产物/两人审核/病历签署则import_report.complete=false。示例仅结构示意，hospital_observed声明必须由真人实际执行后填写。",
+  "x-contract-status": "implemented-and-extensions",
+  "type": "object",
+  "properties": {
+    "case_id": {
+      "$ref": "common.json#/$defs/longIdString"
+    },
+    "config_id": {
+      "$ref": "common.json#/$defs/longIdString"
+    },
+    "task": {
+      "$ref": "common.json#/$defs/task"
+    },
+    "input_sha256": {
+      "$ref": "common.json#/$defs/sha256"
+    },
+    "source_kind": {
+      "const": "hospital_observed"
+    },
+    "independent_execution": {
+      "const": true
+    },
+    "hospital_execution_started_at": {
+      "$ref": "common.json#/$defs/timestamp"
+    },
+    "output": {},
+    "final_output": {},
+    "output_ref": {
+      "$ref": "common.json#/$defs/relativePath"
+    },
+    "final_output_ref": {
+      "$ref": "common.json#/$defs/relativePath"
+    },
+    "output_sha256": {
+      "anyOf": [
+        {
+          "$ref": "common.json#/$defs/sha256"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "final_output_hash": {
+      "$ref": "common.json#/$defs/sha256"
+    },
+    "final_output_sha256": {
+      "$ref": "common.json#/$defs/sha256"
+    },
+    "reviews": {
+      "type": "array",
+      "items": {
+        "$ref": "common.json#/$defs/review"
+      },
+      "minItems": 0
+    },
+    "adjudication": {
+      "anyOf": [
+        {
+          "$ref": "common.json#/$defs/adjudication"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "attestation": {
+      "anyOf": [
+        {
+          "$ref": "common.json#/$defs/attestation"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "independent_execution_evidence": {
+      "anyOf": [
+        {
+          "$ref": "common.json#/$defs/evidence"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "potential_reuse": {
+      "type": "boolean"
+    },
+    "encounter_ended_at": {
+      "anyOf": [
+        {
+          "$ref": "common.json#/$defs/timestamp"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "physician_attested_at": {
+      "anyOf": [
+        {
+          "$ref": "common.json#/$defs/timestamp"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "status": {
+      "enum": [
+        "completed",
+        "failed",
+        "timeout"
+      ]
+    },
+    "final_decision": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "enum": [
+        "approve",
+        "reject",
+        "block",
+        null
+      ]
+    },
+    "first_handoff_output": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "description": "医生补问之前的实际首次交接，不能从最终输出推断或补造。"
+    },
+    "first_handoff_output_sha256": {
+      "anyOf": [
+        {
+          "$ref": "common.json#/$defs/sha256"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "artifact_versions": {
+      "type": "array",
+      "items": {
+        "$ref": "note-version.json"
+      },
+      "minItems": 0
+    }
+  },
+  "required": [
+    "case_id",
+    "config_id",
+    "input_sha256",
+    "source_kind",
+    "independent_execution",
+    "hospital_execution_started_at"
+  ],
+  "additionalProperties": true,
+  "examples": [
+    {
+      "case_id": "demo-001",
+      "config_id": "preconsult:nurse_only",
+      "task": "preconsult",
+      "input_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "source_kind": "hospital_observed",
+      "independent_execution": true,
+      "hospital_execution_started_at": "2026-09-19T02:00:00Z",
+      "output": null,
+      "reviews": []
+    }
+  ]
+}

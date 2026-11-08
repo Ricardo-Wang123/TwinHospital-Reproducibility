@@ -1,0 +1,55 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://twinhospital.local/schemas/calibration-event.json",
+  "title": "示例校准CSV原始行",
+  "description": "demo-2当前CSV格式；数字列转换后可直接calibrate；对应calibration_catalog的3虚构anchor只供工程验证，不具研究资格。",
+  "x-contract-status": "implemented",
+  "type": "object",
+  "properties": {
+    "case_id": {
+      "$ref": "common.json#/$defs/longIdString"
+    },
+    "task": {
+      "$ref": "common.json#/$defs/task"
+    },
+    "role": {
+      "$ref": "common.json#/$defs/role"
+    },
+    "activity_type": {
+      "type": "string",
+      "minLength": 1
+    },
+    "active_seconds": {
+      "type": "number",
+      "minimum": 0
+    },
+    "timing_source": {
+      "type": "string",
+      "minLength": 1
+    },
+    "source_kind": {
+      "$ref": "common.json#/$defs/sourceKind"
+    }
+  },
+  "required": [
+    "case_id",
+    "task",
+    "role",
+    "activity_type",
+    "active_seconds",
+    "timing_source",
+    "source_kind"
+  ],
+  "additionalProperties": true,
+  "examples": [
+    {
+      "case_id": "example-anchor-preconsult",
+      "task": "preconsult",
+      "role": "doctor",
+      "activity_type": "review",
+      "active_seconds": 60,
+      "timing_source": "scripted",
+      "source_kind": "engineering_example"
+    }
+  ]
+}

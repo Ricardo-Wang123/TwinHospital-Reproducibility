@@ -1,0 +1,221 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://twinhospital.local/schemas/effort-summary.json",
+  "title": "全病例人工投入汇总",
+  "description": "指标函数实际返回结构；空样本示例的null不是零。",
+  "x-contract-status": "implemented",
+  "type": "object",
+  "properties": {
+    "n_cases": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "qualified_cases": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "unknown_quality_cases": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "failed_cases": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "complete": {
+      "type": "boolean"
+    },
+    "total_active_seconds": {
+      "type": "number",
+      "minimum": 0
+    },
+    "role_active_seconds": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "number",
+        "minimum": 0
+      }
+    },
+    "human_seconds_per_qualified_task": {
+      "type": [
+        "number",
+        "null"
+      ]
+    },
+    "role_seconds_per_qualified_task": {
+      "type": "object",
+      "additionalProperties": {
+        "type": [
+          "number",
+          "null"
+        ]
+      }
+    },
+    "timing_sources": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "integer",
+        "minimum": 0
+      }
+    },
+    "quality_sources": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "integer",
+        "minimum": 0
+      }
+    },
+    "cases_without_activity": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "redundant_inquiry_seconds_per_case": {
+      "type": [
+        "number",
+        "null"
+      ]
+    },
+    "mean_turnaround_seconds": {
+      "type": [
+        "number",
+        "null"
+      ]
+    },
+    "turnaround_observed_cases": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "turnaround_missing_cases": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "draft_metrics_applicable": {
+      "type": "boolean"
+    },
+    "first_pass_completion_rate": {
+      "type": [
+        "number",
+        "null"
+      ]
+    },
+    "first_pass_completed_missing": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "first_draft_acceptance_rate": {
+      "type": [
+        "number",
+        "null"
+      ]
+    },
+    "first_draft_accepted_missing": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "mean_rework_rounds": {
+      "type": [
+        "number",
+        "null"
+      ]
+    },
+    "rework_rounds_missing": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "mean_rework_seconds": {
+      "type": [
+        "number",
+        "null"
+      ]
+    },
+    "rework_seconds_missing": {
+      "type": "number",
+      "minimum": 0
+    },
+    "timing_complete": {
+      "type": "boolean"
+    },
+    "role_timing_coverage": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "observed_cases": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "n_cases": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "complete": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "observed_cases",
+          "n_cases",
+          "complete"
+        ],
+        "additionalProperties": true
+      }
+    }
+  },
+  "required": [
+    "n_cases",
+    "qualified_cases",
+    "unknown_quality_cases",
+    "failed_cases",
+    "complete",
+    "total_active_seconds",
+    "role_active_seconds",
+    "human_seconds_per_qualified_task",
+    "role_seconds_per_qualified_task",
+    "timing_sources",
+    "quality_sources",
+    "cases_without_activity",
+    "redundant_inquiry_seconds_per_case",
+    "mean_turnaround_seconds",
+    "turnaround_observed_cases",
+    "turnaround_missing_cases",
+    "draft_metrics_applicable",
+    "first_pass_completion_rate",
+    "first_pass_completed_missing",
+    "first_draft_acceptance_rate",
+    "first_draft_accepted_missing",
+    "mean_rework_rounds",
+    "rework_rounds_missing",
+    "mean_rework_seconds",
+    "rework_seconds_missing"
+  ],
+  "additionalProperties": true,
+  "examples": [
+    {
+      "n_cases": 0,
+      "qualified_cases": 0,
+      "unknown_quality_cases": 0,
+      "failed_cases": 0,
+      "complete": true,
+      "total_active_seconds": 0,
+      "role_active_seconds": {},
+      "human_seconds_per_qualified_task": null,
+      "role_seconds_per_qualified_task": {},
+      "timing_sources": {},
+      "quality_sources": {},
+      "cases_without_activity": 0,
+      "redundant_inquiry_seconds_per_case": null,
+      "mean_turnaround_seconds": null,
+      "turnaround_observed_cases": 0,
+      "turnaround_missing_cases": 0,
+      "draft_metrics_applicable": true,
+      "first_pass_completion_rate": null,
+      "first_pass_completed_missing": 0,
+      "first_draft_acceptance_rate": null,
+      "first_draft_accepted_missing": 0,
+      "mean_rework_rounds": null,
+      "rework_rounds_missing": 0,
+      "mean_rework_seconds": null,
+      "rework_seconds_missing": 0
+    }
+  ]
+}

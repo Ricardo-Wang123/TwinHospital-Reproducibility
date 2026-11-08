@@ -1,0 +1,7 @@
+# 论文数量的工程数据；数量扩大不会产生临床核验或真实 anchor。
+purpose: engineering_demo
+dataset: output/twinhospital-paper-data
+output: output/twinhospital-paper-demo
+case_concurrency: 4
+submission_window_s: 10
+his_backend: in_memory

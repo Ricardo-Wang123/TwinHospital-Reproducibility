@@ -1,0 +1,73 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://twinhospital.local/schemas/case.json",
+  "title": "病例分层目录",
+  "description": "一病例一行。input_ref是inputs.jsonl的case_id连接键，不是文件路径；anchor/test来源组不得交叉。",
+  "x-contract-status": "implemented-and-extensions",
+  "type": "object",
+  "properties": {
+    "schema_version": {
+      "const": "1"
+    },
+    "case_id": {
+      "$ref": "common.json#/$defs/longIdString"
+    },
+    "task": {
+      "$ref": "common.json#/$defs/task"
+    },
+    "split": {
+      "enum": [
+        "anchor",
+        "validation"
+      ]
+    },
+    "source_kind": {
+      "$ref": "common.json#/$defs/sourceKind"
+    },
+    "source_group_id": {
+      "$ref": "common.json#/$defs/longIdString"
+    },
+    "input_ref": {
+      "$ref": "common.json#/$defs/longIdString"
+    },
+    "input_sha256": {
+      "$ref": "common.json#/$defs/sha256"
+    },
+    "verification_ref": {
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 1
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  },
+  "required": [
+    "schema_version",
+    "case_id",
+    "task",
+    "split",
+    "source_kind",
+    "source_group_id",
+    "input_ref",
+    "input_sha256",
+    "verification_ref"
+  ],
+  "additionalProperties": true,
+  "examples": [
+    {
+      "schema_version": "1",
+      "case_id": "demo-001",
+      "task": "preconsult",
+      "split": "validation",
+      "source_kind": "engineering_example",
+      "source_group_id": "demo-source-1",
+      "input_ref": "demo-001",
+      "input_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "verification_ref": null
+    }
+  ]
+}

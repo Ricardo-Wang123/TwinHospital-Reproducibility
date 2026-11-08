@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://twinhospital.local/schemas/prescription.json",
+  "title": "处方版本",
+  "description": "版本增加不增加病例数。示例药品和剂量仅为工程输入，不能用于临床判断。",
+  "x-contract-status": "implemented-and-extensions",
+  "allOf": [
+    {
+      "$ref": "common.json#/$defs/prescription"
+    },
+    {
+      "type": "object",
+      "properties": {
+        "case_id": {
+          "$ref": "common.json#/$defs/longIdString"
+        },
+        "prescription_id": {
+          "$ref": "common.json#/$defs/longIdString"
+        },
+        "version": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "required": [
+        "case_id",
+        "prescription_id",
+        "version"
+      ],
+      "additionalProperties": true
+    }
+  ],
+  "examples": [
+    {
+      "case_id": "demo-001",
+      "prescription_id": "00090071992547409931",
+      "version": 1,
+      "items": [
+        {
+          "drug_code": "DEMO-A",
+          "dose": "10",
+          "dose_unit": "mg",
+          "route": "oral",
+          "frequency": "daily",
+          "duration_days": 3,
+          "quantity": "3",
+          "quantity_unit": "tablet",
+          "solvent": "DEMO-WATER"
+        }
+      ],
+      "patient_conditions": []
+    }
+  ]
+}

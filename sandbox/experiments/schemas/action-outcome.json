@@ -1,0 +1,116 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://twinhospital.local/schemas/action-outcome.json",
+  "title": "网关动作与状态效果证据",
+  "description": "动作结果不等于临床质量；实际前后状态、观察窗口、违规效果与保护来源分别保存。 兼容既有动作记录未写config_id/epoch/duration字段；这些字段不能从日志缺失推断为已记录。",
+  "x-contract-status": "implemented-and-extensions",
+  "type": "object",
+  "properties": {
+    "run_id": {
+      "$ref": "common.json#/$defs/longIdString"
+    },
+    "case_id": {
+      "$ref": "common.json#/$defs/longIdString"
+    },
+    "config_id": {
+      "$ref": "common.json#/$defs/longIdString"
+    },
+    "request_id": {
+      "$ref": "common.json#/$defs/longIdString"
+    },
+    "request_hash": {
+      "$ref": "common.json#/$defs/sha256"
+    },
+    "operation": {
+      "type": "string",
+      "minLength": 1
+    },
+    "epoch": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "occurred_at": {
+      "$ref": "common.json#/$defs/timestamp"
+    },
+    "policy_version": {
+      "type": "string",
+      "minLength": 1
+    },
+    "status": {
+      "type": "string",
+      "minLength": 1
+    },
+    "reason": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "outcome": {
+      "enum": [
+        "sandbox_prevention",
+        "downstream_safe",
+        "unsafe_execution",
+        "unresolved",
+        "executed"
+      ]
+    },
+    "protection_source": {
+      "type": "string",
+      "minLength": 1
+    },
+    "prohibited_effects": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "before_state": {
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "after_state": {
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "evidence_status": {
+      "enum": [
+        "observed",
+        "missing"
+      ]
+    },
+    "duration_s": {
+      "type": "number",
+      "minimum": 0
+    },
+    "observation_window_s": {
+      "type": "number",
+      "minimum": 0
+    },
+    "observation_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "observation_duration_s": {
+      "type": "number",
+      "minimum": 0
+    },
+    "completion_evidence": {
+      "type": "string",
+      "minLength": 1
+    }
+  },
+  "required": [
+    "run_id",
+    "case_id",
+    "request_id",
+    "outcome",
+    "evidence_status"
+  ],
+  "additionalProperties": true
+}

@@ -1,0 +1,54 @@
+# OpenHIS sandbox department rebuild configuration.
+#
+# Only leaf departments are listed here. Parent grouping nodes from the source
+# taxonomy, such as 内科/外科/妇产科/儿科, are intentionally not injected.
+
+hospital:
+  # If empty, the first OpenHIS organization with typeEnum=1 is used.
+  name: ""
+
+department_defaults:
+  type_enum: 2
+  class_enum: 1
+  yb_no_prefix: "SIM-DEPT"
+  display_order_start: 10
+  display_order_step: 10
+
+departments:
+  - name: "公共卫生科 / 预防保健科"
+  - name: "全科医学科"
+  - name: "心血管内科"
+  - name: "呼吸内科"
+  - name: "消化内科"
+  - name: "神经内科"
+  - name: "内分泌科"
+  - name: "肾病学科"
+  - name: "血液内科"
+  - name: "免疫学科"
+  - name: "老年医学科"
+  - name: "普通外科"
+  - name: "骨科"
+  - name: "神经外科"
+  - name: "泌尿外科"
+  - name: "胸外科"
+  - name: "心脏大血管外科"
+  - name: "妇科"
+  - name: "产科"
+  - name: "新生儿科"
+  - name: "儿科其他"
+  - name: "眼科"
+  - name: "耳鼻咽喉科"
+  - name: "口腔科"
+  - name: "皮肤科"
+  - name: "精神科"
+  - name: "感染性疾病科"
+  - name: "肿瘤科"
+  - name: "急诊医学科"
+  - name: "康复医学科"
+  - name: "麻醉科"
+  - name: "重症医学科"
+  - name: "疼痛科"
+  - name: "中医科"
+  - name: "医学检验科"
+  - name: "医学影像科"
+  - name: "病理科"

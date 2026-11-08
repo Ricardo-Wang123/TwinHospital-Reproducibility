@@ -1,0 +1,83 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://twinhospital.local/schemas/subjective-response.json",
+  "title": "问卷配对统计行",
+  "description": "同人双流程；同item不同session先求均值，再item等权；重复不能增加参与人数。",
+  "x-contract-status": "draft-adapter",
+  "type": "object",
+  "properties": {
+    "participant_id": {
+      "$ref": "common.json#/$defs/longIdString"
+    },
+    "participant_group": {
+      "enum": [
+        "patient",
+        "clinician"
+      ]
+    },
+    "workflow": {
+      "enum": [
+        "existing",
+        "human_ai"
+      ]
+    },
+    "dimension": {
+      "type": "string",
+      "minLength": 1
+    },
+    "item_id": {
+      "$ref": "common.json#/$defs/longIdString"
+    },
+    "session_id": {
+      "$ref": "common.json#/$defs/longIdString"
+    },
+    "score": {
+      "anyOf": [
+        {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 5
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "valid": {
+      "type": "boolean"
+    },
+    "missing_reason": {
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 1
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "source_kind": {
+      "$ref": "common.json#/$defs/sourceKind"
+    }
+  },
+  "required": [
+    "participant_id",
+    "participant_group",
+    "workflow",
+    "dimension",
+    "score"
+  ],
+  "additionalProperties": true,
+  "examples": [
+    {
+      "participant_id": "patient-demo",
+      "participant_group": "patient",
+      "workflow": "existing",
+      "dimension": "usability",
+      "score": null,
+      "missing_reason": "awaiting_observation",
+      "source_kind": "engineering_example"
+    }
+  ]
+}

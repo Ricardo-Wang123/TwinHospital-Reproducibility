@@ -1,0 +1,107 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://twinhospital.local/schemas/reference.json",
+  "title": "评价参考标准",
+  "description": "评价专用，禁止进入Agent输入或医院包。真实标准和严重性阈值必须经临床核验。",
+  "x-contract-status": "implemented-and-extensions",
+  "type": "object",
+  "properties": {
+    "case_id": {
+      "$ref": "common.json#/$defs/longIdString"
+    },
+    "reference_version": {
+      "type": "string",
+      "minLength": 1
+    },
+    "positive": {
+      "type": "boolean"
+    },
+    "severe": {
+      "type": "boolean"
+    },
+    "error_category": {
+      "anyOf": [
+        {
+          "enum": [
+            "solvent",
+            "dose",
+            "interaction",
+            "duplicate",
+            "route",
+            "contraindication"
+          ]
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "required_items": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "fact_id": {
+            "$ref": "common.json#/$defs/longIdString"
+          },
+          "value": {}
+        },
+        "required": [
+          "fact_id",
+          "value"
+        ],
+        "additionalProperties": true
+      },
+      "minItems": 0
+    },
+    "risk_signals": {
+      "type": "array",
+      "items": {
+        "$ref": "common.json#/$defs/longIdString"
+      },
+      "minItems": 0
+    },
+    "source_kind": {
+      "$ref": "common.json#/$defs/sourceKind"
+    },
+    "verification_ref": {
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 1
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  },
+  "required": [
+    "case_id",
+    "reference_version",
+    "positive",
+    "severe",
+    "error_category",
+    "required_items",
+    "risk_signals",
+    "source_kind"
+  ],
+  "additionalProperties": true,
+  "examples": [
+    {
+      "case_id": "demo-001",
+      "reference_version": "demo-1",
+      "positive": false,
+      "severe": false,
+      "error_category": null,
+      "required_items": [
+        {
+          "fact_id": "demo_fact",
+          "value": "示例内容"
+        }
+      ],
+      "risk_signals": [],
+      "source_kind": "engineering_example"
+    }
+  ]
+}

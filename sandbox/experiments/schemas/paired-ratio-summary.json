@@ -1,0 +1,449 @@
+{
+  "type": "object",
+  "properties": {
+    "n_candidate_cases": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "n_paired_cases": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "excluded_cases": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "missing_rows": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "missing_metric_values": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "n_source_groups": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "complete": {
+      "type": "boolean"
+    },
+    "bootstrap_status": {
+      "enum": [
+        "ok",
+        "insufficient_source_groups",
+        "incomplete_coverage",
+        "zero_denominator_resamples",
+        "zero_qualified"
+      ]
+    },
+    "contrasts": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "simulation_delta": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "hospital_delta": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "delta_error": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "absolute_delta_error": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "simulation_delta_ci": {
+            "anyOf": [
+              {
+                "type": "array",
+                "items": {
+                  "type": "number"
+                },
+                "minItems": 2,
+                "maxItems": 2
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "hospital_delta_ci": {
+            "anyOf": [
+              {
+                "type": "array",
+                "items": {
+                  "type": "number"
+                },
+                "minItems": 2,
+                "maxItems": 2
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "delta_error_ci": {
+            "anyOf": [
+              {
+                "type": "array",
+                "items": {
+                  "type": "number"
+                },
+                "minItems": 2,
+                "maxItems": 2
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "direction_agreement": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "valid_bootstrap_samples": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "zero_denominator_samples": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "attempted_bootstrap_samples": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "simulation_delta",
+          "hospital_delta",
+          "delta_error",
+          "absolute_delta_error",
+          "simulation_delta_ci",
+          "hospital_delta_ci",
+          "delta_error_ci",
+          "direction_agreement",
+          "valid_bootstrap_samples",
+          "zero_denominator_samples",
+          "attempted_bootstrap_samples"
+        ],
+        "additionalProperties": true
+      }
+    },
+    "ranking": {
+      "type": "object",
+      "properties": {
+        "tau_b": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "simulation": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "config_id": {
+                "$ref": "common.json#/$defs/longIdString"
+              },
+              "delta": {
+                "type": "number"
+              },
+              "dense_rank": {
+                "type": "integer",
+                "minimum": 1
+              }
+            },
+            "required": [
+              "config_id",
+              "delta",
+              "dense_rank"
+            ],
+            "additionalProperties": true
+          }
+        },
+        "hospital": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "config_id": {
+                "$ref": "common.json#/$defs/longIdString"
+              },
+              "delta": {
+                "type": "number"
+              },
+              "dense_rank": {
+                "type": "integer",
+                "minimum": 1
+              }
+            },
+            "required": [
+              "config_id",
+              "delta",
+              "dense_rank"
+            ],
+            "additionalProperties": true
+          }
+        }
+      },
+      "required": [
+        "tau_b",
+        "simulation",
+        "hospital"
+      ],
+      "additionalProperties": true
+    },
+    "tolerances": {
+      "type": "object",
+      "properties": {
+        "max_abs_delta_error": {
+          "type": "number",
+          "minimum": 0
+        },
+        "direction_epsilon": {
+          "type": "number",
+          "minimum": 0
+        },
+        "min_tau_b": {
+          "type": "number",
+          "minimum": -1,
+          "maximum": 1
+        }
+      },
+      "required": [],
+      "additionalProperties": true
+    },
+    "tolerance_decisions": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "direction_agreement": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "interval_within_tolerance": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "direction_agreement",
+          "interval_within_tolerance"
+        ],
+        "additionalProperties": true
+      }
+    },
+    "fidelity_pass": {
+      "type": [
+        "boolean",
+        "null"
+      ]
+    },
+    "estimand": {
+      "const": "ratio_of_totals"
+    },
+    "numerator_metric": {
+      "type": "string",
+      "pattern": "_active_seconds$"
+    },
+    "denominator_metric": {
+      "const": "qualified"
+    },
+    "estimates": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "simulation": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "total_active_seconds": {
+                "type": "number",
+                "minimum": 0
+              },
+              "qualified_cases": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "n_cases": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "quality_observed_cases": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "timing_observed_cases": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "complete": {
+                "type": "boolean"
+              },
+              "zero_qualified": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "value",
+              "total_active_seconds",
+              "qualified_cases",
+              "n_cases",
+              "quality_observed_cases",
+              "timing_observed_cases",
+              "complete",
+              "zero_qualified"
+            ],
+            "additionalProperties": true
+          },
+          "hospital": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "total_active_seconds": {
+                "type": "number",
+                "minimum": 0
+              },
+              "qualified_cases": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "n_cases": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "quality_observed_cases": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "timing_observed_cases": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "complete": {
+                "type": "boolean"
+              },
+              "zero_qualified": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "value",
+              "total_active_seconds",
+              "qualified_cases",
+              "n_cases",
+              "quality_observed_cases",
+              "timing_observed_cases",
+              "complete",
+              "zero_qualified"
+            ],
+            "additionalProperties": true
+          }
+        },
+        "required": [
+          "simulation",
+          "hospital"
+        ],
+        "additionalProperties": true
+      }
+    },
+    "coverage": {
+      "type": "object",
+      "properties": {
+        "expected_observations": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "observed_rows": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "quality_observed": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "timing_observed": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "missing_quality_values": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "missing_timing_values": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "expected_observations",
+        "observed_rows",
+        "quality_observed",
+        "timing_observed",
+        "missing_quality_values",
+        "missing_timing_values"
+      ],
+      "additionalProperties": true
+    }
+  },
+  "required": [
+    "n_candidate_cases",
+    "n_paired_cases",
+    "excluded_cases",
+    "missing_rows",
+    "missing_metric_values",
+    "n_source_groups",
+    "complete",
+    "bootstrap_status",
+    "contrasts",
+    "ranking",
+    "tolerances",
+    "tolerance_decisions",
+    "fidelity_pass",
+    "estimand",
+    "numerator_metric",
+    "denominator_metric",
+    "estimates",
+    "coverage"
+  ],
+  "additionalProperties": true,
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://twinhospital.local/schemas/paired-ratio-summary.json",
+  "title": "APP II 配对总投入与合格任务比率",
+  "description": "验证paired_comparison.tasks[task].metrics[derived_name]单个派生比率结果。每个来源组整块重采样后重新计算分子与Nq。缺失不可用完整病例子样本代替；未定义重采样次数不丢弃，CI为null。coverage不证明真实计时完整性。",
+  "x-contract-status": "implemented"
+}

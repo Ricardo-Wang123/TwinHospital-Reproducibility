@@ -1,0 +1,61 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://twinhospital.local/schemas/hospital-case.json",
+  "title": "医院公开输入行",
+  "description": "case_inputs.jsonl与clinician_initial_view.jsonl均仅临床初始视图；患者全事实/转写单独patients_view。input_sha256仍绑定完整封存输入，visible_sha256只绑定初始视图。",
+  "x-contract-status": "implemented-and-extensions",
+  "type": "object",
+  "properties": {
+    "case_id": {
+      "$ref": "common.json#/$defs/longIdString"
+    },
+    "task": {
+      "$ref": "common.json#/$defs/task"
+    },
+    "input_sha256": {
+      "$ref": "common.json#/$defs/sha256"
+    },
+    "visible_sha256": {
+      "$ref": "common.json#/$defs/sha256"
+    },
+    "visible_inputs": {
+      "$ref": "common.json#/$defs/executionValue"
+    },
+    "configuration_ids": {
+      "type": "array",
+      "items": {
+        "$ref": "common.json#/$defs/longIdString"
+      },
+      "minItems": 1
+    },
+    "patients_view_file": {
+      "const": "patients_view.jsonl"
+    },
+    "clinician_view_file": {
+      "const": "clinician_initial_view.jsonl"
+    }
+  },
+  "required": [
+    "case_id",
+    "task",
+    "input_sha256",
+    "visible_sha256",
+    "visible_inputs",
+    "configuration_ids"
+  ],
+  "additionalProperties": true,
+  "examples": [
+    {
+      "case_id": "demo-001",
+      "task": "preconsult",
+      "input_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "visible_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "visible_inputs": {
+        "chief_complaint": "工程示例"
+      },
+      "configuration_ids": [
+        "preconsult:nurse_only"
+      ]
+    }
+  ]
+}

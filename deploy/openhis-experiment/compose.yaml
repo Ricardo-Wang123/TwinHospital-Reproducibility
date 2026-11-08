@@ -1,0 +1,144 @@
+{
+  "name": "twinhospital-exp",
+  "services": {
+    "postgres": {
+      "image": "postgres:16.2",
+      "restart": "no",
+      "environment": {
+        "POSTGRES_DB": "openhis_205_local",
+        "POSTGRES_USER": "postgres",
+        "POSTGRES_PASSWORD": "${DB_PASSWORD}",
+        "TZ": "Asia/Shanghai"
+      },
+      "volumes": [
+        "exp-pgdata:/var/lib/postgresql/data",
+        "${TH_OPENHIS_ASSETS:?Set TH_OPENHIS_ASSETS}/openhis-seed/20-restore-openhis-seed.sh:/docker-entrypoint-initdb.d/20-restore-openhis-seed.sh:ro",
+        "${TH_OPENHIS_ASSETS:?Set TH_OPENHIS_ASSETS}/openhis-seed/openhis_300_seed.dump:/seed/openhis_300_seed.dump:ro"
+      ],
+      "healthcheck": {
+        "test": [
+          "CMD-SHELL",
+          "pg_isready -U postgres -d openhis_205_local"
+        ],
+        "interval": "5s",
+        "timeout": "5s",
+        "retries": 40
+      },
+      "networks": [
+        "isolated"
+      ]
+    },
+    "upgrade": {
+      "image": "postgres:16.2",
+      "restart": "no",
+      "depends_on": {
+        "postgres": {
+          "condition": "service_healthy"
+        }
+      },
+      "environment": {
+        "PGHOST": "postgres",
+        "PGPORT": "5432",
+        "PGDATABASE": "openhis_205_local",
+        "PGUSER": "postgres",
+        "PGPASSWORD": "${DB_PASSWORD}",
+        "TZ": "Asia/Shanghai"
+      },
+      "volumes": [
+        "${TH_OPENHIS_ASSETS:?Set TH_OPENHIS_ASSETS}/openhis-seed:/seed:ro"
+      ],
+      "command": [
+        "sh",
+        "/seed/run-upgrades.sh"
+      ],
+      "networks": [
+        "isolated"
+      ]
+    },
+    "backend": {
+      "image": "eclipse-temurin:17-jre",
+      "restart": "no",
+      "depends_on": {
+        "upgrade": {
+          "condition": "service_completed_successfully"
+        }
+      },
+      "environment": {
+        "DB_HOST": "postgres",
+        "DB_PORT": "5432",
+        "DB_NAME": "openhis_205_local",
+        "DB_USERNAME": "postgres",
+        "DB_PASSWORD": "${DB_PASSWORD}",
+        "SPRING_PROFILES_ACTIVE": "dev",
+        "JWT_SECRET": "${JWT_SECRET}",
+        "TZ": "Asia/Shanghai"
+      },
+      "volumes": [
+        "${TH_OPENHIS_ASSETS:?Set TH_OPENHIS_ASSETS}/release/health-app.jar:/app/health-app.jar:ro",
+        "exp-uploads:/app/uploads"
+      ],
+      "command": [
+        "java",
+        "-Dfile.encoding=UTF-8",
+        "-Xms256m",
+        "-Xmx2g",
+        "-jar",
+        "/app/health-app.jar",
+        "--server.address=0.0.0.0",
+        "--server.port=18081",
+        "--spring.jpa.hibernate.ddl-auto=validate",
+        "--openhis.flyway.modular.enabled=false",
+        "--openhis.flyway.dev-seed.enabled=false",
+        "--openhis.bootstrap.reset-admin-password.enabled=false",
+        "--app.logging.api-params-enabled=false",
+        "--openhis.chs.inventory.upload-enabled=false",
+        "--openhis.modules.chs.enabled=false",
+        "--openhis.modules.elep.enabled=false",
+        "--openhis.modules.unionpay-bpc.enabled=false",
+        "--openhis.modules.einvoice-boss.enabled=false"
+      ],
+      "healthcheck": {
+        "test": [
+          "CMD-SHELL",
+          "bash -c '</dev/tcp/127.0.0.1/18081'"
+        ],
+        "interval": "5s",
+        "timeout": "3s",
+        "retries": 60,
+        "start_period": "45s"
+      },
+      "networks": [
+        "isolated"
+      ]
+    },
+    "gateway": {
+      "image": "nginx:1.27-alpine",
+      "restart": "no",
+      "depends_on": {
+        "backend": {
+          "condition": "service_healthy"
+        }
+      },
+      "ports": [
+        "127.0.0.1:${TH_OPENHIS_PORT:-28081}:18081"
+      ],
+      "volumes": [
+        "./proxy.conf:/etc/nginx/conf.d/default.conf:ro"
+      ],
+      "networks": [
+        "isolated",
+        "ingress"
+      ]
+    }
+  },
+  "volumes": {
+    "exp-pgdata": {},
+    "exp-uploads": {}
+  },
+  "networks": {
+    "isolated": {
+      "internal": true
+    },
+    "ingress": {}
+  }
+}

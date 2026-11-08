@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://twinhospital.local/schemas/seal.json",
+  "title": "平台产物封存摘要",
+  "description": "artifacts摘要原始文件字节；自身不能入自身hash。哈希只证明本地内容一致性，不证明事先公证或真人参与。",
+  "x-contract-status": "implemented-and-extensions",
+  "type": "object",
+  "properties": {
+    "schema_version": {
+      "const": "1"
+    },
+    "sealed_at": {
+      "$ref": "common.json#/$defs/timestamp"
+    },
+    "manifest_sha256": {
+      "$ref": "common.json#/$defs/sha256"
+    },
+    "custodian": {
+      "$ref": "common.json#/$defs/longIdString"
+    },
+    "artifacts": {
+      "$ref": "common.json#/$defs/fileHashMap"
+    },
+    "assurance": {
+      "type": "string",
+      "minLength": 1
+    }
+  },
+  "required": [
+    "sealed_at",
+    "manifest_sha256",
+    "custodian",
+    "artifacts"
+  ],
+  "additionalProperties": true,
+  "examples": [
+    {
+      "schema_version": "1",
+      "sealed_at": "2026-09-19T02:00:00Z",
+      "manifest_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "custodian": "demo-custodian",
+      "artifacts": {
+        "config.json": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "case_inputs.jsonl": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "case_results.jsonl": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "events.jsonl": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "human_activity.csv": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      }
+    }
+  ]
+}

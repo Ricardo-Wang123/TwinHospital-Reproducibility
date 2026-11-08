@@ -1,0 +1,82 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://twinhospital.local/schemas/event.json",
+  "title": "运行事件",
+  "description": "正常事件带运行/病例/序号，批次终止为独立分支。occurred_at墙钟与sim_time_s模拟时间不可混算。",
+  "x-contract-status": "implemented-and-extensions",
+  "oneOf": [
+    {
+      "type": "object",
+      "properties": {
+        "event_id": {
+          "$ref": "common.json#/$defs/longIdString"
+        },
+        "run_id": {
+          "$ref": "common.json#/$defs/longIdString"
+        },
+        "case_id": {
+          "$ref": "common.json#/$defs/longIdString"
+        },
+        "config_id": {
+          "$ref": "common.json#/$defs/longIdString"
+        },
+        "seq": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "event_type": {
+          "type": "string",
+          "minLength": 1
+        },
+        "occurred_at": {
+          "$ref": "common.json#/$defs/timestamp"
+        },
+        "sim_time_s": {
+          "type": "number",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "event_id",
+        "run_id",
+        "case_id",
+        "seq",
+        "event_type",
+        "occurred_at"
+      ],
+      "additionalProperties": true
+    },
+    {
+      "type": "object",
+      "properties": {
+        "event_type": {
+          "const": "batch_aborted"
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1
+        },
+        "occurred_at": {
+          "$ref": "common.json#/$defs/timestamp"
+        }
+      },
+      "required": [
+        "event_type",
+        "reason",
+        "occurred_at"
+      ],
+      "additionalProperties": false
+    }
+  ],
+  "examples": [
+    {
+      "event_id": "demo-run:demo-001:1",
+      "run_id": "demo-run",
+      "case_id": "demo-001",
+      "seq": 1,
+      "event_type": "note_draft_created",
+      "occurred_at": "2026-09-19T02:00:00Z",
+      "sim_time_s": 0
+    }
+  ]
+}

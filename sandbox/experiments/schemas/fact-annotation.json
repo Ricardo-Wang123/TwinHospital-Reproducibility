@@ -1,0 +1,57 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://twinhospital.local/schemas/fact-annotation.json",
+  "title": "事实/条目独立标注",
+  "description": "claim为产出断言，required_item为必需条目；fact兼具两者。not_applicable需映射applicable=false，不可直接作为label。",
+  "x-contract-status": "implemented-and-extensions",
+  "type": "object",
+  "properties": {
+    "case_id": {
+      "$ref": "common.json#/$defs/longIdString"
+    },
+    "artifact_id": {
+      "$ref": "common.json#/$defs/longIdString"
+    },
+    "item_id": {
+      "$ref": "common.json#/$defs/longIdString"
+    },
+    "label": {
+      "$ref": "common.json#/$defs/factLabel"
+    },
+    "unit": {
+      "enum": [
+        "fact",
+        "claim",
+        "required_item"
+      ],
+      "default": "fact"
+    },
+    "applicable": {
+      "type": "boolean"
+    },
+    "source_sha256": {
+      "$ref": "common.json#/$defs/sha256"
+    },
+    "artifact_sha256": {
+      "$ref": "common.json#/$defs/sha256"
+    },
+    "quality_source": {
+      "$ref": "common.json#/$defs/qualitySource"
+    }
+  },
+  "required": [
+    "label"
+  ],
+  "additionalProperties": true,
+  "examples": [
+    {
+      "case_id": "demo-001",
+      "artifact_id": "blind-000001",
+      "item_id": "fact-demo",
+      "label": "indeterminate",
+      "unit": "required_item",
+      "applicable": true,
+      "quality_source": "independent_review"
+    }
+  ]
+}

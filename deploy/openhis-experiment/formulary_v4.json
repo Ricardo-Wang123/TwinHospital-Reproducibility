@@ -1,0 +1,1277 @@
+[
+  {
+    "drug_code": "SIM-METFORMIN-500",
+    "name": "metformin hydrochloride IR",
+    "display_name_zh": "盐酸二甲双胍普通片500mg",
+    "ingredient": "metformin",
+    "dosage_form": "oral_tablet_immediate_release",
+    "strength": "500 mg/tablet",
+    "dose_unit": "mg",
+    "quantity_unit": "tablet",
+    "allowed_routes": [
+      "oral"
+    ],
+    "route": "oral",
+    "components": [
+      {
+        "ingredient": "metformin hydrochloride",
+        "strength_value": 500,
+        "strength_unit": "mg",
+        "per": "tablet",
+        "basis_of_strength": "metformin hydrochloride"
+      }
+    ],
+    "notes": [
+      "Strength basis is metformin hydrochloride; not an extended-release product."
+    ],
+    "catalogue_version": "TH-CATALOGUE-2.1",
+    "allowed_dose_units": [
+      "mg"
+    ]
+  },
+  {
+    "drug_code": "SIM-FUROSEMIDE-20",
+    "name": "furosemide",
+    "display_name_zh": "呋塞米片20mg",
+    "ingredient": "furosemide",
+    "dosage_form": "oral_tablet_immediate_release",
+    "strength": "20 mg/tablet",
+    "dose_unit": "mg",
+    "quantity_unit": "tablet",
+    "allowed_routes": [
+      "oral"
+    ],
+    "route": "oral",
+    "components": [
+      {
+        "ingredient": "furosemide",
+        "strength_value": 20,
+        "strength_unit": "mg",
+        "per": "tablet",
+        "basis_of_strength": "furosemide"
+      }
+    ],
+    "notes": [],
+    "catalogue_version": "TH-CATALOGUE-2.1",
+    "allowed_dose_units": [
+      "mg"
+    ]
+  },
+  {
+    "drug_code": "SIM-ALBUTEROL-90",
+    "name": "albuterol HFA inhalation aerosol",
+    "display_name_zh": "沙丁胺醇HFA吸入器90μg/揿",
+    "ingredient": "albuterol",
+    "dosage_form": "metered_dose_inhalation_aerosol",
+    "strength": "90 mcg/actuation",
+    "dose_unit": "puff",
+    "quantity_unit": "inhaler",
+    "allowed_routes": [
+      "inhaled"
+    ],
+    "route": "inhaled",
+    "components": [
+      {
+        "ingredient": "albuterol base",
+        "strength_value": 90,
+        "strength_unit": "mcg",
+        "per": "actuation",
+        "basis_of_strength": "albuterol base"
+      }
+    ],
+    "notes": [
+      "90 mcg base delivered at mouthpiece equals 108 mcg sulfate for this label; 200 actuations/device.",
+      "Do not substitute a 100 mcg/actuation product; puff is one actuation, inhaler is one device."
+    ],
+    "catalogue_version": "TH-CATALOGUE-2.1",
+    "allowed_dose_units": [
+      "puff"
+    ]
+  },
+  {
+    "drug_code": "SIM-AMOXICILLIN-500",
+    "name": "amoxicillin",
+    "display_name_zh": "阿莫西林胶囊500mg",
+    "ingredient": "amoxicillin",
+    "dosage_form": "oral_capsule",
+    "strength": "500 mg/capsule",
+    "dose_unit": "mg",
+    "quantity_unit": "capsule",
+    "allowed_routes": [
+      "oral"
+    ],
+    "route": "oral",
+    "components": [
+      {
+        "ingredient": "amoxicillin",
+        "strength_value": 500,
+        "strength_unit": "mg",
+        "per": "capsule",
+        "basis_of_strength": "amoxicillin"
+      }
+    ],
+    "notes": [
+      "Amoxicillin strength, supplied as trihydrate; not a 250 mg capsule."
+    ],
+    "catalogue_version": "TH-CATALOGUE-2.1",
+    "allowed_dose_units": [
+      "mg"
+    ]
+  },
+  {
+    "drug_code": "SIM-NITROFURANTOIN-MONO-MACRO-100",
+    "name": "nitrofurantoin monohydrate/macrocrystals",
+    "display_name_zh": "呋喃妥因一水合物/大晶体胶囊100mg",
+    "ingredient": "nitrofurantoin",
+    "dosage_form": "oral_capsule_monohydrate_macrocrystals",
+    "strength": "100 mg/capsule",
+    "dose_unit": "mg",
+    "quantity_unit": "capsule",
+    "allowed_routes": [
+      "oral"
+    ],
+    "route": "oral",
+    "components": [
+      {
+        "ingredient": "nitrofurantoin macrocrystals",
+        "strength_value": 25,
+        "strength_unit": "mg",
+        "per": "capsule",
+        "basis_of_strength": "nitrofurantoin"
+      },
+      {
+        "ingredient": "nitrofurantoin monohydrate",
+        "strength_value": 75,
+        "strength_unit": "mg",
+        "per": "capsule",
+        "basis_of_strength": "nitrofurantoin"
+      }
+    ],
+    "notes": [
+      "Do not equate this formulation with macrocrystals-only nitrofurantoin."
+    ],
+    "catalogue_version": "TH-CATALOGUE-2.1",
+    "allowed_dose_units": [
+      "mg"
+    ]
+  },
+  {
+    "drug_code": "SIM-LISINOPRIL-10",
+    "name": "lisinopril",
+    "display_name_zh": "赖诺普利片10mg",
+    "ingredient": "lisinopril",
+    "dosage_form": "oral_tablet_immediate_release",
+    "strength": "10 mg/tablet",
+    "dose_unit": "mg",
+    "quantity_unit": "tablet",
+    "allowed_routes": [
+      "oral"
+    ],
+    "route": "oral",
+    "components": [
+      {
+        "ingredient": "lisinopril",
+        "strength_value": 10,
+        "strength_unit": "mg",
+        "per": "tablet",
+        "basis_of_strength": "lisinopril"
+      }
+    ],
+    "notes": [],
+    "catalogue_version": "TH-CATALOGUE-2.1",
+    "allowed_dose_units": [
+      "mg"
+    ]
+  },
+  {
+    "drug_code": "SIM-SPIRONOLACTONE-25",
+    "name": "spironolactone",
+    "display_name_zh": "螺内酯片25mg",
+    "ingredient": "spironolactone",
+    "dosage_form": "oral_tablet_immediate_release",
+    "strength": "25 mg/tablet",
+    "dose_unit": "mg",
+    "quantity_unit": "tablet",
+    "allowed_routes": [
+      "oral"
+    ],
+    "route": "oral",
+    "components": [
+      {
+        "ingredient": "spironolactone",
+        "strength_value": 25,
+        "strength_unit": "mg",
+        "per": "tablet",
+        "basis_of_strength": "spironolactone"
+      }
+    ],
+    "notes": [],
+    "catalogue_version": "TH-CATALOGUE-2.1",
+    "allowed_dose_units": [
+      "mg"
+    ]
+  },
+  {
+    "drug_code": "SIM-EMPAGLIFLOZIN-10",
+    "name": "empagliflozin",
+    "display_name_zh": "恩格列净片10mg",
+    "ingredient": "empagliflozin",
+    "dosage_form": "oral_tablet_immediate_release",
+    "strength": "10 mg/tablet",
+    "dose_unit": "mg",
+    "quantity_unit": "tablet",
+    "allowed_routes": [
+      "oral"
+    ],
+    "route": "oral",
+    "components": [
+      {
+        "ingredient": "empagliflozin",
+        "strength_value": 10,
+        "strength_unit": "mg",
+        "per": "tablet",
+        "basis_of_strength": "empagliflozin"
+      }
+    ],
+    "notes": [],
+    "catalogue_version": "TH-CATALOGUE-2.1",
+    "allowed_dose_units": [
+      "mg"
+    ]
+  },
+  {
+    "drug_code": "SIM-TIOTROPIUM-18",
+    "name": "tiotropium inhalation powder capsule",
+    "display_name_zh": "噻托溴铵吸入粉末胶囊18μg",
+    "ingredient": "tiotropium",
+    "dosage_form": "inhalation_powder_capsule",
+    "strength": "18 mcg/capsule",
+    "dose_unit": "capsule",
+    "quantity_unit": "capsule",
+    "allowed_routes": [
+      "inhaled"
+    ],
+    "route": "inhaled",
+    "components": [
+      {
+        "ingredient": "tiotropium",
+        "strength_value": 18,
+        "strength_unit": "mcg",
+        "per": "capsule",
+        "basis_of_strength": "tiotropium"
+      }
+    ],
+    "notes": [
+      "18 mcg tiotropium equals 22.5 mcg bromide monohydrate in each capsule.",
+      "Capsules are for inhalation through the HandiHaler device; do not swallow. Device availability must be established."
+    ],
+    "catalogue_version": "TH-CATALOGUE-2.1",
+    "allowed_dose_units": [
+      "capsule",
+      "mcg"
+    ],
+    "dose_basis": "mcg denotes tiotropium active moiety, not bromide salt; capsule denotes a physical inhalation capsule"
+  },
+  {
+    "drug_code": "SIM-PREDNISONE-20",
+    "name": "prednisone",
+    "display_name_zh": "泼尼松片20mg",
+    "ingredient": "prednisone",
+    "dosage_form": "oral_tablet_immediate_release",
+    "strength": "20 mg/tablet",
+    "dose_unit": "mg",
+    "quantity_unit": "tablet",
+    "allowed_routes": [
+      "oral"
+    ],
+    "route": "oral",
+    "components": [
+      {
+        "ingredient": "prednisone",
+        "strength_value": 20,
+        "strength_unit": "mg",
+        "per": "tablet",
+        "basis_of_strength": "prednisone"
+      }
+    ],
+    "notes": [],
+    "catalogue_version": "TH-CATALOGUE-2.1",
+    "allowed_dose_units": [
+      "mg"
+    ]
+  },
+  {
+    "drug_code": "SIM-AZITHROMYCIN-250",
+    "name": "azithromycin",
+    "display_name_zh": "阿奇霉素片250mg",
+    "ingredient": "azithromycin",
+    "dosage_form": "oral_tablet_immediate_release",
+    "strength": "250 mg/tablet",
+    "dose_unit": "mg",
+    "quantity_unit": "tablet",
+    "allowed_routes": [
+      "oral"
+    ],
+    "route": "oral",
+    "components": [
+      {
+        "ingredient": "azithromycin",
+        "strength_value": 250,
+        "strength_unit": "mg",
+        "per": "tablet",
+        "basis_of_strength": "azithromycin"
+      }
+    ],
+    "notes": [
+      "Azithromycin base-equivalent strength, supplied as dihydrate."
+    ],
+    "catalogue_version": "TH-CATALOGUE-2.1",
+    "allowed_dose_units": [
+      "mg"
+    ]
+  },
+  {
+    "drug_code": "SIM-TMP-SMX-160-800",
+    "name": "trimethoprim/sulfamethoxazole",
+    "display_name_zh": "复方磺胺甲噁唑片TMP160/SMX800mg",
+    "ingredient": "trimethoprim+sulfamethoxazole",
+    "dosage_form": "oral_tablet_immediate_release",
+    "strength": "160 mg trimethoprim + 800 mg sulfamethoxazole/tablet",
+    "dose_unit": "tablet",
+    "quantity_unit": "tablet",
+    "allowed_routes": [
+      "oral"
+    ],
+    "route": "oral",
+    "components": [
+      {
+        "ingredient": "trimethoprim",
+        "strength_value": 160,
+        "strength_unit": "mg",
+        "per": "tablet",
+        "basis_of_strength": "trimethoprim"
+      },
+      {
+        "ingredient": "sulfamethoxazole",
+        "strength_value": 800,
+        "strength_unit": "mg",
+        "per": "tablet",
+        "basis_of_strength": "sulfamethoxazole"
+      }
+    ],
+    "notes": [
+      "Prescribe quantity of tablets; unqualified mg dose is ambiguous between two components."
+    ],
+    "catalogue_version": "TH-CATALOGUE-2.1",
+    "allowed_dose_units": [
+      "tablet"
+    ]
+  },
+  {
+    "drug_code": "SIM-WARFARIN-5",
+    "name": "warfarin sodium",
+    "display_name_zh": "华法林钠片5mg",
+    "ingredient": "warfarin",
+    "dosage_form": "oral_tablet_immediate_release",
+    "strength": "5 mg/tablet",
+    "dose_unit": "mg",
+    "quantity_unit": "tablet",
+    "allowed_routes": [
+      "oral"
+    ],
+    "route": "oral",
+    "components": [
+      {
+        "ingredient": "warfarin sodium",
+        "strength_value": 5,
+        "strength_unit": "mg",
+        "per": "tablet",
+        "basis_of_strength": "warfarin sodium"
+      }
+    ],
+    "notes": [],
+    "catalogue_version": "TH-CATALOGUE-2.1",
+    "allowed_dose_units": [
+      "mg"
+    ]
+  },
+  {
+    "drug_code": "SIM-ACETAMINOPHEN-500",
+    "name": "acetaminophen",
+    "display_name_zh": "对乙酰氨基酚片500mg",
+    "ingredient": "acetaminophen",
+    "dosage_form": "oral_tablet_immediate_release",
+    "strength": "500 mg/tablet",
+    "dose_unit": "mg",
+    "quantity_unit": "tablet",
+    "allowed_routes": [
+      "oral"
+    ],
+    "route": "oral",
+    "components": [
+      {
+        "ingredient": "acetaminophen",
+        "strength_value": 500,
+        "strength_unit": "mg",
+        "per": "tablet",
+        "basis_of_strength": "acetaminophen"
+      }
+    ],
+    "notes": [],
+    "catalogue_version": "TH-CATALOGUE-2.1",
+    "allowed_dose_units": [
+      "mg"
+    ]
+  },
+  {
+    "drug_code": "SIM-METFORMIN-ER-500",
+    "name": "metformin hydrochloride ER",
+    "display_name_zh": "盐酸二甲双胍缓释片500mg",
+    "ingredient": "metformin",
+    "dosage_form": "oral_tablet_extended_release",
+    "strength": "500 mg/tablet",
+    "dose_unit": "mg",
+    "quantity_unit": "tablet",
+    "allowed_routes": [
+      "oral"
+    ],
+    "route": "oral",
+    "components": [
+      {
+        "ingredient": "metformin hydrochloride",
+        "strength_value": 500,
+        "strength_unit": "mg",
+        "per": "tablet",
+        "basis_of_strength": "metformin hydrochloride"
+      }
+    ],
+    "notes": [
+      "Separate from IR. Reference label is an osmotic 24-hour ER tablet; historical XR release technology is unverified."
+    ],
+    "catalogue_version": "TH-CATALOGUE-3.0",
+    "allowed_dose_units": [
+      "mg"
+    ],
+    "dose_basis": "mg of metformin hydrochloride, not metformin base",
+    "label_package": null,
+    "active_salt_mass": null
+  },
+  {
+    "drug_code": "SIM-METOPROLOL-SUCCINATE-ER-25",
+    "name": "metoprolol succinate ER (labeled 25 mg)",
+    "display_name_zh": "琥珀酸美托洛尔缓释片（标示25mg）",
+    "ingredient": "metoprolol",
+    "dosage_form": "oral_tablet_extended_release",
+    "strength": "25 mg tartrate-equivalent/tablet",
+    "dose_unit": "mg",
+    "quantity_unit": "tablet",
+    "allowed_routes": [
+      "oral"
+    ],
+    "route": "oral",
+    "components": [
+      {
+        "ingredient": "metoprolol succinate",
+        "strength_value": 25,
+        "strength_unit": "mg",
+        "per": "tablet",
+        "basis_of_strength": "metoprolol tartrate equivalent"
+      }
+    ],
+    "notes": [
+      "Extended-release succinate, distinct from tartrate immediate-release. Do not alter a proposed dose by salt-mass conversion."
+    ],
+    "catalogue_version": "TH-CATALOGUE-3.0",
+    "allowed_dose_units": [
+      "mg"
+    ],
+    "dose_basis": "labeled mg expressed as metoprolol tartrate equivalent; delivered as succinate ER",
+    "label_package": null,
+    "active_salt_mass": {
+      "ingredient": "metoprolol succinate",
+      "value": 23.75,
+      "unit": "mg",
+      "per": "tablet"
+    }
+  },
+  {
+    "drug_code": "SIM-FLUTICASONE-SALMETEROL-DISKUS-250-50",
+    "name": "fluticasone propionate/salmeterol Diskus 250/50",
+    "display_name_zh": "氟替卡松/沙美特罗Diskus吸入粉250/50μg",
+    "ingredient": "fluticasone propionate+salmeterol",
+    "dosage_form": "dry_powder_inhaler_diskus",
+    "strength": "250 mcg fluticasone propionate + 50 mcg salmeterol/inhalation",
+    "dose_unit": "inhalation",
+    "quantity_unit": "inhaler",
+    "allowed_routes": [
+      "inhaled"
+    ],
+    "route": "inhaled",
+    "components": [
+      {
+        "ingredient": "fluticasone propionate",
+        "strength_value": 250,
+        "strength_unit": "mcg",
+        "per": "inhalation",
+        "basis_of_strength": "fluticasone propionate"
+      },
+      {
+        "ingredient": "salmeterol xinafoate",
+        "strength_value": 50,
+        "strength_unit": "mcg",
+        "per": "inhalation",
+        "basis_of_strength": "salmeterol base"
+      }
+    ],
+    "notes": [
+      "One inhalation uses one pre-metered blister. No mg or mcg dose accepted for this combination."
+    ],
+    "catalogue_version": "TH-CATALOGUE-3.0",
+    "allowed_dose_units": [
+      "inhalation"
+    ],
+    "dose_basis": "count of 250/50 mcg metered blister inhalations, not devices or component mass",
+    "label_package": {
+      "device": "Diskus",
+      "metered_inhalations_per_device": 60
+    },
+    "active_salt_mass": {
+      "ingredient": "salmeterol xinafoate",
+      "value": 72.5,
+      "unit": "mcg",
+      "per": "inhalation"
+    }
+  },
+  {
+    "drug_code": "SIM-LEVOFLOXACIN-750",
+    "name": "levofloxacin",
+    "display_name_zh": "左氧氟沙星片750mg",
+    "ingredient": "levofloxacin",
+    "dosage_form": "oral_tablet_immediate_release",
+    "strength": "750 mg/tablet",
+    "dose_unit": "mg",
+    "quantity_unit": "tablet",
+    "allowed_routes": [
+      "oral"
+    ],
+    "route": "oral",
+    "components": [
+      {
+        "ingredient": "levofloxacin hemihydrate",
+        "strength_value": 750,
+        "strength_unit": "mg",
+        "per": "tablet",
+        "basis_of_strength": "levofloxacin"
+      }
+    ],
+    "notes": [],
+    "catalogue_version": "TH-CATALOGUE-3.0",
+    "allowed_dose_units": [
+      "mg"
+    ],
+    "dose_basis": "mg of levofloxacin equivalent, supplied as hemihydrate",
+    "label_package": null,
+    "active_salt_mass": null
+  },
+  {
+    "drug_code": "SIM-METOPROLOL-SUCCINATE-ER-50",
+    "name": "metoprolol succinate ER (labeled 50 mg)",
+    "display_name_zh": "琥珀酸美托洛尔缓释片（标示50mg）",
+    "ingredient": "metoprolol",
+    "dosage_form": "oral_tablet_extended_release",
+    "strength": "50 mg tartrate-equivalent/tablet",
+    "dose_unit": "mg",
+    "quantity_unit": "tablet",
+    "allowed_routes": [
+      "oral"
+    ],
+    "route": "oral",
+    "components": [
+      {
+        "ingredient": "metoprolol succinate",
+        "strength_value": 50,
+        "strength_unit": "mg",
+        "per": "tablet",
+        "basis_of_strength": "metoprolol tartrate equivalent"
+      }
+    ],
+    "notes": [
+      "Extended-release succinate, distinct from tartrate immediate-release. Do not alter a proposed dose by salt-mass conversion."
+    ],
+    "catalogue_version": "TH-CATALOGUE-3.0",
+    "allowed_dose_units": [
+      "mg"
+    ],
+    "dose_basis": "labeled mg expressed as metoprolol tartrate equivalent; delivered as succinate ER",
+    "label_package": null,
+    "active_salt_mass": {
+      "ingredient": "metoprolol succinate",
+      "value": 47.5,
+      "unit": "mg",
+      "per": "tablet"
+    }
+  },
+  {
+    "drug_code": "SIM-METOPROLOL-SUCCINATE-ER-100",
+    "name": "metoprolol succinate ER (labeled 100 mg)",
+    "display_name_zh": "琥珀酸美托洛尔缓释片（标示100mg）",
+    "ingredient": "metoprolol",
+    "dosage_form": "oral_tablet_extended_release",
+    "strength": "100 mg tartrate-equivalent/tablet",
+    "dose_unit": "mg",
+    "quantity_unit": "tablet",
+    "allowed_routes": [
+      "oral"
+    ],
+    "route": "oral",
+    "components": [
+      {
+        "ingredient": "metoprolol succinate",
+        "strength_value": 100,
+        "strength_unit": "mg",
+        "per": "tablet",
+        "basis_of_strength": "metoprolol tartrate equivalent"
+      }
+    ],
+    "notes": [
+      "Extended-release succinate, distinct from tartrate immediate-release. Do not alter a proposed dose by salt-mass conversion."
+    ],
+    "catalogue_version": "TH-CATALOGUE-3.0",
+    "allowed_dose_units": [
+      "mg"
+    ],
+    "dose_basis": "labeled mg expressed as metoprolol tartrate equivalent; delivered as succinate ER",
+    "label_package": null,
+    "active_salt_mass": {
+      "ingredient": "metoprolol succinate",
+      "value": 95,
+      "unit": "mg",
+      "per": "tablet"
+    }
+  },
+  {
+    "drug_code": "SIM-LEVOFLOXACIN-500",
+    "name": "levofloxacin",
+    "display_name_zh": "左氧氟沙星片500mg",
+    "ingredient": "levofloxacin",
+    "dosage_form": "oral_tablet_immediate_release",
+    "strength": "500 mg/tablet",
+    "dose_unit": "mg",
+    "quantity_unit": "tablet",
+    "allowed_routes": [
+      "oral"
+    ],
+    "route": "oral",
+    "components": [
+      {
+        "ingredient": "levofloxacin hemihydrate",
+        "strength_value": 500,
+        "strength_unit": "mg",
+        "per": "tablet",
+        "basis_of_strength": "levofloxacin"
+      }
+    ],
+    "notes": [],
+    "catalogue_version": "TH-CATALOGUE-3.0",
+    "allowed_dose_units": [
+      "mg"
+    ],
+    "dose_basis": "mg of levofloxacin equivalent, supplied as hemihydrate",
+    "label_package": null,
+    "active_salt_mass": null
+  },
+  {
+    "drug_code": "SIM-IPRATROPIUM-NEB-05-25ML",
+    "name": "ipratropium bromide nebulizer solution",
+    "display_name_zh": "异丙托溴铵雾化液0.5mg/2.5mL",
+    "ingredient": "ipratropium",
+    "dosage_form": "nebulizer_solution",
+    "strength": "0.5 mg ipratropium bromide/2.5 mL",
+    "dose_unit": "mL",
+    "quantity_unit": "vial",
+    "allowed_routes": [
+      "inhaled"
+    ],
+    "route": "inhaled",
+    "components": [
+      {
+        "ingredient": "ipratropium bromide",
+        "strength_value": 0.5,
+        "strength_unit": "mg",
+        "per": "2.5 mL",
+        "basis_of_strength": "ipratropium bromide anhydrous"
+      }
+    ],
+    "notes": [
+      "One unit-dose vial contains 2.5 mL. Requires a nebulizer; not injection. Historical concentration remains unverified if missing."
+    ],
+    "catalogue_version": "TH-CATALOGUE-3.0",
+    "allowed_dose_units": [
+      "mL"
+    ],
+    "dose_basis": "mL of this solution, no implicit mg conversion",
+    "label_package": {
+      "volume_mL_per_vial": 2.5,
+      "device_required": "nebulizer"
+    },
+    "active_salt_mass": null
+  },
+  {
+    "drug_code": "SIM-IPRATROPIUM-ALBUTEROL-RESPIMAT-20-100",
+    "name": "ipratropium bromide/albuterol Respimat",
+    "display_name_zh": "异丙托溴铵/沙丁胺醇Respimat20/100μg",
+    "ingredient": "ipratropium+albuterol",
+    "dosage_form": "metered_inhalation_spray_respimat",
+    "strength": "20 mcg ipratropium bromide + 100 mcg albuterol/actuation",
+    "dose_unit": "puff",
+    "quantity_unit": "inhaler",
+    "allowed_routes": [
+      "inhaled"
+    ],
+    "route": "inhaled",
+    "components": [
+      {
+        "ingredient": "ipratropium bromide monohydrate",
+        "strength_value": 20,
+        "strength_unit": "mcg",
+        "per": "actuation",
+        "basis_of_strength": "ipratropium bromide monohydrate"
+      },
+      {
+        "ingredient": "albuterol sulfate",
+        "strength_value": 100,
+        "strength_unit": "mcg",
+        "per": "actuation",
+        "basis_of_strength": "albuterol base"
+      }
+    ],
+    "notes": [
+      "One puff is one metered actuation; not a nebulizer solution. Unqualified mass dose is not accepted."
+    ],
+    "catalogue_version": "TH-CATALOGUE-3.0",
+    "allowed_dose_units": [
+      "puff"
+    ],
+    "dose_basis": "count of metered actuations",
+    "label_package": {
+      "device": "Respimat",
+      "metered_actuations_per_device": 120,
+      "cartridge_fill_g": 4
+    },
+    "active_salt_mass": {
+      "ingredient": "albuterol sulfate",
+      "value": 120,
+      "unit": "mcg",
+      "per": "actuation"
+    }
+  },
+  {
+    "drug_code": "SIM-IPRATROPIUM-ALBUTEROL-NEB-05-3-3ML",
+    "name": "ipratropium bromide/albuterol sulfate nebulizer solution",
+    "display_name_zh": "异丙托溴铵/硫酸沙丁胺醇雾化液0.5/3mg每3mL",
+    "ingredient": "ipratropium+albuterol",
+    "dosage_form": "nebulizer_solution",
+    "strength": "0.5 mg ipratropium bromide + 3 mg albuterol sulfate/3 mL",
+    "dose_unit": "mL",
+    "quantity_unit": "vial",
+    "allowed_routes": [
+      "inhaled"
+    ],
+    "route": "inhaled",
+    "components": [
+      {
+        "ingredient": "ipratropium bromide",
+        "strength_value": 0.5,
+        "strength_unit": "mg",
+        "per": "3 mL",
+        "basis_of_strength": "ipratropium bromide anhydrous"
+      },
+      {
+        "ingredient": "albuterol sulfate",
+        "strength_value": 2.5,
+        "strength_unit": "mg",
+        "per": "3 mL",
+        "basis_of_strength": "albuterol base"
+      }
+    ],
+    "notes": [
+      "The 3 mg is albuterol sulfate, equivalent to 2.5 mg base. A dose of 3 mL is volume, not a 3 mg single-ingredient dose."
+    ],
+    "catalogue_version": "TH-CATALOGUE-3.0",
+    "allowed_dose_units": [
+      "mL"
+    ],
+    "dose_basis": "mL of this fixed-combination solution only",
+    "label_package": {
+      "volume_mL_per_vial": 3,
+      "device_required": "nebulizer"
+    },
+    "active_salt_mass": {
+      "ingredient": "albuterol sulfate",
+      "value": 3,
+      "unit": "mg",
+      "per": "3 mL"
+    }
+  },
+  {
+    "drug_code": "SIM-LISINOPRIL-5",
+    "name": "lisinopril",
+    "display_name_zh": "赖诺普利片5mg",
+    "ingredient": "lisinopril",
+    "dosage_form": "oral_tablet_immediate_release",
+    "strength": "5 mg/tablet",
+    "dose_unit": "mg",
+    "quantity_unit": "tablet",
+    "allowed_routes": [
+      "oral"
+    ],
+    "route": "oral",
+    "components": [
+      {
+        "ingredient": "lisinopril",
+        "strength_value": 5,
+        "strength_unit": "mg",
+        "per": "tablet",
+        "basis_of_strength": "lisinopril"
+      }
+    ],
+    "notes": [
+      "Strength uses label lisinopril basis, not a recalculated anhydrous mass."
+    ],
+    "catalogue_version": "TH-CATALOGUE-3.0",
+    "allowed_dose_units": [
+      "mg"
+    ],
+    "dose_basis": "mg on label basis: lisinopril",
+    "label_package": null,
+    "active_salt_mass": null
+  },
+  {
+    "drug_code": "SIM-LOSARTAN-POTASSIUM-50",
+    "name": "losartan potassium",
+    "display_name_zh": "氯沙坦钾片50mg",
+    "ingredient": "losartan",
+    "dosage_form": "oral_tablet_immediate_release",
+    "strength": "50 mg/tablet",
+    "dose_unit": "mg",
+    "quantity_unit": "tablet",
+    "allowed_routes": [
+      "oral"
+    ],
+    "route": "oral",
+    "components": [
+      {
+        "ingredient": "losartan potassium",
+        "strength_value": 50,
+        "strength_unit": "mg",
+        "per": "tablet",
+        "basis_of_strength": "losartan potassium"
+      }
+    ],
+    "notes": [
+      "Salt basis explicitly losartan potassium; not hydrochlorothiazide combination."
+    ],
+    "catalogue_version": "TH-CATALOGUE-3.0",
+    "allowed_dose_units": [
+      "mg"
+    ],
+    "dose_basis": "mg on label basis: losartan potassium",
+    "label_package": null,
+    "active_salt_mass": null
+  },
+  {
+    "drug_code": "SIM-METOPROLOL-TARTRATE-25",
+    "name": "metoprolol tartrate IR",
+    "display_name_zh": "酒石酸美托洛尔普通片25mg",
+    "ingredient": "metoprolol",
+    "dosage_form": "oral_tablet_immediate_release",
+    "strength": "25 mg/tablet",
+    "dose_unit": "mg",
+    "quantity_unit": "tablet",
+    "allowed_routes": [
+      "oral"
+    ],
+    "route": "oral",
+    "components": [
+      {
+        "ingredient": "metoprolol tartrate",
+        "strength_value": 25,
+        "strength_unit": "mg",
+        "per": "tablet",
+        "basis_of_strength": "metoprolol tartrate"
+      }
+    ],
+    "notes": [
+      "Separate from metoprolol succinate extended-release; do not substitute automatically."
+    ],
+    "catalogue_version": "TH-CATALOGUE-3.0",
+    "allowed_dose_units": [
+      "mg"
+    ],
+    "dose_basis": "mg on label basis: metoprolol tartrate",
+    "label_package": null,
+    "active_salt_mass": null
+  },
+  {
+    "drug_code": "SIM-GLIPIZIDE-IR-5",
+    "name": "glipizide IR",
+    "display_name_zh": "格列吡嗪普通片5mg",
+    "ingredient": "glipizide",
+    "dosage_form": "oral_tablet_immediate_release",
+    "strength": "5 mg/tablet",
+    "dose_unit": "mg",
+    "quantity_unit": "tablet",
+    "allowed_routes": [
+      "oral"
+    ],
+    "route": "oral",
+    "components": [
+      {
+        "ingredient": "glipizide",
+        "strength_value": 5,
+        "strength_unit": "mg",
+        "per": "tablet",
+        "basis_of_strength": "glipizide"
+      }
+    ],
+    "notes": [
+      "Conventional tablets; distinct product from extended-release forms."
+    ],
+    "catalogue_version": "TH-CATALOGUE-3.0",
+    "allowed_dose_units": [
+      "mg"
+    ],
+    "dose_basis": "mg on label basis: glipizide",
+    "label_package": null,
+    "active_salt_mass": null
+  },
+  {
+    "drug_code": "SIM-GLIPIZIDE-ER-5",
+    "name": "glipizide ER",
+    "display_name_zh": "格列吡嗪缓释片5mg",
+    "ingredient": "glipizide",
+    "dosage_form": "oral_tablet_extended_release",
+    "strength": "5 mg/tablet",
+    "dose_unit": "mg",
+    "quantity_unit": "tablet",
+    "allowed_routes": [
+      "oral"
+    ],
+    "route": "oral",
+    "components": [
+      {
+        "ingredient": "glipizide",
+        "strength_value": 5,
+        "strength_unit": "mg",
+        "per": "tablet",
+        "basis_of_strength": "glipizide"
+      }
+    ],
+    "notes": [
+      "Use the labeled delivered dose; do not change to total drug load.",
+      "Keep whole-tablet instructions and release form distinct; catalogue identity does not authorize changing a historical regimen."
+    ],
+    "catalogue_version": "TH-CATALOGUE-3.0",
+    "allowed_dose_units": [
+      "mg"
+    ],
+    "dose_basis": "mg on label basis: glipizide",
+    "label_package": null,
+    "active_salt_mass": null
+  },
+  {
+    "drug_code": "SIM-GLIPIZIDE-ER-10",
+    "name": "glipizide ER",
+    "display_name_zh": "格列吡嗪缓释片10mg",
+    "ingredient": "glipizide",
+    "dosage_form": "oral_tablet_extended_release",
+    "strength": "10 mg/tablet",
+    "dose_unit": "mg",
+    "quantity_unit": "tablet",
+    "allowed_routes": [
+      "oral"
+    ],
+    "route": "oral",
+    "components": [
+      {
+        "ingredient": "glipizide",
+        "strength_value": 10,
+        "strength_unit": "mg",
+        "per": "tablet",
+        "basis_of_strength": "glipizide"
+      }
+    ],
+    "notes": [
+      "Use the labeled delivered dose; do not change to total drug load.",
+      "Keep whole-tablet instructions and release form distinct; catalogue identity does not authorize changing a historical regimen."
+    ],
+    "catalogue_version": "TH-CATALOGUE-3.0",
+    "allowed_dose_units": [
+      "mg"
+    ],
+    "dose_basis": "mg on label basis: glipizide",
+    "label_package": null,
+    "active_salt_mass": null
+  },
+  {
+    "drug_code": "SIM-AMOXICILLIN-CLAVULANATE-875-125",
+    "name": "amoxicillin/clavulanate",
+    "display_name_zh": "阿莫西林/克拉维酸片875/125mg",
+    "ingredient": "amoxicillin+clavulanic acid",
+    "dosage_form": "oral_tablet_immediate_release",
+    "strength": "875 mg amoxicillin + 125 mg clavulanic acid/tablet",
+    "dose_unit": "tablet",
+    "quantity_unit": "tablet",
+    "allowed_routes": [
+      "oral"
+    ],
+    "route": "oral",
+    "components": [
+      {
+        "ingredient": "amoxicillin trihydrate",
+        "strength_value": 875,
+        "strength_unit": "mg",
+        "per": "tablet",
+        "basis_of_strength": "amoxicillin anhydrous"
+      },
+      {
+        "ingredient": "clavulanate potassium",
+        "strength_value": 125,
+        "strength_unit": "mg",
+        "per": "tablet",
+        "basis_of_strength": "clavulanic acid"
+      }
+    ],
+    "notes": [
+      "The 875/125 tablet contains both components; 875 mg alone denotes the amoxicillin component, not total mixture mass.",
+      "The source record shorthand 875 does not independently verify clavulanate strength or source NDC. This is an explicitly defined simulation product.",
+      "Select the 875/125 tablet product; discussion of XR products elsewhere in the label does not turn this product into XR."
+    ],
+    "catalogue_version": "TH-CATALOGUE-3.0",
+    "allowed_dose_units": [
+      "tablet"
+    ],
+    "dose_basis": "count of fixed-combination tablets, never unqualified component mg",
+    "label_package": null,
+    "active_salt_mass": null
+  },
+  {
+    "drug_code": "SIM-DOXYCYCLINE-HYCLATE-100",
+    "name": "doxycycline hyclate",
+    "display_name_zh": "多西环素盐酸盐胶囊100mg",
+    "ingredient": "doxycycline",
+    "dosage_form": "oral_capsule",
+    "strength": "100 mg doxycycline/capsule",
+    "dose_unit": "mg",
+    "quantity_unit": "capsule",
+    "allowed_routes": [
+      "oral"
+    ],
+    "route": "oral",
+    "components": [
+      {
+        "ingredient": "doxycycline hyclate (hydrochloride hemiethanolate hemihydrate)",
+        "strength_value": 100,
+        "strength_unit": "mg",
+        "per": "capsule",
+        "basis_of_strength": "doxycycline anhydrous"
+      }
+    ],
+    "notes": [
+      "Preserve hyclate salt identity; do not silently map this capsule to doxycycline monohydrate or a delayed-release tablet.",
+      "100 mg is doxycycline-equivalent strength, not 100 mg of the hyclate salt mass."
+    ],
+    "catalogue_version": "TH-CATALOGUE-3.0",
+    "allowed_dose_units": [
+      "mg"
+    ],
+    "dose_basis": "doxycycline anhydrous; 100 mg per capsule",
+    "label_package": null,
+    "active_salt_mass": null
+  },
+  {
+    "drug_code": "SIM-CIPROFLOXACIN-250",
+    "name": "ciprofloxacin hydrochloride IR",
+    "display_name_zh": "盐酸环丙沙星片250mg",
+    "ingredient": "ciprofloxacin",
+    "dosage_form": "oral_tablet_immediate_release",
+    "strength": "250 mg ciprofloxacin/tablet",
+    "dose_unit": "mg",
+    "quantity_unit": "tablet",
+    "allowed_routes": [
+      "oral"
+    ],
+    "route": "oral",
+    "components": [
+      {
+        "ingredient": "ciprofloxacin hydrochloride monohydrate",
+        "strength_value": 250,
+        "strength_unit": "mg",
+        "per": "tablet",
+        "basis_of_strength": "ciprofloxacin"
+      }
+    ],
+    "notes": [
+      "Strength is ciprofloxacin-equivalent, not hydrochloride-monohydrate mass.",
+      "Use the conventional film-coated tablet in this label, not a ciprofloxacin extended-release product.",
+      "The same label supports the two strengths as distinct catalogue products; do not collapse their tablet counts."
+    ],
+    "catalogue_version": "TH-CATALOGUE-3.0",
+    "allowed_dose_units": [
+      "mg"
+    ],
+    "dose_basis": "ciprofloxacin free-base equivalent",
+    "label_package": null,
+    "active_salt_mass": null
+  },
+  {
+    "drug_code": "SIM-CIPROFLOXACIN-500",
+    "name": "ciprofloxacin hydrochloride IR",
+    "display_name_zh": "盐酸环丙沙星片500mg",
+    "ingredient": "ciprofloxacin",
+    "dosage_form": "oral_tablet_immediate_release",
+    "strength": "500 mg ciprofloxacin/tablet",
+    "dose_unit": "mg",
+    "quantity_unit": "tablet",
+    "allowed_routes": [
+      "oral"
+    ],
+    "route": "oral",
+    "components": [
+      {
+        "ingredient": "ciprofloxacin hydrochloride monohydrate",
+        "strength_value": 500,
+        "strength_unit": "mg",
+        "per": "tablet",
+        "basis_of_strength": "ciprofloxacin"
+      }
+    ],
+    "notes": [
+      "Strength is ciprofloxacin-equivalent, not hydrochloride-monohydrate mass.",
+      "Use the conventional film-coated tablet in this label, not a ciprofloxacin extended-release product.",
+      "The same label supports the two strengths as distinct catalogue products; do not collapse their tablet counts."
+    ],
+    "catalogue_version": "TH-CATALOGUE-3.0",
+    "allowed_dose_units": [
+      "mg"
+    ],
+    "dose_basis": "ciprofloxacin free-base equivalent",
+    "label_package": null,
+    "active_salt_mass": null
+  },
+  {
+    "drug_code": "SIM-NITROFURANTOIN-MACRO-50",
+    "name": "nitrofurantoin macrocrystals",
+    "display_name_zh": "呋喃妥因大晶体胶囊50mg",
+    "ingredient": "nitrofurantoin",
+    "dosage_form": "oral_capsule_macrocrystals",
+    "strength": "50 mg/capsule",
+    "dose_unit": "mg",
+    "quantity_unit": "capsule",
+    "allowed_routes": [
+      "oral"
+    ],
+    "route": "oral",
+    "components": [
+      {
+        "ingredient": "nitrofurantoin macrocrystals",
+        "strength_value": 50,
+        "strength_unit": "mg",
+        "per": "capsule",
+        "basis_of_strength": "nitrofurantoin"
+      }
+    ],
+    "notes": [
+      "This product is macrocrystals only, not the separately catalogued nitrofurantoin monohydrate/macrocrystals 100 mg combination.",
+      "Do not inherit release/form or administration schedule from the monohydrate/macrocrystals product. No schedule is assigned by this identity evidence."
+    ],
+    "catalogue_version": "TH-CATALOGUE-3.0",
+    "allowed_dose_units": [
+      "mg"
+    ],
+    "dose_basis": "nitrofurantoin macrocrystals; 50 mg per capsule",
+    "label_package": null,
+    "active_salt_mass": null
+  },
+  {
+    "drug_code": "SIM-TMP-SMX-SUSP-40-200-5ML",
+    "name": "trimethoprim/sulfamethoxazole suspension",
+    "display_name_zh": "复方磺胺甲噁唑口服混悬液TMP40/SMX200mg每5mL",
+    "ingredient": "trimethoprim+sulfamethoxazole",
+    "dosage_form": "oral_suspension",
+    "strength": "40 mg trimethoprim + 200 mg sulfamethoxazole/5 mL",
+    "dose_unit": "mL",
+    "quantity_unit": "mL",
+    "allowed_routes": [
+      "oral"
+    ],
+    "route": "oral",
+    "components": [
+      {
+        "ingredient": "sulfamethoxazole",
+        "strength_value": 200,
+        "strength_unit": "mg",
+        "per": "5 mL",
+        "basis_of_strength": "sulfamethoxazole"
+      },
+      {
+        "ingredient": "trimethoprim",
+        "strength_value": 40,
+        "strength_unit": "mg",
+        "per": "5 mL",
+        "basis_of_strength": "trimethoprim"
+      }
+    ],
+    "notes": [
+      "Order of 800/160 on this label is sulfamethoxazole/trimethoprim. In TMP/SMX order the same 20 mL is 160/800 mg.",
+      "The 20 mL amount is a volume and is also the reference unit-dose cup size; it is not a tablet or an automatically selected clinical dose.",
+      "Store concentration by both components per mL; keep prescribed volume and dispensed volume separate.",
+      "This does not replace the separate DS tablet product even when total active ingredient amounts match."
+    ],
+    "catalogue_version": "TH-CATALOGUE-3.0",
+    "allowed_dose_units": [
+      "mL"
+    ],
+    "dose_basis": "mL of fixed-concentration suspension, not mg or cup count",
+    "label_package": {
+      "unit_dose_cup_volume_mL": 20,
+      "reference_label_package_ndc": "0121-0853-20",
+      "cups_per_tray": 10
+    },
+    "active_salt_mass": null
+  },
+  {
+    "drug_code": "SIM-AMPICILLIN-250",
+    "name": "ampicillin",
+    "display_name_zh": "氨苄西林胶囊250mg",
+    "ingredient": "ampicillin",
+    "dosage_form": "oral_capsule",
+    "strength": "250 mg ampicillin/capsule",
+    "dose_unit": "mg",
+    "quantity_unit": "capsule",
+    "allowed_routes": [
+      "oral"
+    ],
+    "route": "oral",
+    "components": [
+      {
+        "ingredient": "ampicillin trihydrate",
+        "strength_value": 250,
+        "strength_unit": "mg",
+        "per": "capsule",
+        "basis_of_strength": "ampicillin"
+      }
+    ],
+    "notes": [
+      "250 mg denotes ampicillin-equivalent strength from the trihydrate.",
+      "This oral capsule is distinct from injectable ampicillin sodium and from oral suspension."
+    ],
+    "catalogue_version": "TH-CATALOGUE-3.0",
+    "allowed_dose_units": [
+      "mg"
+    ],
+    "dose_basis": "ampicillin equivalent; 250 mg per capsule",
+    "label_package": null,
+    "active_salt_mass": null
+  }
+]

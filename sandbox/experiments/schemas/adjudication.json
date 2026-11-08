@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://twinhospital.local/schemas/adjudication.json",
+  "title": "第三人仲裁",
+  "description": "两位盲评员不同，第三人不同于两者，同rubric与条目覆盖；不得改变原已一致项。",
+  "x-contract-status": "implemented-and-extensions",
+  "$ref": "common.json#/$defs/adjudication",
+  "examples": [
+    {
+      "artifact_id": "blind-000001",
+      "adjudicator_id": "reviewer-demo-3",
+      "rubric_version": "demo-r1",
+      "labels": {
+        "fact_demo": "indeterminate"
+      },
+      "rationale": "工程示例，尚未取得独立来源材料"
+    }
+  ]
+}

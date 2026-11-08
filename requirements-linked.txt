@@ -1,0 +1,10 @@
+# Verified linked runner environment; avoids CAMEL's incompatible MCP 2 API.
+camel-ai==0.2.90
+mcp==1.30.0
+openai==2.54.0
+pydantic==2.12.0
+python-dotenv==1.2.4
+PyYAML==6.0.3
+requests==2.32.5
+json-repair==0.57.1
+jsonschema==4.26.0

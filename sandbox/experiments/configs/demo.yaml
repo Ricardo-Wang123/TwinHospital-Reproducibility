@@ -1,0 +1,82 @@
+schema_version: '1'
+protocol_version: twinhospital-outpatient-1
+purpose: engineering_demo
+setting: outpatient
+seed: 20260919
+dataset: fixtures/twinhospital/demo
+output: output/twinhospital
+state_dir: output/twinhospital-control
+configuration_concurrency: 1
+case_concurrency: 4
+max_interactions: 10
+http_timeout_s: 15
+model_timeout_s: 120
+case_timeout_s: 600
+submission_window_s: 10
+effect_observation_window_s: 30
+read_retries: 2
+mutation_retries: 0
+his_backend: in_memory
+instance_id: demo-only
+seed_manifest: null
+external_effects_mode: stub_only
+calibration_file: null
+clinical_verification_file: null
+authorization_file: null
+catalog_file: null
+quality_rubric: null
+fidelity_tolerances: null
+confidence: 0.95
+bootstrap_samples: 10000
+custodian: local-engineering
+anchor_count_per_task: 100
+validation_count_per_task: 200
+budget:
+  max_calls: null
+  max_tokens: null
+models:
+  actors:
+    provider: scripted
+  medical:
+    provider: scripted
+    model: null
+    revision: null
+  foundation:
+    provider: scripted
+    model: null
+    revision: null
+pprs:
+  provider: fixture
+  version: demo-rules-1
+  replay_file: null
+openhis:
+  base_url: http://localhost:18080/openhis
+  tenant_id: 1
+  username_env: OPENHIS_USERNAME
+  password_env: OPENHIS_PASSWORD
+  token_env: OPENHIS_TOKEN
+  service_key_env: TWINHOSPITAL_SERVICE_KEY
+timing:
+  source: scripted
+  collection: 180
+  review: 60
+  revision: 90
+  attestation: 20
+personnel:
+  doctor-1:
+  - note.attest
+  - order.attest
+  nurse-1: []
+  pharmacist-1: []
+  senior_pharmacist-1: []
+  scribe-1: []
+  patient-1: []
+resources:
+  doctor: 1
+  nurse: 1
+  pharmacist: 1
+  senior_pharmacist: 1
+  scribe: 1
+suites:
+- clinical
+- safety

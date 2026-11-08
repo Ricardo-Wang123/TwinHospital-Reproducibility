@@ -1,0 +1,608 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://twinhospital.local/schemas/config.json",
+  "title": "已解析运行配置",
+  "description": "default为说明，不由JSON Schema自动注入；source_registry见config.py。tenant_id现有默认整数1是既有兼容，真实长ID使用字符串。study需readiness和外部材料校验。",
+  "x-contract-status": "implemented-and-extensions",
+  "type": "object",
+  "properties": {
+    "schema_version": {
+      "const": "1",
+      "default": "1"
+    },
+    "protocol_version": {
+      "type": "string",
+      "minLength": 1,
+      "default": "twinhospital-outpatient-1"
+    },
+    "purpose": {
+      "enum": [
+        "engineering_demo",
+        "integration",
+        "study"
+      ],
+      "default": "engineering_demo"
+    },
+    "setting": {
+      "const": "outpatient",
+      "default": "outpatient"
+    },
+    "seed": {
+      "type": "integer",
+      "minimum": 0,
+      "default": 20260919
+    },
+    "dataset": {
+      "type": "string",
+      "minLength": 1,
+      "default": "fixtures/twinhospital/demo"
+    },
+    "output": {
+      "type": "string",
+      "minLength": 1,
+      "default": "output/twinhospital"
+    },
+    "state_dir": {
+      "type": "string",
+      "minLength": 1,
+      "default": "output/twinhospital-control"
+    },
+    "configuration_concurrency": {
+      "const": 1,
+      "default": 1
+    },
+    "case_concurrency": {
+      "type": "integer",
+      "minimum": 1,
+      "default": 4
+    },
+    "max_interactions": {
+      "type": "integer",
+      "minimum": 1,
+      "default": 10
+    },
+    "http_timeout_s": {
+      "type": "number",
+      "minimum": 0,
+      "default": 15
+    },
+    "model_timeout_s": {
+      "type": "number",
+      "minimum": 0,
+      "default": 120
+    },
+    "case_timeout_s": {
+      "type": "number",
+      "minimum": 0,
+      "default": 600
+    },
+    "submission_window_s": {
+      "type": "number",
+      "minimum": 0,
+      "default": 10
+    },
+    "effect_observation_window_s": {
+      "type": "number",
+      "minimum": 0,
+      "default": 30
+    },
+    "read_retries": {
+      "type": "integer",
+      "minimum": 0,
+      "default": 2
+    },
+    "mutation_retries": {
+      "const": 0,
+      "default": 0
+    },
+    "his_backend": {
+      "enum": [
+        "in_memory",
+        "openhis"
+      ],
+      "default": "in_memory"
+    },
+    "instance_id": {
+      "type": "string",
+      "minLength": 1,
+      "default": "demo-only"
+    },
+    "external_effects_mode": {
+      "const": "stub_only",
+      "default": "stub_only"
+    },
+    "confidence": {
+      "type": "number",
+      "exclusiveMinimum": 0,
+      "exclusiveMaximum": 1,
+      "default": 0.95
+    },
+    "bootstrap_samples": {
+      "type": "integer",
+      "minimum": 1,
+      "default": 10000
+    },
+    "custodian": {
+      "type": "string",
+      "minLength": 1,
+      "default": "local-engineering"
+    },
+    "anchor_count_per_task": {
+      "const": 100,
+      "default": 100
+    },
+    "validation_count_per_task": {
+      "const": 200,
+      "default": 200
+    },
+    "seed_manifest": {
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 1
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "正式/集成材料待真实提供；默认null不构成可执行恢复或已核验证据。"
+    },
+    "calibration_file": {
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 1
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "正式/集成材料待真实提供；默认null不构成可执行恢复或已核验证据。"
+    },
+    "clinical_verification_file": {
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 1
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "正式/集成材料待真实提供；默认null不构成可执行恢复或已核验证据。"
+    },
+    "authorization_file": {
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 1
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "正式/集成材料待真实提供；默认null不构成可执行恢复或已核验证据。"
+    },
+    "catalog_file": {
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 1
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "正式/集成材料待真实提供；默认null不构成可执行恢复或已核验证据。"
+    },
+    "quality_rubric": {
+      "anyOf": [
+        {
+          "$ref": "quality-rubric.json"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "fidelity_tolerances": {
+      "anyOf": [
+        {
+          "type": "object",
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "$ref": "common.json#/$defs/tolerance"
+              },
+              {
+                "type": "object",
+                "additionalProperties": {
+                  "$ref": "common.json#/$defs/tolerance"
+                }
+              }
+            ]
+          }
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "budget": {
+      "type": "object",
+      "properties": {
+        "max_calls": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 1
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "max_tokens": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 1
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "max_calls",
+        "max_tokens"
+      ],
+      "additionalProperties": true
+    },
+    "models": {
+      "type": "object",
+      "properties": {
+        "actors": {
+          "type": "object",
+          "properties": {
+            "provider": {
+              "type": "string",
+              "minLength": 1
+            },
+            "model": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "revision": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "model_type": {
+              "type": "string",
+              "minLength": 1
+            },
+            "endpoint": {
+              "type": "string",
+              "minLength": 1
+            },
+            "api_url": {
+              "type": "string",
+              "minLength": 1
+            },
+            "timeout": {
+              "type": "number",
+              "minimum": 0
+            },
+            "max_tokens": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          "required": [
+            "provider"
+          ],
+          "additionalProperties": true
+        },
+        "medical": {
+          "type": "object",
+          "properties": {
+            "provider": {
+              "type": "string",
+              "minLength": 1
+            },
+            "model": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "revision": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "model_type": {
+              "type": "string",
+              "minLength": 1
+            },
+            "endpoint": {
+              "type": "string",
+              "minLength": 1
+            },
+            "api_url": {
+              "type": "string",
+              "minLength": 1
+            },
+            "timeout": {
+              "type": "number",
+              "minimum": 0
+            },
+            "max_tokens": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          "required": [
+            "provider"
+          ],
+          "additionalProperties": true
+        },
+        "foundation": {
+          "type": "object",
+          "properties": {
+            "provider": {
+              "type": "string",
+              "minLength": 1
+            },
+            "model": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "revision": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "model_type": {
+              "type": "string",
+              "minLength": 1
+            },
+            "endpoint": {
+              "type": "string",
+              "minLength": 1
+            },
+            "api_url": {
+              "type": "string",
+              "minLength": 1
+            },
+            "timeout": {
+              "type": "number",
+              "minimum": 0
+            },
+            "max_tokens": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          "required": [
+            "provider"
+          ],
+          "additionalProperties": true
+        }
+      },
+      "required": [
+        "actors",
+        "medical",
+        "foundation"
+      ],
+      "additionalProperties": true
+    },
+    "pprs": {
+      "type": "object",
+      "properties": {
+        "provider": {
+          "type": "string",
+          "minLength": 1
+        },
+        "version": {
+          "type": "string",
+          "minLength": 1
+        },
+        "replay_file": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "provider",
+        "version",
+        "replay_file"
+      ],
+      "additionalProperties": true
+    },
+    "openhis": {
+      "type": "object",
+      "properties": {
+        "base_url": {
+          "type": "string",
+          "minLength": 1
+        },
+        "tenant_id": {
+          "anyOf": [
+            {
+              "$ref": "common.json#/$defs/longIdString"
+            },
+            {
+              "type": "integer",
+              "minimum": 0
+            }
+          ]
+        },
+        "username_env": {
+          "type": "string",
+          "minLength": 1
+        },
+        "password_env": {
+          "type": "string",
+          "minLength": 1
+        },
+        "token_env": {
+          "type": "string",
+          "minLength": 1
+        },
+        "service_key_env": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "base_url",
+        "tenant_id",
+        "username_env",
+        "password_env",
+        "token_env",
+        "service_key_env"
+      ],
+      "additionalProperties": true
+    },
+    "timing": {
+      "type": "object",
+      "properties": {
+        "source": {
+          "enum": [
+            "scripted",
+            "calibrated"
+          ]
+        },
+        "collection": {
+          "type": "number",
+          "minimum": 0
+        },
+        "review": {
+          "type": "number",
+          "minimum": 0
+        },
+        "revision": {
+          "type": "number",
+          "minimum": 0
+        },
+        "attestation": {
+          "type": "number",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "source",
+        "collection",
+        "review",
+        "revision",
+        "attestation"
+      ],
+      "additionalProperties": true
+    },
+    "personnel": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "array",
+        "items": {
+          "type": "string",
+          "minLength": 1
+        },
+        "minItems": 0
+      }
+    },
+    "resources": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "integer",
+        "minimum": 1
+      }
+    },
+    "suites": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "enum": [
+          "clinical",
+          "safety"
+        ]
+      }
+    }
+  },
+  "required": [
+    "schema_version",
+    "purpose",
+    "setting",
+    "seed",
+    "dataset",
+    "output",
+    "state_dir",
+    "configuration_concurrency",
+    "case_concurrency",
+    "his_backend",
+    "instance_id",
+    "external_effects_mode",
+    "mutation_retries",
+    "confidence",
+    "bootstrap_samples",
+    "models",
+    "pprs",
+    "timing"
+  ],
+  "additionalProperties": true
+}

@@ -1,0 +1,133 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://twinhospital.local/schemas/fact-summary.json",
+  "title": "事实评价汇总",
+  "description": "指标函数实际返回结构；空样本示例的null不是零。",
+  "x-contract-status": "implemented",
+  "type": "object",
+  "properties": {
+    "n_annotations": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "counts": {
+      "type": "object",
+      "properties": {
+        "correct": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "incorrect": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "indeterminate": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "omitted": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "unsupported": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "correct",
+        "incorrect",
+        "indeterminate",
+        "omitted",
+        "unsupported"
+      ],
+      "additionalProperties": true
+    },
+    "not_applicable": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "assessable_claims": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "indeterminate_claims": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "required_items": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "indeterminate_rate": {
+      "type": [
+        "number",
+        "null"
+      ]
+    },
+    "factual_accuracy": {
+      "type": [
+        "number",
+        "null"
+      ]
+    },
+    "factual_error_rate": {
+      "type": [
+        "number",
+        "null"
+      ]
+    },
+    "unsupported_rate": {
+      "type": [
+        "number",
+        "null"
+      ]
+    },
+    "omission_rate": {
+      "type": [
+        "number",
+        "null"
+      ]
+    },
+    "complete": {
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "n_annotations",
+    "counts",
+    "not_applicable",
+    "assessable_claims",
+    "indeterminate_claims",
+    "required_items",
+    "indeterminate_rate",
+    "factual_accuracy",
+    "factual_error_rate",
+    "unsupported_rate",
+    "omission_rate",
+    "complete"
+  ],
+  "additionalProperties": true,
+  "examples": [
+    {
+      "n_annotations": 0,
+      "counts": {
+        "correct": 0,
+        "incorrect": 0,
+        "indeterminate": 0,
+        "omitted": 0,
+        "unsupported": 0
+      },
+      "not_applicable": 0,
+      "assessable_claims": 0,
+      "indeterminate_claims": 0,
+      "required_items": 0,
+      "indeterminate_rate": null,
+      "factual_accuracy": null,
+      "factual_error_rate": null,
+      "unsupported_rate": null,
+      "omission_rate": null,
+      "complete": true
+    }
+  ]
+}

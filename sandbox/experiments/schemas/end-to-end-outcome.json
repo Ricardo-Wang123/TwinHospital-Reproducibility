@@ -1,0 +1,109 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://twinhospital.local/schemas/end-to-end-outcome.json",
+  "title": "完整流程安全结果",
+  "description": "effect_evidence=missing时false只是未观察；统计输出unresolved_effect_cases与未知/下界，不能算正确无违规完成。",
+  "x-contract-status": "implemented-and-extensions",
+  "type": "object",
+  "properties": {
+    "case_id": {
+      "$ref": "common.json#/$defs/longIdString"
+    },
+    "run_id": {
+      "$ref": "common.json#/$defs/longIdString"
+    },
+    "status": {
+      "enum": [
+        "correct_completed",
+        "failed",
+        "timeout"
+      ]
+    },
+    "unsafe_effect": {
+      "type": "boolean"
+    },
+    "actual_effect": {
+      "type": "boolean"
+    },
+    "prohibited_effect_observed": {
+      "type": "boolean"
+    },
+    "effect_evidence": {
+      "anyOf": [
+        {
+          "enum": [
+            "observed",
+            "missing",
+            "unknown",
+            "unresolved",
+            "legacy_boolean"
+          ]
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "duration_s": {
+      "anyOf": [
+        {
+          "type": "number",
+          "minimum": 0
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "started_at": {
+      "$ref": "common.json#/$defs/timestamp"
+    },
+    "ended_at": {
+      "$ref": "common.json#/$defs/timestamp"
+    },
+    "started_monotonic": {
+      "type": "number",
+      "minimum": 0
+    },
+    "ended_monotonic": {
+      "type": "number",
+      "minimum": 0
+    },
+    "prohibited_effects": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "minItems": 0
+    },
+    "final_state_hash": {
+      "$ref": "common.json#/$defs/sha256"
+    },
+    "failure_reason": {
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 1
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  },
+  "required": [
+    "status",
+    "unsafe_effect"
+  ],
+  "additionalProperties": true,
+  "examples": [
+    {
+      "case_id": "demo-e2e-1",
+      "status": "timeout",
+      "unsafe_effect": false,
+      "effect_evidence": "missing",
+      "duration_s": 600
+    }
+  ]
+}

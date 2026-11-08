@@ -1,0 +1,807 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://twinhospital.local/schemas/common.json",
+  "title": "TwinHospital 公共类型",
+  "description": "离线解析$ref；扩展字段不是运行器自动生成或已核验的证明。",
+  "x-contract-status": "implemented-and-extensions",
+  "$defs": {
+    "longIdString": {
+      "type": "string",
+      "minLength": 1,
+      "description": "所有医院长ID、病例ID、人员ID均为字符串；保留前导零，禁止JavaScript浮点转换。"
+    },
+    "decimalMoneyString": {
+      "type": "string",
+      "pattern": "^(0|[1-9][0-9]*)\\.[0-9]{2}$",
+      "description": "非负人民币金额，固定两位小数；例如 10.00。不得使用JSON浮点数或科学计数法。"
+    },
+    "decimalQuantityString": {
+      "type": "string",
+      "pattern": "^(0|[1-9][0-9]*)(\\.[0-9]+)?$",
+      "description": "剂量/数量十进制字符串，单位单列。"
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "(Z|[+-][0-9]{2}:[0-9]{2})$",
+      "description": "含时区ISO 8601时间；配合FormatChecker校验真实日期。"
+    },
+    "relativePath": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^(?!/)(?!.*\\\\)(?!.*:)(?!.*(?:^|/)\\.{1,2}(?:/|$))(?!.*//).+$",
+      "description": "相对于声明根目录的POSIX路径；运行时还检查symlink及实际解析边界。"
+    },
+    "task": {
+      "enum": [
+        "prescription",
+        "preconsult",
+        "documentation"
+      ]
+    },
+    "sourceKind": {
+      "enum": [
+        "engineering_example",
+        "real_deidentified",
+        "protocol_synthetic",
+        "hospital_observed",
+        "real_anchor",
+        "deidentified_real"
+      ]
+    },
+    "qualitySource": {
+      "anyOf": [
+        {
+          "enum": [
+            "independent_review",
+            "engineering_script",
+            "awaiting_independent_review",
+            "workflow_self_report",
+            "unknown"
+          ]
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "nullableNumber": {
+      "type": [
+        "number",
+        "null"
+      ]
+    },
+    "nullableBool": {
+      "type": [
+        "boolean",
+        "null"
+      ]
+    },
+    "environment": {
+      "enum": [
+        "simulation",
+        "hospital"
+      ]
+    },
+    "role": {
+      "enum": [
+        "doctor",
+        "physician",
+        "nurse",
+        "pharmacist",
+        "senior_pharmacist",
+        "scribe",
+        "patient"
+      ]
+    },
+    "factLabel": {
+      "enum": [
+        "correct",
+        "incorrect",
+        "unsupported",
+        "omitted",
+        "indeterminate"
+      ]
+    },
+    "reviewLabels": {
+      "type": "object",
+      "minProperties": 1,
+      "propertyNames": {
+        "type": "string",
+        "minLength": 1
+      },
+      "additionalProperties": {
+        "enum": [
+          "correct",
+          "incorrect",
+          "unsupported",
+          "omitted",
+          "indeterminate",
+          "not_applicable"
+        ]
+      }
+    },
+    "executionValue": {
+      "anyOf": [
+        {
+          "type": [
+            "string",
+            "number",
+            "boolean",
+            "null"
+          ]
+        },
+        {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/executionValue"
+          }
+        },
+        {
+          "type": "object",
+          "propertyNames": {
+            "not": {
+              "enum": [
+                "gold",
+                "reference",
+                "diagnosis_ground_truth",
+                "treatment_plan",
+                "expected_outcome",
+                "is_error"
+              ]
+            }
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/executionValue"
+          }
+        }
+      ]
+    },
+    "fact": {
+      "type": "object",
+      "properties": {
+        "fact_id": {
+          "$ref": "common.json#/$defs/longIdString"
+        },
+        "value": {},
+        "status": {
+          "enum": [
+            "known",
+            "denied",
+            "unknown",
+            "not_asked"
+          ]
+        },
+        "release_on": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "minItems": 0
+        },
+        "source_ref": {
+          "anyOf": [
+            {
+              "$ref": "common.json#/$defs/relativePath"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "source_sha256": {
+          "anyOf": [
+            {
+              "$ref": "common.json#/$defs/sha256"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "fact_id",
+        "value",
+        "status",
+        "release_on"
+      ],
+      "additionalProperties": true
+    },
+    "transcript": {
+      "type": "object",
+      "properties": {
+        "segment_id": {
+          "$ref": "common.json#/$defs/longIdString"
+        },
+        "sequence": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "speaker_role": {
+          "$ref": "common.json#/$defs/role"
+        },
+        "start_ms": {
+          "type": "number",
+          "minimum": 0
+        },
+        "end_ms": {
+          "type": "number",
+          "minimum": 0
+        },
+        "available_at_ms": {
+          "type": "number",
+          "minimum": 0
+        },
+        "text": {
+          "type": "string"
+        },
+        "verified": {
+          "type": "boolean"
+        },
+        "source_kind": {
+          "$ref": "common.json#/$defs/sourceKind"
+        },
+        "source_sha256": {
+          "anyOf": [
+            {
+              "$ref": "common.json#/$defs/sha256"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "segment_id",
+        "sequence",
+        "speaker_role",
+        "start_ms",
+        "end_ms",
+        "available_at_ms",
+        "text",
+        "verified",
+        "source_kind"
+      ],
+      "additionalProperties": true
+    },
+    "prescriptionItem": {
+      "type": "object",
+      "properties": {
+        "drug_code": {
+          "$ref": "common.json#/$defs/longIdString"
+        },
+        "dose": {
+          "$ref": "common.json#/$defs/decimalQuantityString"
+        },
+        "dose_unit": {
+          "type": "string",
+          "minLength": 1
+        },
+        "route": {
+          "type": "string",
+          "minLength": 1
+        },
+        "frequency": {
+          "type": "string",
+          "minLength": 1
+        },
+        "duration_days": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "quantity": {
+          "$ref": "common.json#/$defs/decimalQuantityString"
+        },
+        "quantity_unit": {
+          "type": "string",
+          "minLength": 1
+        },
+        "solvent": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "drug_code",
+        "dose",
+        "dose_unit",
+        "route",
+        "frequency",
+        "duration_days",
+        "quantity",
+        "quantity_unit"
+      ],
+      "additionalProperties": true
+    },
+    "prescription": {
+      "type": "object",
+      "properties": {
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "common.json#/$defs/prescriptionItem"
+          },
+          "minItems": 1
+        },
+        "patient_conditions": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "minItems": 0
+        }
+      },
+      "required": [
+        "items",
+        "patient_conditions"
+      ],
+      "additionalProperties": true
+    },
+    "nativeRefs": {
+      "type": "object",
+      "properties": {
+        "patient_id": {
+          "$ref": "common.json#/$defs/longIdString"
+        },
+        "encounter_id": {
+          "$ref": "common.json#/$defs/longIdString"
+        },
+        "requests": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "common.json#/$defs/executionValue"
+          }
+        }
+      },
+      "required": [],
+      "additionalProperties": true
+    },
+    "input": {
+      "allOf": [
+        {
+          "$ref": "common.json#/$defs/executionValue"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "initial_visible_facts": {
+              "type": "array",
+              "items": {
+                "$ref": "common.json#/$defs/fact"
+              },
+              "minItems": 0
+            },
+            "patient_known_facts": {
+              "type": "array",
+              "items": {
+                "$ref": "common.json#/$defs/fact"
+              },
+              "minItems": 0
+            },
+            "transcript": {
+              "type": "array",
+              "items": {
+                "$ref": "common.json#/$defs/transcript"
+              },
+              "minItems": 0
+            },
+            "prescription": {
+              "$ref": "common.json#/$defs/prescription"
+            },
+            "native_refs": {
+              "$ref": "common.json#/$defs/nativeRefs"
+            },
+            "visible_inputs": {
+              "$ref": "common.json#/$defs/executionValue"
+            },
+            "amount": {
+              "$ref": "common.json#/$defs/decimalMoneyString"
+            }
+          },
+          "required": [],
+          "additionalProperties": true
+        }
+      ],
+      "description": "执行输入与gold分离。医院导出另需显式visible_inputs投影；Schema不代替递归泄漏检查。"
+    },
+    "configuration": {
+      "type": "object",
+      "properties": {
+        "task": {
+          "$ref": "common.json#/$defs/task"
+        },
+        "config_id": {
+          "$ref": "common.json#/$defs/longIdString"
+        },
+        "workflow": {
+          "type": "string",
+          "minLength": 1
+        },
+        "model_family": {
+          "anyOf": [
+            {
+              "enum": [
+                "medical",
+                "foundation"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "human_review": {
+          "type": "boolean"
+        },
+        "requires_physician_attestation": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "task",
+        "config_id",
+        "workflow",
+        "model_family"
+      ],
+      "additionalProperties": true
+    },
+    "activity": {
+      "type": "object",
+      "properties": {
+        "case_id": {
+          "$ref": "common.json#/$defs/longIdString"
+        },
+        "task": {
+          "$ref": "common.json#/$defs/task"
+        },
+        "config_id": {
+          "$ref": "common.json#/$defs/longIdString"
+        },
+        "run_id": {
+          "$ref": "common.json#/$defs/longIdString"
+        },
+        "environment": {
+          "$ref": "common.json#/$defs/environment"
+        },
+        "activity_id": {
+          "$ref": "common.json#/$defs/longIdString"
+        },
+        "actor_id": {
+          "$ref": "common.json#/$defs/longIdString"
+        },
+        "role": {
+          "$ref": "common.json#/$defs/role"
+        },
+        "activity_type": {
+          "type": "string",
+          "minLength": 1
+        },
+        "active_seconds": {
+          "type": "number",
+          "minimum": 0
+        },
+        "timing_source": {
+          "type": "string",
+          "minLength": 1
+        },
+        "start_sim_s": {
+          "type": "number",
+          "minimum": 0
+        },
+        "end_sim_s": {
+          "type": "number",
+          "minimum": 0
+        },
+        "included_in_activity_id": {
+          "anyOf": [
+            {
+              "$ref": "common.json#/$defs/longIdString"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "source_ref": {
+          "anyOf": [
+            {
+              "$ref": "common.json#/$defs/relativePath"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "source_sha256": {
+          "anyOf": [
+            {
+              "$ref": "common.json#/$defs/sha256"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "case_id",
+        "role",
+        "activity_type",
+        "active_seconds",
+        "timing_source"
+      ],
+      "additionalProperties": true
+    },
+    "review": {
+      "type": "object",
+      "properties": {
+        "artifact_id": {
+          "$ref": "common.json#/$defs/longIdString"
+        },
+        "reviewer_id": {
+          "$ref": "common.json#/$defs/longIdString"
+        },
+        "blinded": {
+          "const": true
+        },
+        "rubric_version": {
+          "type": "string",
+          "minLength": 1
+        },
+        "labels": {
+          "$ref": "common.json#/$defs/reviewLabels"
+        },
+        "artifact_sha256": {
+          "$ref": "common.json#/$defs/sha256"
+        },
+        "source_sha256": {
+          "$ref": "common.json#/$defs/sha256"
+        },
+        "reviewed_at": {
+          "$ref": "common.json#/$defs/timestamp"
+        },
+        "source_material_ref": {
+          "$ref": "common.json#/$defs/relativePath"
+        },
+        "quality_source": {
+          "const": "independent_review"
+        },
+        "artifact_stage": {
+          "enum": [
+            "final",
+            "first_handoff",
+            "first_draft"
+          ],
+          "default": "final",
+          "description": "缺省仅代表最终稿。早期版本必须独立artifact_id、实际内容摘要与两位评审；最终审核不替代早期审核。"
+        }
+      },
+      "required": [
+        "artifact_id",
+        "reviewer_id",
+        "blinded",
+        "rubric_version",
+        "labels"
+      ],
+      "additionalProperties": true
+    },
+    "adjudication": {
+      "type": "object",
+      "properties": {
+        "artifact_id": {
+          "$ref": "common.json#/$defs/longIdString"
+        },
+        "adjudicator_id": {
+          "$ref": "common.json#/$defs/longIdString"
+        },
+        "rubric_version": {
+          "type": "string",
+          "minLength": 1
+        },
+        "labels": {
+          "$ref": "common.json#/$defs/reviewLabels"
+        },
+        "rationale": {
+          "type": "string",
+          "minLength": 1
+        },
+        "artifact_sha256": {
+          "$ref": "common.json#/$defs/sha256"
+        },
+        "source_sha256": {
+          "$ref": "common.json#/$defs/sha256"
+        },
+        "adjudicated_at": {
+          "$ref": "common.json#/$defs/timestamp"
+        }
+      },
+      "required": [
+        "artifact_id",
+        "adjudicator_id",
+        "rubric_version",
+        "labels",
+        "rationale"
+      ],
+      "additionalProperties": true
+    },
+    "attestation": {
+      "type": "object",
+      "properties": {
+        "signer_id": {
+          "$ref": "common.json#/$defs/longIdString"
+        },
+        "role": {
+          "const": "physician"
+        },
+        "signed_at": {
+          "$ref": "common.json#/$defs/timestamp"
+        },
+        "artifact_sha256": {
+          "$ref": "common.json#/$defs/sha256"
+        },
+        "authorization_ref": {
+          "$ref": "common.json#/$defs/relativePath"
+        }
+      },
+      "required": [
+        "signer_id",
+        "role",
+        "signed_at",
+        "artifact_sha256"
+      ],
+      "additionalProperties": true
+    },
+    "evidence": {
+      "type": "object",
+      "properties": {
+        "operator_id": {
+          "$ref": "common.json#/$defs/longIdString"
+        },
+        "source_run_id": {
+          "$ref": "common.json#/$defs/longIdString"
+        },
+        "execution_log_ref": {
+          "$ref": "common.json#/$defs/relativePath"
+        },
+        "execution_log_sha256": {
+          "$ref": "common.json#/$defs/sha256"
+        }
+      },
+      "required": [
+        "operator_id",
+        "source_run_id",
+        "execution_log_ref",
+        "execution_log_sha256"
+      ],
+      "additionalProperties": true
+    },
+    "safetyCategory": {
+      "enum": [
+        "patient_bill",
+        "missing_encounter",
+        "locked_note",
+        "unauthorized_signatory",
+        "duplicate_payment"
+      ]
+    },
+    "safetyOutcome": {
+      "enum": [
+        "sandbox_prevention",
+        "downstream_safe",
+        "unsafe_execution",
+        "unresolved",
+        "control_allowed",
+        "control_false_block",
+        "control_failed"
+      ]
+    },
+    "qualityAssessment": {
+      "type": "object",
+      "properties": {
+        "qualified": {
+          "$ref": "common.json#/$defs/nullableBool"
+        },
+        "source": {
+          "$ref": "common.json#/$defs/qualitySource"
+        },
+        "rubric_version": {
+          "type": "string",
+          "minLength": 1
+        },
+        "review_artifact_ids": {
+          "type": "array",
+          "items": {
+            "$ref": "common.json#/$defs/longIdString"
+          },
+          "minItems": 0
+        },
+        "source_sha256": {
+          "$ref": "common.json#/$defs/sha256"
+        }
+      },
+      "required": [
+        "qualified",
+        "source"
+      ],
+      "additionalProperties": true
+    },
+    "parameter": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "value": {},
+        "source": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "name",
+        "value",
+        "source"
+      ],
+      "additionalProperties": true
+    },
+    "fileHashMap": {
+      "type": "object",
+      "propertyNames": {
+        "$ref": "common.json#/$defs/relativePath"
+      },
+      "additionalProperties": {
+        "$ref": "common.json#/$defs/sha256"
+      }
+    },
+    "metricMap": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string",
+        "minLength": 1
+      },
+      "additionalProperties": {
+        "$ref": "common.json#/$defs/nullableNumber"
+      }
+    },
+    "tolerance": {
+      "type": "object",
+      "properties": {
+        "max_abs_delta_error": {
+          "type": "number",
+          "minimum": 0
+        },
+        "direction_epsilon": {
+          "type": "number",
+          "minimum": 0
+        },
+        "min_tau_b": {
+          "type": "number",
+          "minimum": -1,
+          "maximum": 1
+        }
+      },
+      "required": [
+        "max_abs_delta_error",
+        "direction_epsilon",
+        "min_tau_b"
+      ],
+      "additionalProperties": true
+    }
+  }
+}

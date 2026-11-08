@@ -1,0 +1,191 @@
+{
+  "version": "exact_product_route_reference_v1",
+  "verified_on": "2026-11-07",
+  "category": "administration_route_error",
+  "rule_scope": "Explicit route mismatch for the named unchanged formulation. No dose, indication, efficacy, device technique or all-category normality claim.",
+  "source_archive": "public_sources/clinical_products_v3/manifest.json",
+  "identity_fields": [
+    "ingredient",
+    "dosage_form",
+    "strength",
+    "components",
+    "quantity_unit",
+    "allowed_routes"
+  ],
+  "products": {
+    "SIM-METFORMIN-ER-500": {
+      "identity": {
+        "ingredient": "metformin",
+        "dosage_form": "oral_tablet_extended_release",
+        "strength": "500 mg/tablet",
+        "components": [
+          {
+            "ingredient": "metformin hydrochloride",
+            "strength_value": 500,
+            "strength_unit": "mg",
+            "per": "tablet",
+            "basis_of_strength": "metformin hydrochloride"
+          }
+        ],
+        "quantity_unit": "tablet",
+        "allowed_routes": [
+          "oral"
+        ]
+      },
+      "labelled_route": "oral",
+      "source": {
+        "url": "https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid=ef77c7dd-a65f-4adc-a0d9-a93779b459a0",
+        "setid": "ef77c7dd-a65f-4adc-a0d9-a93779b459a0",
+        "displayed_spl_version": "4",
+        "sha256": "bef1f1cf3d9e48c875bf5f7d90e20891a791aa74536ae98ecabce55bc33e6a54"
+      },
+      "evidence_sections": [
+        "Product Information: Route of Administration",
+        "Active Ingredients and strength"
+      ],
+      "scope": "New precisely defined simulated product; not proof of historical MIMIC NDC identity or total prescription appropriateness."
+    },
+    "SIM-METOPROLOL-SUCCINATE-ER-25": {
+      "identity": {
+        "ingredient": "metoprolol",
+        "dosage_form": "oral_tablet_extended_release",
+        "strength": "25 mg tartrate-equivalent/tablet",
+        "components": [
+          {
+            "ingredient": "metoprolol succinate",
+            "strength_value": 25,
+            "strength_unit": "mg",
+            "per": "tablet",
+            "basis_of_strength": "metoprolol tartrate equivalent"
+          }
+        ],
+        "quantity_unit": "tablet",
+        "allowed_routes": [
+          "oral"
+        ]
+      },
+      "labelled_route": "oral",
+      "source": {
+        "url": "https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid=58441cd3-6043-4bb8-adab-1b32a203bfb2",
+        "setid": "58441cd3-6043-4bb8-adab-1b32a203bfb2",
+        "displayed_spl_version": "14",
+        "sha256": "f5e56e4f1c147daf0957e10608e6f22ec7ebaaa3c7556ec639cdcc2a333a2c08"
+      },
+      "evidence_sections": [
+        "Product Information: Route of Administration",
+        "Active Ingredients and strength"
+      ],
+      "scope": "New precisely defined simulated product; not proof of historical MIMIC NDC identity or total prescription appropriateness."
+    },
+    "SIM-FLUTICASONE-SALMETEROL-DISKUS-250-50": {
+      "identity": {
+        "ingredient": "fluticasone propionate+salmeterol",
+        "dosage_form": "dry_powder_inhaler_diskus",
+        "strength": "250 mcg fluticasone propionate + 50 mcg salmeterol/inhalation",
+        "components": [
+          {
+            "ingredient": "fluticasone propionate",
+            "strength_value": 250,
+            "strength_unit": "mcg",
+            "per": "inhalation",
+            "basis_of_strength": "fluticasone propionate"
+          },
+          {
+            "ingredient": "salmeterol xinafoate",
+            "strength_value": 50,
+            "strength_unit": "mcg",
+            "per": "inhalation",
+            "basis_of_strength": "salmeterol base"
+          }
+        ],
+        "quantity_unit": "inhaler",
+        "allowed_routes": [
+          "inhaled"
+        ]
+      },
+      "labelled_route": "inhaled",
+      "source": {
+        "url": "https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid=4eeb5f6a-593f-4a9e-9692-adefa2caf8fc",
+        "setid": "4eeb5f6a-593f-4a9e-9692-adefa2caf8fc",
+        "displayed_spl_version": "32",
+        "sha256": "1cf72f7ddda78d0db3694b84237812b61df8ffa1c7c5c9c6d984119c24182a88"
+      },
+      "evidence_sections": [
+        "Product Information: Route of Administration",
+        "Active Ingredients and strength"
+      ],
+      "scope": "New precisely defined simulated product; not proof of historical MIMIC NDC identity or total prescription appropriateness."
+    },
+    "SIM-LEVOFLOXACIN-750": {
+      "identity": {
+        "ingredient": "levofloxacin",
+        "dosage_form": "oral_tablet_immediate_release",
+        "strength": "750 mg/tablet",
+        "components": [
+          {
+            "ingredient": "levofloxacin hemihydrate",
+            "strength_value": 750,
+            "strength_unit": "mg",
+            "per": "tablet",
+            "basis_of_strength": "levofloxacin"
+          }
+        ],
+        "quantity_unit": "tablet",
+        "allowed_routes": [
+          "oral"
+        ]
+      },
+      "labelled_route": "oral",
+      "source": {
+        "url": "https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid=c6027cde-b9fe-e593-e053-2995a90ac2c1",
+        "setid": "c6027cde-b9fe-e593-e053-2995a90ac2c1",
+        "displayed_spl_version": "2",
+        "sha256": "c6cc7b6db50463c1bc847fd2d222f987d5ffb9e9962329849f4f48bfc855d19b"
+      },
+      "evidence_sections": [
+        "Product Information: Route of Administration",
+        "Active Ingredients and strength"
+      ],
+      "scope": "New precisely defined simulated product; not proof of historical MIMIC NDC identity or total prescription appropriateness."
+    },
+    "SIM-NITROFURANTOIN-MONO-MACRO-100": {
+      "identity": {
+        "ingredient": "nitrofurantoin",
+        "dosage_form": "oral_capsule_monohydrate_macrocrystals",
+        "strength": "100 mg/capsule",
+        "components": [
+          {
+            "ingredient": "nitrofurantoin macrocrystals",
+            "strength_value": 25,
+            "strength_unit": "mg",
+            "per": "capsule",
+            "basis_of_strength": "nitrofurantoin"
+          },
+          {
+            "ingredient": "nitrofurantoin monohydrate",
+            "strength_value": 75,
+            "strength_unit": "mg",
+            "per": "capsule",
+            "basis_of_strength": "nitrofurantoin"
+          }
+        ],
+        "quantity_unit": "capsule",
+        "allowed_routes": [
+          "oral"
+        ]
+      },
+      "labelled_route": "oral",
+      "source": {
+        "url": "https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid=ea28d766-d6e6-43d2-8282-dc78a0381057",
+        "setid": "ea28d766-d6e6-43d2-8282-dc78a0381057",
+        "displayed_spl_version": "4",
+        "sha256": "856f760315d883098932d9869bca4a7865f34d45112e677679b5a4080aef0f92"
+      },
+      "evidence_sections": [
+        "Product Information: Route of Administration",
+        "Active Ingredients and strength"
+      ],
+      "scope": "New precisely defined simulated product; not proof of historical MIMIC NDC identity or total prescription appropriateness."
+    }
+  }
+}

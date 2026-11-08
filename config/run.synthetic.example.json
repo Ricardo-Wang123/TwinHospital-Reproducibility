@@ -1,0 +1,12 @@
+{
+  "mode": "linked",
+  "batch": "synthetic_linked_01",
+  "manifest": "synthetic/manifest.json",
+  "provider_config": "provider.local.json",
+  "key_file": "api.key",
+  "batches": "batches",
+  "model_evidence": "model_calls",
+  "ledger": "budget.sqlite",
+  "workers": 1,
+  "uncapped": false
+}

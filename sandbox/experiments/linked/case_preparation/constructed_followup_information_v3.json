@@ -1,0 +1,321 @@
+{
+  "version": "constructed-followup-information-contract/20261107-v3-proposal",
+  "status": "development_design_proposal_no_cases_generated",
+  "created_on": "2026-11-07",
+  "supersedes_runtime_inputs": false,
+  "observed_v2_gap": {
+    "facts_per_group": {
+      "type2_diabetes": 7,
+      "heart_failure": 7,
+      "copd": 8
+    },
+    "unknown_history_topics": [
+      "other_medications",
+      "allergy_history"
+    ],
+    "current_observations_per_case": 5,
+    "interpretation": "v2 only defines broad progression; many ordinary current symptom topics lack explicit facts. This is an input-coverage issue, not evidence of universal poor patient recall."
+  },
+  "fact_contract": {
+    "fields": [
+      "fact_id",
+      "section",
+      "clinical_topic",
+      "value",
+      "clinical_state",
+      "knowledge_state",
+      "time_interval",
+      "source_kind",
+      "construction_version",
+      "source_refs_or_empty",
+      "patient_expression",
+      "unknown_reason_or_null"
+    ],
+    "clinical_state": [
+      "present",
+      "absent_in_defined_interval",
+      "unchanged_from_defined_baseline",
+      "not_applicable",
+      "unknown"
+    ],
+    "knowledge_state": [
+      "known_self_experience",
+      "known_from_brought_record",
+      "uncertain_recall",
+      "not_measured",
+      "not_understood_until_rephrased",
+      "not_available"
+    ],
+    "new_episode_source_kind": "constructed",
+    "measurement_origin_required": true,
+    "normal_state_default": null,
+    "source_allergy_status_default": "preserve_original_unknown",
+    "source_comorbidity_default": "preserve_original_codes_and_uncertainty"
+  },
+  "common_required_fields": [
+    {
+      "key": "visit_timeline",
+      "description_zh": "本次就诊时间、出院至今时长、复诊目的"
+    },
+    {
+      "key": "current_trajectory",
+      "description_zh": "本次症状起点、出院后改善/不变/加重与观察区间"
+    },
+    {
+      "key": "daily_function",
+      "description_zh": "日常自理、活动相对个人基线的变化"
+    },
+    {
+      "key": "oral_intake",
+      "description_zh": "近期进食饮水、恶心/呕吐/腹泻与能否服药"
+    },
+    {
+      "key": "medication_inventory",
+      "description_zh": "逐项当前在用药品、来源身份、实际剂量/途径/频次和清单完整度"
+    },
+    {
+      "key": "recent_administration",
+      "description_zh": "最近实际服用/漏服/停服及末次时间，不用处方推断服药"
+    },
+    {
+      "key": "supply_inventory",
+      "description_zh": "现有药量及单位、观察时间、为何来复核；药量与已服次数相容"
+    },
+    {
+      "key": "recent_adverse_experiences",
+      "description_zh": "近期服药后不适/可感知反应，与历史过敏状态分开"
+    },
+    {
+      "key": "additional_products",
+      "description_zh": "OTC、保健/草药、其他医生开药的已知范围与未知范围"
+    },
+    {
+      "key": "measurement_resources",
+      "description_zh": "体重计/血压计/血糖仪/氧饱和度仪是否有、是否测及记录是否可读"
+    },
+    {
+      "key": "followup_understanding",
+      "description_zh": "患者理解的复诊要求、照护帮助、想解决的问题"
+    }
+  ],
+  "group_required_fields": {
+    "heart_failure": [
+      {
+        "key": "dyspnea",
+        "description_zh": "静息与日常活动气促、相对出院时是否变化"
+      },
+      {
+        "key": "orthopnea_night",
+        "description_zh": "躺平是否更喘、夜间是否憋醒，使用日常语言"
+      },
+      {
+        "key": "swelling",
+        "description_zh": "脚踝/腿部肿胀的自觉程度及变化"
+      },
+      {
+        "key": "weight_history",
+        "description_zh": "有无称重；有测量才给数值和时间；未测明确说未测"
+      },
+      {
+        "key": "dizziness_syncope",
+        "description_zh": "头晕、站起不适、晕倒/接近晕倒经历"
+      },
+      {
+        "key": "chest_palpitations",
+        "description_zh": "胸痛、心悸及其时间特征"
+      },
+      {
+        "key": "urination",
+        "description_zh": "主观排尿次数/量较平常是否变化；不要求患者虚构毫升"
+      },
+      {
+        "key": "fluid_intake_pattern",
+        "description_zh": "近期饮水变化、是否知道限液计划；具体限量无依据则未知"
+      }
+    ],
+    "type2_diabetes": [
+      {
+        "key": "low_glucose_experiences",
+        "description_zh": "发抖/出汗/饥饿/头晕/意识异常等近期经历；有无既知无感知史单列"
+      },
+      {
+        "key": "thirst_urination",
+        "description_zh": "口渴、排尿及日常变化"
+      },
+      {
+        "key": "home_glucose",
+        "description_zh": "是否自测、记录可否读取；数值需来源/时间/单位，没测不填正常值"
+      },
+      {
+        "key": "gastrointestinal_intake",
+        "description_zh": "近期进食、呕吐腹泻与服药体验"
+      },
+      {
+        "key": "foot_skin_changes",
+        "description_zh": "足部伤口/皮肤改变等与既有源并发症相容的当前自觉情况"
+      }
+    ],
+    "copd": [
+      {
+        "key": "breathlessness_function",
+        "description_zh": "日常活动气短程度和相对基线变化"
+      },
+      {
+        "key": "cough_sputum",
+        "description_zh": "咳嗽、痰量、颜色/性状及变化"
+      },
+      {
+        "key": "wheeze_night",
+        "description_zh": "喘鸣、夜间症状和睡眠变化"
+      },
+      {
+        "key": "fever_hemoptysis_chest",
+        "description_zh": "自觉发热/咯血/胸痛情况；体温另属测量"
+      },
+      {
+        "key": "inhaler_use",
+        "description_zh": "具体器械、实际使用步骤、是否漏用、是否能演示"
+      },
+      {
+        "key": "rescue_use",
+        "description_zh": "如存在缓解药，近期次数和变化；未建立清单时不默认没有"
+      },
+      {
+        "key": "oxygen_smoking_exposure",
+        "description_zh": "已知氧疗情况与吸烟/暴露，源不明确的治疗计划保留未知"
+      }
+    ]
+  },
+  "must_remain_unknown_without_additional_evidence": [
+    "原源库未记录的过敏状态",
+    "未核对的其他在服药",
+    "未提供的客观eGFR/EF/影像或出院方案",
+    "未测量的家庭体重/血糖/血压/尿量数值",
+    "无法从历史资料确定的持续共病活动状态"
+  ],
+  "patient_answer_policy": [
+    "说不清专业名词时请医生换成日常说法，不把术语不熟当作不知道自己是否喘/晕。",
+    "已生成的当前事实可自然重述并按问题提供，不规定刻意遗漏比例。",
+    "没有生成的临床事实不能由患者LLM自行补成阴性；构造审计应在运行前发现必要槽位缺项。",
+    "可报告未称重/没有记录，这是明确事实；不得把体重无记录变成“体重没有变化”。"
+  ],
+  "allergy_boundary": "可另构造具体药物近期耐受经历并明确patient_report；不能由“这次没起疹子”推出无药物过敏，不能抹除source未知或已知反应。",
+  "clinical_conflict_decisions": [
+    "hard_conflict_not_ready",
+    "uncertainty_requires_review",
+    "no_detected_conflict_not_clinical_clearance"
+  ],
+  "completeness_checks": [
+    {
+      "id": "scope_and_freeze",
+      "rule_zh": "仅development新版本；同一场景事实对所有实验配置固定。保留旧版本与全部失败，不读取模型成功结果筛来源。"
+    },
+    {
+      "id": "complete_required_slots",
+      "rule_zh": "每个适用字段有值或显式状态/原因。未定义字段是构造缺项，不能自动转换成患者失忆或临床阴性。"
+    },
+    {
+      "id": "ordinary_experience_answerable",
+      "rule_zh": "普通当前经历默认可以自然描述；只有预设、合理的失忆/观察困难才能使该项uncertain_recall，不按年龄统一降能力。"
+    },
+    {
+      "id": "no_blanket_negative",
+      "rule_zh": "不能把稳定解释成所有症状均无；允许原有轻度症状不变。过敏/共病source未知保持未知。"
+    },
+    {
+      "id": "observation_vs_measurement",
+      "rule_zh": "自觉没有明显变化不等于体重/尿量/血糖实测正常。没测使用not_measured，不能插入数值。"
+    },
+    {
+      "id": "time_and_quantity_consistency",
+      "rule_zh": "症状区间、末次用药、频次、已服次数、库存单位和余量必须相容；出院次日药快用完须有明确构造原因，不伪称真实出院供药。"
+    },
+    {
+      "id": "source_history_immutability",
+      "rule_zh": "原诊断/医嘱/检验与时间、原过敏未知、原共病不得改动；新事实全部标constructed及生成版本。"
+    },
+    {
+      "id": "current_medication_transition",
+      "rule_zh": "哪些药当前在服是显式构造的转换关系，不把全部住院药平移；清单不完整仍记录partial，不能默认为其他药都停了。"
+    },
+    {
+      "id": "source_conflict_review",
+      "rule_zh": "比对源近期诊断、器官功能、已知反应、功能/认知限制、装置与给药途径。硬冲突保留并判not_ready；不确定转独立临床审核，不靠改正常值掩盖。"
+    },
+    {
+      "id": "objective_source_boundary",
+      "rule_zh": "客观生命体征若新构造须保留constructed；原检验不改时间。eGFR/EF/影像/出院医嘱无来源则未知，不让患者背出评价底稿。"
+    },
+    {
+      "id": "patient_view_permissions",
+      "rule_zh": "患者只见可知的当前体验/药盒或家庭记录；医生经交接和HIS获取信息；完整评价底稿不进入角色输入。"
+    },
+    {
+      "id": "no_prescription_answer",
+      "rule_zh": "不提供应开哪种药的隐藏指令；处方、停药、暂缓或转诊均允许。临床适用性/参考评价仍pending_independent_review。"
+    }
+  ],
+  "inference_note": "字段集合和验收规则是面向TwinHospital模拟的设计推论；所引指南支持观察/核对维度，并不验证任何构造病例或给出仿真标准答案。",
+  "references": {
+    "medrec": {
+      "url": "https://www.nice.org.uk/guidance/ng5/chapter/Recommendations",
+      "title": "NICE NG5 用药核对",
+      "sections": [
+        "1.2.3",
+        "1.3.3",
+        "1.3.6"
+      ],
+      "scope": "当前药品清单、改变原因、末次给药、与患者核对；不为特定患者提供用药答案"
+    },
+    "allergy": {
+      "url": "https://www.nice.org.uk/guidance/cg183/chapter/Recommendations",
+      "title": "NICE CG183 药物过敏记录",
+      "sections": [
+        "1.2.1–1.2.3",
+        "1.2.5–1.2.6"
+      ],
+      "scope": "已知过敏、无已知过敏、无法查明是不同状态；过敏与不良反应分别记录"
+    },
+    "hf": {
+      "url": "https://www.nice.org.uk/guidance/ng106/chapter/recommendations/",
+      "title": "NICE NG106 心衰临床复查",
+      "sections": [
+        "1.8.1–1.8.4"
+      ],
+      "scope": "症状/活动、容量状态、药物及不良反应、肾功能等需复查；不要求每个患者自知所有客观指标"
+    },
+    "hf_patient": {
+      "url": "https://www.england.nhs.uk/long-read/managing-heart-failure-home-information-for-patients/",
+      "title": "NHS England 心衰居家观察说明",
+      "scope": "患者可观察气促、水肿与日常变化；体重/血压/心率需有真实或明确构造的测量来源"
+    },
+    "t2": {
+      "url": "https://www.nice.org.uk/guidance/ng28/chapter/Blood-glucose-management",
+      "title": "NICE NG28 血糖管理",
+      "sections": [
+        "1.6.2–1.6.5"
+      ],
+      "scope": "不应假定所有T2患者都在家自测；是否自测与设备/解释能力须说明"
+    },
+    "t2_symptoms": {
+      "url": "https://www.cdc.gov/diabetes/about/low-blood-sugar-hypoglycemia.html",
+      "title": "CDC 低血糖症状",
+      "scope": "常见可感知症状与低血糖无感知须区分；不能用没有自觉症状排除低血糖"
+    },
+    "copd": {
+      "url": "https://www.nice.org.uk/guidance/NG115/chapter/recommendations",
+      "title": "NICE NG115 COPD 评估",
+      "sections": [
+        "1.1.1–1.1.3",
+        "1.2.9",
+        "1.2.20–1.2.23"
+      ],
+      "scope": "呼吸与活动、咳痰、器械使用等；年龄本身不等于不能掌握吸入方法"
+    },
+    "mimic": {
+      "url": "https://mimic.mit.edu/docs/iv/modules/hosp/diagnoses_icd.html",
+      "title": "MIMIC 历史诊断来源",
+      "scope": "历史出院编码不自动等于当前门诊状态"
+    }
+  }
+}

@@ -1,0 +1,129 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://twinhospital.local/schemas/safety-outcome.json",
+  "title": "局部安全状态效果结果",
+  "description": "实际效果优先于标签；错误四分法与对照结果分别统计。失败读回不能因布尔false改判已阻止。",
+  "x-contract-status": "implemented-and-extensions",
+  "type": "object",
+  "properties": {
+    "test_id": {
+      "$ref": "common.json#/$defs/longIdString"
+    },
+    "run_id": {
+      "$ref": "common.json#/$defs/longIdString"
+    },
+    "category": {
+      "$ref": "common.json#/$defs/safetyCategory"
+    },
+    "is_error": {
+      "type": "boolean"
+    },
+    "outcome": {
+      "$ref": "common.json#/$defs/safetyOutcome"
+    },
+    "source_kind": {
+      "$ref": "common.json#/$defs/sourceKind"
+    },
+    "actual_effect": {
+      "type": "boolean"
+    },
+    "unsafe_effect": {
+      "type": "boolean"
+    },
+    "prohibited_effect_observed": {
+      "type": "boolean"
+    },
+    "unchanged_context_hash": {
+      "anyOf": [
+        {
+          "$ref": "common.json#/$defs/sha256"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "changed_field": {
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 1
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "original_operation": {
+      "type": "string",
+      "minLength": 1
+    },
+    "operation": {
+      "type": "string",
+      "minLength": 1
+    },
+    "original_payload": {},
+    "submitted_payload": {},
+    "replay_of": {
+      "$ref": "common.json#/$defs/longIdString"
+    },
+    "before_state": {
+      "anyOf": [
+        {
+          "type": "object"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "after_state": {
+      "anyOf": [
+        {
+          "type": "object"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "evidence_status": {
+      "type": "string",
+      "minLength": 1
+    },
+    "protection_source": {
+      "type": "string",
+      "minLength": 1
+    },
+    "request_id": {
+      "$ref": "common.json#/$defs/longIdString"
+    },
+    "failure_reason": {
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 1
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  },
+  "required": [
+    "category",
+    "is_error",
+    "outcome"
+  ],
+  "additionalProperties": true,
+  "examples": [
+    {
+      "test_id": "demo-duplicate-1",
+      "category": "duplicate_payment",
+      "is_error": true,
+      "outcome": "unresolved",
+      "evidence_status": "missing",
+      "prohibited_effect_observed": false
+    }
+  ]
+}
