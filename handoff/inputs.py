@@ -189,7 +189,7 @@ def configure(args):
         window['frozen_at'] = now.isoformat()
         window['submission_window'].update(opens_at=now.isoformat(),
                                            closes_at=(now + timedelta(hours=args.dispatch_hours)).isoformat())
-        window['workers'] = args.workers or window['workers']
+        window['workers'] = args.workers or (1 if args.mode == 'comparison' else window['workers'])
         validate_window(window, workers=window['workers'], now=now)
         fields.update(workflow_policy='workflow.local.json', patients_per_disease=args.patients_per_disease,
                       workers=window['workers'])

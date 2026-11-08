@@ -81,7 +81,7 @@ Start with `--quick` for a pilot. It schedules three fresh encounters per source
 | AI alone | Sequential | During consultation |
 | AI with nurse review | Parallel | After consultation |
 
-Remove `--quick` to assign every case to all 27 combinations. The full crossing supports matched contrasts that hold the other two stages fixed. Each assignment has its own agent context, encounter, and native records.
+Remove `--quick` to assign every case to all 27 combinations. The full crossing supports matched contrasts that hold the other two stages fixed. Each assignment has its own agent context, encounter, and native records. Comparisons use one worker by default. Set `--workers` when configuring a batch to change parallelism.
 
 ~~~sh
 .venv/bin/python -m handoff.inputs configure \
