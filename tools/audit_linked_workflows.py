@@ -62,14 +62,14 @@ class ReadOnlyObserver:
         if role in self.login_errors:
             return None
         if role not in self.clients:
-            from sandbox.experiments.linked.native_his import OpenHISClient, ROLE_SETTINGS
+            from sandbox.experiments.linked.native_his import OpenHISClient, ROLE_SETTINGS, isolated_port
             try:
                 p = Path(self.credentials_path)
                 if p.stat().st_mode & 0o077:
                     raise PermissionError('Private credential mode required')
                 credentials = read(p)
                 name, org, _ = ROLE_SETTINGS[role]
-                c = OpenHISClient(timeout=20)
+                c = OpenHISClient(f'http://127.0.0.1:{isolated_port()}/api/app', timeout=20)
                 c.login(name, credentials[name], organization=org)
                 credentials.clear()
                 self.clients[role] = c
