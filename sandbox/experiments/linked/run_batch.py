@@ -693,77 +693,6 @@ def _acceptance_progression_checks(ref, record, profile, specification):
             'no_violation_in_retained_readbacks': not audit['observed_violations']}
 
 
-def bind_verified_acceptance_recovery(path, specification):
-    """Keep paid assignments from a closed, independently audited transport interruption."""
-    plan = _read(path)
-    source = Path(plan['source_batch'])
-    source_spec = source/'specification.json'
-    source_summary = source/'batch_summary.json'
-    audit_path = Path(plan['native_audit'])
-    if (plan['version'] != 'verified_partial_acceptance_recovery_v1'
-            or file_sha256(source_spec) != plan['source_specification_sha256']
-            or file_sha256(source_summary) != plan['source_summary_sha256']
-            or file_sha256(audit_path) != plan['native_audit_sha256']):
-        raise ValueError('Verified recovery source files changed')
-    previous = _read(source_spec)
-    summary = _read(source_summary)
-    audit = _read(audit_path)
-    report = audit['audit']
-    gate = report['linked_acceptance_gate']
-    # A different credential on the same declared endpoint is allowed. Only
-    # the dispatcher changed in code. Inputs, clinical rules and models match.
-    immutable = ('cases', 'models', 'transport_policy', 'generation', 'generation_policy',
-                 'data_policy_hash', 'catalog_hash', 'diagnosis_catalog_hash', 'rules',
-                 'workflow_limits', 'modeled_activity_seconds', 'prescription_followthrough_policy',
-                 'linked_acceptance', 'acceptance_source_patient_hashes')
-    if (previous['batch'] == specification['batch'] or previous['mode'] != 'linked-acceptance'
-            or not all(previous[k] == specification[k] for k in immutable)
-            or {k: v for k, v in previous['code_hashes'].items() if k != 'run_batch.py'}
-            != {k: v for k, v in specification['code_hashes'].items() if k != 'run_batch.py'}
-            or previous['native_observation']['source_hashes'] != specification['native_observation']['source_hashes']
-            or summary['native_observation']['status'] != 'closed'
-            or not report['source_files_unchanged'] or not report['native_observation_requested']
-            or report['source_specification_sha256'] != plan['source_specification_sha256']
-            or gate['reused_native_identity_runs'] != 0):
-        raise ValueError('Recovery requires identical clinical inputs/runtime and a closed native audit')
-    verified_study_ids = {row['study_id'] for row in report['runs'] if row.get('verified_paid') is True}
-    verified = {(row['case_id'], row['condition']) for row in audit['crosswalk']
-                if row['study_id'] in verified_study_ids}
-    paid = {(row['case_id'], row['profile']) for row in plan['verified_paid']}
-    pending = {(row['case_id'], row['profile']) for row in plan['pending']}
-    expected = {(case['case_id'], p['label']) for case in specification['cases']
-                for p in specification['linked_acceptance']['profiles']}
-    if (not paid or not pending or paid != verified or paid & pending or paid | pending != expected
-            or len(paid) != len(verified_study_ids) or len(paid) != gate['verified_unique_encounters']
-            or len(paid) != plan['verified_paid_count'] or len(pending) != plan['pending_count']):
-        raise ValueError('Recovery assignment coverage differs from the native audit')
-    attempts = {row['case_id']: row['attempts'] for row in summary['cases']}
-    for row in plan['verified_paid']:
-        record = attempts[row['case_id']][row['profile']]
-        if (record.get('status') != 'completed'
-                or file_sha256(record['result_path']) != row['run_sha256']):
-            raise ValueError('Previously verified paid attempt changed')
-    for row in plan['pending']:
-        record = attempts[row['case_id']][row['profile']]
-        if record['status'] == 'not_run_regression_gate':
-            if record.get('native_effects_started') is False and record.get('model_requests_sent') is False:
-                continue
-        elif record['status'] == 'failed' and record.get('error_type') == 'ModelCallError':
-            run = _read(record['result_path'])
-            if (file_sha256(record['result_path']) == row.get('source_run_sha256')
-                    and row.get('provider_status') in (401, 403)
-                    and run['native_complete'] is False and 'settlement' not in run['artifacts']
-                    and not any((e.get('event') == 'business_request_intent' and e.get('operation') == 'payment.commit')
-                                or (e.get('event') == 'business_request_outcome' and e.get('status') == 'unresolved_exception')
-                                for e in run['events'])):
-                continue
-        raise ValueError('Recovery may only rerun documented transport failures without payment or unresolved writes')
-    return frozenset(paid), {'version': plan['version'], 'plan_sha256': file_sha256(path),
-            'source_batch': previous['batch'], 'source_specification_sha256': plan['source_specification_sha256'],
-            'source_native_audit_sha256': plan['native_audit_sha256'], 'retained_verified_paid': len(paid),
-            'new_assignment_count': len(pending), 'same_clinical_runtime': True}
-
-
 def execute_acceptance_schedule(cases, acceptance, *, args, config, mapping, ledger,
                                 batch_root, stop_event, specification, session_log, session_id):
     profiles = {profile['label']: profile for profile in acceptance['profiles']}
@@ -798,11 +727,7 @@ def execute_acceptance_schedule(cases, acceptance, *, args, config, mapping, led
         profile = profiles[label]
         index_path = batch_root/case_id/'attempts.json'
         admission = admission_status(args.workflow_policy_data)
-        if (case_id, label) in getattr(args, 'prior_verified_paid', ()):
-            record = {'status': 'not_run_verified_paid_prior_capture', 'config_id': profile['config_id'],
-                      'native_effects_started': False, 'model_requests_sent': False,
-                      'retained_in_planned_denominator': True}
-        elif stopped:
+        if stopped:
             record = {'status': 'not_run_regression_gate', 'config_id': profile['config_id'],
                       'blocking_attempt': stopped, 'native_effects_started': False,
                       'model_requests_sent': False, 'retained_in_planned_denominator': True}
@@ -950,8 +875,6 @@ def main():
                         help='Maximum independent attempts per engineering assignment')
     parser.add_argument('--acceptance-factorial', action='store_true',
                         help='Require the full crossing of preconsultation, prescription and documentation')
-    parser.add_argument('--acceptance-recovery-plan', type=Path,
-                        help='Skip already audited paid units in a new native capture of the same engineering design')
     parser.add_argument('--analysis-plan', type=Path, help='Prespecified analysis for the prepared formal cohort')
     parser.add_argument('--workflow-policy', type=Path,
         help='Prospectively frozen observation/dispatch policy, also usable in engineering validation')
@@ -975,8 +898,6 @@ def main():
         parser.error('Acceptance coverage arguments apply to linked acceptance or formal admission')
     if args.acceptance_attempts is not None and args.mode != 'linked-acceptance':
         parser.error('--acceptance-attempts applies to linked acceptance')
-    if args.acceptance_recovery_plan and args.mode != 'linked-acceptance':
-        parser.error('Recovery requires linked engineering acceptance with native capture')
     if not re.fullmatch(r'[A-Za-z0-9_-]{1,90}', args.batch):
         parser.error('batch must be a safe directory name')
     if not 1 <= args.workers <= 32 or (args.limit is not None and args.limit <= 0):
@@ -1118,15 +1039,9 @@ def main():
         specification['linked_acceptance'] = acceptance
         specification['acceptance_source_patient_hashes'] = sorted(digest(r['patient_key']) for r in cases)
         specification['execution_policy']['dispatch_unit'] = (
-            'one_isolated_encounter_per_assignment' if acceptance['schedule_policy'] == ASSIGNMENT_SCHEDULE_POLICY
-            else 'one_encounter_per_patient_then_verify' if args.workers > 1
+            'one_encounter_per_patient_then_verify' if args.workers > 1
             else 'one_encounter_then_verify_before_admitting_next')
         specification['execution_policy']['dispatch_order'] = acceptance['schedule_policy']
-    if args.acceptance_recovery_plan:
-        if file_sha256(args.manifest) != _read(args.acceptance_recovery_plan)['frozen_manifest_sha256']:
-            raise ValueError('Recovery requires the exact frozen case manifest')
-        args.prior_verified_paid, specification['engineering_recovery'] = bind_verified_acceptance_recovery(
-            args.acceptance_recovery_plan, specification)
     if formal_inputs is not None:
         specification['engineering_acceptance_patients_per_disease'] = args.acceptance_patients_per_disease
         specification['engineering_acceptance_factorial'] = args.acceptance_factorial
