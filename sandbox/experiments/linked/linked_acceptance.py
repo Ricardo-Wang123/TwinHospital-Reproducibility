@@ -1,6 +1,6 @@
 """Engineering coverage of every task condition in a fresh paid encounter."""
 from collections import Counter
-from itertools import product
+from itertools import chain, product
 
 from .cases import GROUPS
 from .contracts import baseline_conditions, linked_config_id, paper_conditions
@@ -13,6 +13,7 @@ MAX_ENGINEERING_ATTEMPTS = 3
 SCHEDULE_POLICY = 'first_two_baseline_regressions_then_remaining_profiles_stop_on_first_failure'
 PARALLEL_SCHEDULE_POLICY = 'first_two_baseline_regressions_then_parallel_independent_patients'
 ASSIGNMENT_SCHEDULE_POLICY = 'first_two_baseline_regressions_then_parallel_independent_assignments'
+HELDOUT_DISPATCH_ORDER = 'round_robin_disease_then_rotating_configuration_v1'
 READER_DESIGN_VERSION = 'linked_reader_comparison_v1'
 QUICK_WORKFLOWS = {
     ('nurse_only', 'pprs_baseline', 'manual_documentation'),
@@ -113,6 +114,20 @@ def ordered_units(cases, profile_labels, *, rotate=False):
         for label in labels[offset:] + labels[:offset]:
             if (case['case_id'], label) not in priority:
                 yield case, label
+
+
+def heldout_dispatch_order(cases, profile_labels):
+    """Interleave strata and rotate the first profile while preserving each patient's full crossing."""
+    strata = {group: [] for group in GROUPS}
+    for case in cases:
+        strata[case['group']].append(case['case_id'])
+    patients = chain.from_iterable(zip(*strata.values(), strict=True))
+    labels = tuple(profile_labels)
+    planned = []
+    for index, case_id in enumerate(patients):
+        offset = index % len(labels)
+        planned.append((case_id, labels[offset:] + labels[:offset]))
+    return planned
 
 
 def attempt_label(profile, number):

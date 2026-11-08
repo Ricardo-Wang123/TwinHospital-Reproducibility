@@ -24,8 +24,9 @@ from sandbox.experiments.linked.workflow_analysis import (VERSION, audit_run, di
 from sandbox.experiments.linked.cases import GROUPS
 from sandbox.experiments.linked.contracts import linked_config_id, paper_conditions
 from sandbox.experiments.linked.linked_acceptance import (
-    MAX_ENGINEERING_ATTEMPTS, READER_DESIGN_VERSION, SUPPORTED_PATIENTS_PER_GROUP, attempt_label,
-    documented_unpaid_stop, execution_checks, freeze_design, linked_profiles, summarize_gate,
+    HELDOUT_DISPATCH_ORDER, MAX_ENGINEERING_ATTEMPTS, READER_DESIGN_VERSION,
+    SUPPORTED_PATIENTS_PER_GROUP, attempt_label, documented_unpaid_stop, execution_checks,
+    freeze_design, heldout_dispatch_order, linked_profiles, summarize_gate,
 )
 
 
@@ -214,6 +215,13 @@ def _audit_locked(batch, public, private, observe_native, observer, deployment_d
             valid_cohort = (reconstructed == design and len(keys) == len(set(keys)) == count
                             and all(re.fullmatch(r'[0-9a-f]{64}', key) for key in keys)
                             and (not independent or bool(spec.get('development_exclusion_sha256'))))
+            execution = spec['execution_policy']
+            if independent and ('heldout_dispatch_sha256' in execution
+                                or execution.get('dispatch_order') == HELDOUT_DISPATCH_ORDER):
+                order = heldout_dispatch_order(cases, (profile['label'] for profile in expected))
+                if (execution.get('dispatch_order') != HELDOUT_DISPATCH_ORDER
+                        or execution.get('heldout_dispatch_sha256') != digest(order)):
+                    raise ValueError('Held-out dispatch order differs from the frozen specification.')
         else:
             expected_profiles, cells = linked_profiles(spec['models']['tool_models'],
                                                        factorial=design.get('factorial', False))

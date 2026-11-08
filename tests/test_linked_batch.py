@@ -18,7 +18,8 @@ from sandbox.experiments.linked.contracts import digest
 from sandbox.experiments.linked.provider import BudgetExceeded, BudgetLedger, ProviderUnavailable, GENERATION_POLICY_V2
 from sandbox.experiments.linked import run_batch
 from sandbox.experiments.linked.cases import GROUPS
-from sandbox.experiments.linked.linked_acceptance import BASELINE_LABEL, attempt_label, documented_unpaid_stop, freeze_design
+from sandbox.experiments.linked.linked_acceptance import (BASELINE_LABEL, attempt_label, documented_unpaid_stop,
+                                                        freeze_design, heldout_dispatch_order)
 from test_linked_clinical import FakeFactory, FakePort, example_case
 
 
@@ -95,6 +96,51 @@ class LinkedBatchTests(unittest.TestCase):
         self.assertEqual(len(attempts), 135)
         self.assertEqual(sum(a['progression_checks']['paid'] for a in attempts), 134)
         self.assertEqual({attempt['attempt_number'] for attempt in attempts}, {1})
+
+    def test_heldout_workers_dispatch_balanced_patients_with_rotated_profiles(self):
+        models = {'tool_a': 'glm-test'}
+        refs = [{'case_id': f'{group}-{n}', 'patient_key': f'{group}-{n}', 'group': group,
+                 'data_kind': 'mimic_derived', 'split': 'test'} for group in GROUPS for n in range(2)]
+        self.args.workflow_policy_data = None
+        self.args.workers = 5
+        design = freeze_design(refs, models, patients_per_group=2, workers=5, factorial=True,
+                               max_attempts=1, independent=True)
+        labels = [profile['label'] for profile in design['profiles']]
+        expected_cases = [f'{group}-{n}' for n in range(2) for group in GROUPS]
+        specification = {'execution_policy': {'heldout_dispatch_sha256':
+                         digest(heldout_dispatch_order(refs, labels))}}
+        enqueued = []
+
+        class RecordingPool(ThreadPoolExecutor):
+            def map(self, call, patients):
+                patients = list(patients)
+                enqueued.extend(patient['case_id'] for patient in patients)
+                return super().map(call, patients)
+
+        def complete(ref, *, acceptance_profile, **_):
+            path = self.root / ref['case_id'] / 'attempts.json'
+            index = json.loads(path.read_text()) if path.exists() else {
+                'case_id': ref['case_id'], 'attempts': {}}
+            index['attempts'][acceptance_profile] = {'status': 'completed', 'result_path': '/saved/run.json'}
+            return index
+
+        arguments = dict(args=self.args, config={'tool_models': models}, mapping={}, ledger=self.ledger,
+                         batch_root=self.root, stop_event=Event(), specification=specification,
+                         session_log=self.root/'events.jsonl', session_id='balanced')
+        with patch.object(run_batch, 'ThreadPoolExecutor', RecordingPool), \
+                patch.object(run_batch, 'execute_case_reference', side_effect=complete) as execute, \
+                patch.object(run_batch, '_acceptance_progression_checks', return_value={'paid': True}):
+            rows, stop = run_batch.execute_acceptance_schedule(refs, design, **arguments)
+            specification['execution_policy']['heldout_dispatch_sha256'] = '0' * 64
+            with self.assertRaisesRegex(ValueError, 'dispatch order differs'):
+                run_batch.execute_acceptance_schedule(refs, design, **arguments)
+        self.assertEqual(enqueued, expected_cases)
+        self.assertIsNone(stop)
+        self.assertEqual(execute.call_count, 270)
+        self.assertEqual([row['case_id'] for row in rows], [ref['case_id'] for ref in refs])
+        by_case = {row['case_id']: list(row['attempts']) for row in rows}
+        for i, case_id in enumerate(expected_cases):
+            self.assertEqual(by_case[case_id], labels[i:] + labels[:i])
 
     def test_dispatch_journal_appends_across_sessions_and_stays_private(self):
         path = self.root/'batch_sessions.jsonl'

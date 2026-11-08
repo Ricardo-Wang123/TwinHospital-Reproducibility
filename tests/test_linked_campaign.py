@@ -12,7 +12,8 @@ from sandbox.experiments.linked.campaign import (
 from sandbox.experiments.linked.cases import GROUPS
 from sandbox.experiments.linked.clinical import LinkedEncounterRunner
 from sandbox.experiments.linked.contracts import digest
-from sandbox.experiments.linked.linked_acceptance import BASELINE_LABEL, freeze_design, summarize_gate
+from sandbox.experiments.linked.linked_acceptance import (BASELINE_LABEL, HELDOUT_DISPATCH_ORDER,
+                                                        freeze_design, heldout_dispatch_order, summarize_gate)
 from sandbox.experiments.linked.native_observation import filehash
 from sandbox.experiments.linked.rules import EngineeringPPRS
 from sandbox.experiments.linked.workflow_analysis import WINDOW_POLICY_TEMPLATE, validate_policy
@@ -78,6 +79,7 @@ class CampaignTests(unittest.TestCase):
                   'split': 'test', 'data_kind': 'mimic_derived'} for group in GROUPS]
         models = {'tool_a': 'tool'}
         design = freeze_design(cases, models, patients_per_group=1, factorial=True, max_attempts=1, independent=True)
+        order = heldout_dispatch_order(cases, (profile['label'] for profile in design['profiles']))
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             batch = root / 'batch'
@@ -85,7 +87,9 @@ class CampaignTests(unittest.TestCase):
             (batch / 'batch.lock').touch()
             specification = {'batch': 'heldout', 'mode': 'linked-acceptance', 'formal_experiment': False,
                              'models': {'role_model': 'role', 'tool_models': models},
-                             'execution_policy': {'workers': 1}, 'linked_acceptance': design, 'cases': cases,
+                             'execution_policy': {'workers': 1, 'dispatch_order': HELDOUT_DISPATCH_ORDER,
+                                                  'heldout_dispatch_sha256': digest(order)},
+                             'linked_acceptance': design, 'cases': cases,
                              'development_exclusion_sha256': 'a' * 64,
                              'acceptance_source_patient_hashes': [digest(case['patient_key']) for case in cases]}
             (batch / 'specification.json').write_text(json.dumps(specification))
@@ -105,6 +109,10 @@ class CampaignTests(unittest.TestCase):
             private.write_text(json.dumps(audit))
             with self.assertRaisesRegex(ValueError, 'every planned case and configuration'):
                 comparison_summary(*arguments)
+            specification['execution_policy']['heldout_dispatch_sha256'] = '0' * 64
+            (batch / 'specification.json').write_text(json.dumps(specification))
+            with self.assertRaisesRegex(ValueError, 'dispatch order differs'):
+                audit_batch(batch, root / 'tampered-public', root / 'tampered-audit.json')
 
     def test_factorial_coverage_requires_every_combination_and_contains_one_control(self):
         cases = [{'case_id': f'{g}-{i}', 'patient_key': f'{g}-{i}', 'group': g,

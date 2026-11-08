@@ -33,9 +33,11 @@ from .chart import POLICY as CHART_POLICY, INITIAL_BYTE_LIMIT, PAGE_BYTE_LIMIT
 from .chart_projection import PROJECTION_POLICY
 from .contracts import (baseline_conditions as _baseline_conditions, digest,
                         linked_config_id, paper_conditions, runtime_case)
-from .linked_acceptance import (ASSIGNMENT_SCHEDULE_POLICY, BASELINE_LABEL, MAX_ENGINEERING_ATTEMPTS, PATIENTS_PER_GROUP, SUPPORTED_PATIENTS_PER_GROUP,
-                                attempt_label, documented_unpaid_stop, execution_checks,
-                                freeze_design, linked_profiles, ordered_units)
+from .linked_acceptance import (
+    ASSIGNMENT_SCHEDULE_POLICY, BASELINE_LABEL, HELDOUT_DISPATCH_ORDER, MAX_ENGINEERING_ATTEMPTS,
+    PATIENTS_PER_GROUP, SUPPORTED_PATIENTS_PER_GROUP, attempt_label, documented_unpaid_stop,
+    execution_checks, freeze_design, heldout_dispatch_order, linked_profiles, ordered_units,
+)
 from .native_his import NativeOpenHISPort
 from .protocol_his import PaperProtocolPort, PROTOCOL_VERSION
 from .provider import BudgetLedger, configured_prices, check_data_policy, private_json, validate_generation_policy
@@ -878,7 +880,17 @@ def execute_acceptance_schedule(cases, acceptance, *, args, config, mapping, led
         persist(index, case_id, label)
         return index
 
-    units = iter(ordered_units(cases, profiles, rotate=acceptance.get('factorial', False)))
+    dispatch_cases = cases
+    if acceptance.get('independent_crossed'):
+        order = heldout_dispatch_order(cases, profiles)
+        frozen = specification.get('execution_policy', {}).get('heldout_dispatch_sha256')
+        if frozen is not None and digest(order) != frozen:
+            raise ValueError('Held-out dispatch order differs from the frozen specification.')
+        cases_by_id = {case['case_id']: case for case in cases}
+        dispatch_cases = [cases_by_id[case_id] for case_id, _ in order]
+        units = ((cases_by_id[case_id], label) for case_id, labels in order for label in labels)
+    else:
+        units = iter(ordered_units(cases, profiles, rotate=acceptance.get('factorial', False)))
     for _ in acceptance['first_baseline_regressions']:
         ref, label = next(units)
         case_id = ref['case_id']
@@ -897,7 +909,7 @@ def execute_acceptance_schedule(cases, acceptance, *, args, config, mapping, led
 
         if by_assignment:
             # Interleave patients, while each profile uses its own run and native encounter.
-            lanes = [[(ref, label) for label in remaining[ref['case_id']]] for ref in cases]
+            lanes = [[(ref, label) for label in remaining[ref['case_id']]] for ref in dispatch_cases]
             scheduled = (unit for row in zip_longest(*lanes) for unit in row if unit is not None)
 
             def run_assignment(unit):
@@ -917,7 +929,8 @@ def execute_acceptance_schedule(cases, acceptance, *, args, config, mapping, led
             return index
 
         with ThreadPoolExecutor(max_workers=workers) as pool:
-            indices = {ref['case_id']: index for ref, index in zip(cases, pool.map(run_patient, cases))}
+            indices = {ref['case_id']: index for ref, index in
+                       zip(dispatch_cases, pool.map(run_patient, dispatch_cases), strict=True)}
     return [indices[ref['case_id']] for ref in cases], stopped
 
 
@@ -1195,7 +1208,12 @@ def main():
             'one_isolated_encounter_per_assignment' if acceptance['schedule_policy'] == ASSIGNMENT_SCHEDULE_POLICY
             else 'one_encounter_per_patient_then_verify' if args.workers > 1
             else 'one_encounter_then_verify_before_admitting_next')
-        specification['execution_policy']['dispatch_order'] = acceptance['schedule_policy']
+        execution = specification['execution_policy']
+        execution['dispatch_order'] = acceptance['schedule_policy']
+        if args.independent_crossed:
+            labels = [profile['label'] for profile in acceptance['profiles']]
+            execution['dispatch_order'] = HELDOUT_DISPATCH_ORDER
+            execution['heldout_dispatch_sha256'] = digest(heldout_dispatch_order(cases, labels))
     if heldout_operations is not None:
         specification['heldout_operations'] = heldout_operations
     if args.acceptance_recovery_plan:
