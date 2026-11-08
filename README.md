@@ -2,40 +2,39 @@
 
 **Evaluating Clinical Language Agents through Linked Hospital Workflows**
 
-TwinHospital runs a single outpatient encounter through intake, consultation, prescription review, note attestation, and simulated medication payment in OpenHIS. CAMEL coordinates the patient and staff agents. The encounter trace links language artifacts to the business operations that consume them.
+TwinHospital simulates outpatient visits in OpenHIS. CAMEL coordinates patient and staff agents through intake, consultation, prescription review, note signing, and simulated payment. Each visit produces a trace linking the agents' dialogue and decisions to records in the hospital system.
+
+## Data
+
+The study combines MIMIC-IV v2.2 patient histories with constructed outpatient follow-ups. The reported cohort contains **170 encounters with simulated payment** from **10 development-set histories** across five diagnosis strata.
+
+| Diagnosis stratum | Source histories | Encounters |
+| --- | ---: | ---: |
+| Type 2 diabetes | 2 | 35 |
+| Heart failure | 2 | 33 |
+| COPD | 2 | 35 |
+| Pneumonia | 2 | 33 |
+| Urinary tract infection | 2 | 34 |
+| **Total** | **10** | **170** |
+
+The case format shows how historical records, the patient's account, and findings from the simulated visit fit together. [Case format and examples](handoff/CASE_FORMAT.md) · [Encounter data summary](results/verified_paid_results_170.json)
+
+## Framework
 
 ![TwinHospital workflow from registration through simulated payment](docs/workflow.png)
 
-## Published results
+The patient agent answers from its own case view. Clinical roles use the handoff, dialogue, and chart records available to them. When an order is revised, the trace connects both versions to the same encounter. OpenHIS records the signed order, locked note, and simulated payment.
 
-The current snapshot contains **170 verified paid encounters** from **10 MIMIC-IV v2.2 development-partition histories**, two per diagnosis stratum. All 27 combinations of intake, prescription review, and documentation are represented. The separate operation replay contains five fault requests and five compliant controls.
+## Experimental design
 
-| Artifact | Contents |
-| --- | --- |
-| [Encounter results](results/verified_paid_results_170.json) | Delivery, prescription review and revision, staff effort, and audited settlement |
-| [Operation replay results](results/operation_replay_10.json) | Fault and control outcomes for five business constraints |
-| [Paper tables](results/acl_results_170.tex) | Generated LaTeX for the current results |
-| [Execution profile](results/cohort_170_execution.json) | Model assignment, generation settings, dictionaries, and source digests |
-| [Result definitions and commands](results/README.md) | Denominators and commands for recomputing and updating tables |
+The design crosses three configurations at each of three stages. All 27 combinations are represented in the reported cohort.
 
-## Start here
+| Stage | Baseline | Assisted configurations |
+| --- | --- | --- |
+| Intake | Nurse agent | AI alone, or AI followed by nurse review |
+| Prescription review | Rules with pharmacist routing | Rules with sequential or parallel AI and pharmacist review |
+| Documentation | Physician agent | AI drafting during or after consultation |
 
-| Goal | Entry point |
-| --- | --- |
-| Run TwinHospital with your own API and model | [Configure your model endpoint](handoff/REPRODUCE.md#use-your-own-model-endpoint) |
-| Check the installation with a fictional encounter | [Quick start](handoff/REPRODUCE.md#fictional-encounter) |
-| Run the paper's configurations with the frozen case bundle | [Repeat the study configuration](handoff/REPRODUCE.md#repeat-the-study-configuration) |
-| Recompute the reported results from a received evidence bundle | [Offline recomputation](results/README.md#recompute-the-encounter-metrics) |
-| Repeat the paired operation checks on verified source encounters | [Run the operation replays](handoff/REPRODUCE.md#replay-paired-operations) |
-| Build your own case or extract historical material from MIMIC-IV | [Case format and data selection](handoff/CASE_FORMAT.md) |
-| Evaluate a new, disjoint cohort | [Run a held-out cohort](handoff/REPRODUCE.md#run-a-held-out-cohort) |
-| Resume an existing run | [Run and recovery guide](handoff/README.md) |
-| Check the repository installation and workflow contracts | [Offline regression checks](handoff/REPRODUCE.md#offline-regression-checks) |
+The trace captures artifact revisions, staff actions used to model effort, and the resulting state in OpenHIS. Physician agents supplemented or corrected **140 of 170** handoffs. **14 of 141** prescriptions approved at first review needed revision for OpenHIS encoding. Median time from queue entry to simulated payment was **6.44 minutes**. [Study results and paper tables](results/README.md)
 
-## Models and requirements
-
-Use Python 3.12, Docker Compose v2, and the authorized OpenHIS release. The launcher accepts an OpenAI-compatible Chat Completions endpoint and model IDs of your choice for a new run. A single model can serve both the patient/staff agents and the AI tools. Case validation, role permissions, OpenHIS transaction checks, and the definition of a verified paid encounter apply to every model configuration. [Custom provider template](config/provider.custom.example.json)
-
-The [paper cohort's provider configuration](config/provider.example.json) records `deepseek-v4.1-flash-1017` for patient and staff roles and `glm-5.2` for intake assistance, prescription screening, and drafting. Both use temperature 0.2 with reasoning disabled. Use the frozen configuration when repeating that execution profile and the evidence bundle when recomputing its published values.
-
-The repository ships source, a fictional case generator, configuration templates, and verified aggregates. The study configuration also needs the separately authorized case and dictionary bundle, the matching OpenHIS release, and a model account approved for the data. Each researcher obtains access to MIMIC-IV under its data-use terms. [MIMIC-IV v2.2](https://physionet.org/content/mimiciv/2.2/) · [PhysioNet guidance on model endpoints](https://physionet.org/news/post/llm-responsible-use/)
+To run a visit with your own compatible model or reproduce the study configuration, see the [run guide](handoff/REPRODUCE.md).

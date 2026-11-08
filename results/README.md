@@ -1,14 +1,14 @@
-# Verified Results
+# Study Results
 
 The manuscript reports 170 verified paid encounters from ten MIMIC-IV development-partition histories across 27 configuration combinations. [Encounter metrics](verified_paid_results_170.json), [operation replays](operation_replay_10.json), and [generated LaTeX](acl_results_170.tex) provide the table values. [Execution settings](cohort_170_execution.json) identify the case bundle and frozen runtime.
 
 | Observed result | Current snapshot |
 | --- | ---: |
-| Handoffs that passed delivery checks | 170/170 |
+| Handoffs delivered | 170/170 |
 | Delivered handoffs with physician supplementation or correction | 140/170 |
 | Original prescriptions approved at first review | 141/170 |
 | First approvals requiring revision after native encoding preflight | 14/141 |
-| Notes that passed delivery checks | 170/170 |
+| Notes delivered and locked in OpenHIS | 170/170 |
 | Accepted interim note available before consultation end | 55/55 during-consultation runs |
 | Median queue-to-payment time | 6.44 min |
 | Verified-safe fault requests and executed compliant controls | 5/5 and 5/5, separate replay sets |
