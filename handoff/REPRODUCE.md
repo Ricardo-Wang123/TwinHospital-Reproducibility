@@ -186,7 +186,9 @@ The runner takes patients in turn from the five disease strata and advances the 
 
 The local `check` command reports 27,000 planned encounters and 500 planned operations for a 1,000-patient bundle with the schedule. Use the same `provision`, `set-key`, `run --execute`, and `audit --observe-native` subcommands to collect the held-out outcomes. Set the dispatch window with `--dispatch-hours` when configuring the batch. Each encounter retains the observation window in the inherited workflow policy.
 
-Size the working volume for encounter files, model evidence, native observation files, and the OpenHIS database. On APFS, start this command in a separate terminal once the runner creates `batch.lock`. It compresses indexed terminal attempts and verifies each file's contents, path, and permissions. The receipt stays in the private workspace.
+The held-out `check` reports available GiB on the volumes used for batch files and model evidence. Directories on the same volume share that capacity. The 170-encounter archive, including storage used by partial attempts, projects to about 138 GiB for 27,000 assignments at its observed allocation rates. This includes about 77 GiB for terminal attempt files, 37 GiB for model evidence, and 24 GiB for native observation. Reserve additional capacity for OpenHIS database growth, the final audit, and operation replays. The estimate varies with case size, workflow, and filesystem. Use `configure --output` on the intended work volume.
+
+On APFS, start this command in a separate terminal once the runner creates `batch.lock`. It compresses indexed terminal attempts and verifies each file's contents, path, and permissions. Subsequent passes reopen only new or changed results. The receipt stays in the private workspace.
 
 ~~~sh
 .venv/bin/python -m tools.compress_finished_evidence \

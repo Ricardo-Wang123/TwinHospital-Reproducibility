@@ -76,6 +76,26 @@ class EvidenceCompressionTests(unittest.TestCase):
             receipt = run(batch, self.root / 'compression.jsonl', follow=True)
         self.assertEqual(receipt['final_attempts_checked'], 1)
 
+    def test_follow_rechecks_a_terminal_attempt_only_when_its_result_changes(self):
+        batch = self.root / 'batch'
+        case = batch / 'case_a'
+        attempt = case / 'condition_a'
+        result = attempt / 'runs/run_a/run.json'
+        result.parent.mkdir(parents=True)
+        result.write_text(json.dumps({'case_id': 'case_a', 'status': 'completed'}))
+        (case / 'attempts.json').write_text(json.dumps({'case_id': 'case_a', 'attempts': {
+            'condition_a': {'status': 'completed', 'result_path': str(result)},
+        }}))
+        checked = {}
+        with patch.object(Path, 'read_text', autospec=True, side_effect=Path.read_text) as read:
+            self.assertEqual(list(final_attempts(batch, checked=checked)), [attempt.resolve()])
+            self.assertEqual(list(final_attempts(batch, checked=checked)), [])
+            reads = [call.args[0] for call in read.call_args_list if call.args[0] == result.resolve()]
+            self.assertEqual(len(reads), 1)
+        result.write_text(json.dumps({'case_id': 'different_case', 'status': 'completed'}))
+        with self.assertRaisesRegex(ValueError, 'Final index and run identity disagree'):
+            list(final_attempts(batch, checked=checked))
+
     def test_post_replace_verification_failure_restores_original_inode(self):
         original_inode = self.path.stat().st_ino
         count = 0

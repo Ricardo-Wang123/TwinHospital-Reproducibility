@@ -10,6 +10,7 @@ import json
 import os
 from pathlib import Path
 import re
+from shutil import disk_usage
 import subprocess
 import sys
 import tempfile
@@ -138,6 +139,11 @@ def require_private_file(path):
         raise ValueError(f'A local file with mode 0600 is required: {path.name}')
 
 
+def filesystem_free_gib(path):
+    directory = next(parent for parent in (path, *path.parents) if parent.exists())
+    return round(disk_usage(directory).free / 2**30, 2)
+
+
 def preflight(config, command, log_path):
     pinned = None
     if 'frozen_runtime' in config.fields:
@@ -188,6 +194,10 @@ def preflight(config, command, log_path):
     if spec.get('heldout_operations'):
         result['planned_operation_tests'] = spec['heldout_operations']['planned_units']
     if config.mode == 'heldout':
+        result['storage_free_gib'] = {
+            'batch_files': filesystem_free_gib(config.path('batches')),
+            'model_evidence': filesystem_free_gib(config.path('model_evidence')),
+        }
         log_path.with_name('preflight.json').write_text(output.stdout, encoding='utf-8')
     print(json.dumps(result, ensure_ascii=False), flush=True)
     return spec

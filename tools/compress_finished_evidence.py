@@ -88,7 +88,8 @@ def compress_file(path):
             temporary.unlink()
 
 
-def final_attempts(batch):
+def final_attempts(batch, *, checked=None):
+    """Yield newly indexed or changed terminal attempts without reopening unchanged results."""
     batch = Path(batch).resolve()
     for index_path in sorted(batch.glob('*/attempts.json')):
         index = json.loads(index_path.read_text())
@@ -98,13 +99,18 @@ def final_attempts(batch):
             run_path = Path(record['result_path']).resolve()
             if not run_path.is_relative_to(batch) or run_path.name != 'run.json':
                 raise ValueError('Indexed result escapes the batch or has an unexpected filename')
-            run = json.loads(run_path.read_text())
-            if run.get('status') != record['status'] or run.get('case_id') != index['case_id']:
-                raise ValueError('Final index and run identity disagree')
             attempt = run_path.parents[2]
             if attempt.parent != index_path.parent:
                 raise ValueError('Attempt directory does not match indexed source case')
+            binding = (run_path, index['case_id'], record['status'])
+            if checked is not None and checked.get(attempt) == (binding, identity(run_path.stat())):
+                continue
+            run = json.loads(run_path.read_text())
+            if run.get('status') != record['status'] or run.get('case_id') != index['case_id']:
+                raise ValueError('Final index and run identity disagree')
             yield attempt
+            if checked is not None:
+                checked[attempt] = binding, identity(run_path.stat())
 
 
 def batch_active(batch):
@@ -120,16 +126,15 @@ def batch_active(batch):
 def run(batch, receipt, follow=False):
     batch, receipt = Path(batch).resolve(), Path(receipt).resolve()
     receipt.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
-    seen = set(); files = saved = 0
+    checked = {}
+    files = saved = 0
     lock = batch/'.finished-evidence-compression.lock'
     with lock.open('w') as handle:
         fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
         while True:
             # Check the writer before scanning so a closed batch always receives a final pass.
             active = follow and batch_active(batch)
-            for attempt in final_attempts(batch):
-                if str(attempt) in seen:
-                    continue
+            for attempt in final_attempts(batch, checked=checked):
                 for path in sorted(attempt.rglob('*')):
                     if path.suffix not in {'.json', '.jsonl'} or not path.is_file():
                         continue
@@ -142,13 +147,12 @@ def run(batch, receipt, follow=False):
                             stream.write(json.dumps(row, ensure_ascii=False)+'\n')
                         files += 1
                         saved += result['allocated_bytes_before']-result['allocated_bytes_after']
-                seen.add(str(attempt))
-                print(json.dumps({'final_attempts_checked': len(seen), 'compressed_files': files,
-                                  'saved_mib': round(saved/2**20, 2)}), flush=True)
+            print(json.dumps({'final_attempts_checked': len(checked), 'compressed_files': files,
+                              'saved_mib': round(saved/2**20, 2)}), flush=True)
             if not active:
                 break
             time.sleep(10)
-    return {'final_attempts_checked': len(seen), 'compressed_files': files, 'saved_bytes': saved,
+    return {'final_attempts_checked': len(checked), 'compressed_files': files, 'saved_bytes': saved,
             'content_or_path_changes': False}
 
 
