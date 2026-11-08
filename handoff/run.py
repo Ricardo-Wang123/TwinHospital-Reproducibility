@@ -144,7 +144,35 @@ def filesystem_free_gib(path):
     return round(disk_usage(directory).free / 2**30, 2)
 
 
-def preflight(config, command, log_path):
+def heldout_evidence_capacity(config, assignments):
+    profile = read(ROOT / 'results/heldout_storage_profile.json')
+    archived = profile['allocated_bytes']
+    reference_count = profile['verified_paid']
+    requirements = {'batches': archived['terminal_attempts'] + archived['native_observation'],
+                    'model_evidence': archived['model_evidence']}
+    volumes = {}
+    free_by_destination = {}
+    for name, observed_bytes in requirements.items():
+        path = config.path(name)
+        directory = next(parent for parent in (path, *path.parents) if parent.exists())
+        device = directory.stat().st_dev
+        if device not in volumes:
+            volumes[device] = {'destinations': [], 'free': disk_usage(directory).free, 'required': 0}
+        volume = volumes[device]
+        destination = 'batch_files' if name == 'batches' else name
+        volume['destinations'].append(destination)
+        volume['required'] += (observed_bytes * assignments + reference_count - 1) // reference_count
+        free_by_destination[destination] = round(volume['free'] / 2**30, 2)
+    groups = [{'destinations': volume['destinations'],
+               'free_gib': round(volume['free'] / 2**30, 2),
+               'estimated_evidence_gib': round(volume['required'] / 2**30, 2),
+               'shortfall_gib': round(max(0, volume['required'] - volume['free']) / 2**30, 2)}
+              for volume in volumes.values()]
+    return {'storage_free_gib': free_by_destination, 'storage_volumes': groups,
+            'projected_evidence_fits': all(row['free'] >= row['required'] for row in volumes.values())}
+
+
+def preflight(config, command, log_path, *, enforce_capacity=False):
     pinned = None
     if 'frozen_runtime' in config.fields:
         pinned = read(ROOT / 'results/cohort_170_execution.json')
@@ -195,12 +223,12 @@ def preflight(config, command, log_path):
     if spec.get('heldout_operations'):
         result['planned_operation_tests'] = spec['heldout_operations']['planned_units']
     if config.mode == 'heldout':
-        result['storage_free_gib'] = {
-            'batch_files': filesystem_free_gib(config.path('batches')),
-            'model_evidence': filesystem_free_gib(config.path('model_evidence')),
-        }
+        result.update(heldout_evidence_capacity(config, result['planned_encounters']))
         log_path.with_name('preflight.json').write_text(output.stdout, encoding='utf-8')
     print(json.dumps(result, ensure_ascii=False), flush=True)
+    if enforce_capacity and result.get('projected_evidence_fits') is False:
+        raise ValueError('Insufficient free space for the estimated held-out evidence. '
+                         'Place the outputs on a volume with enough capacity before launching.')
     return spec
 
 
@@ -378,7 +406,7 @@ def main():
             return verify_routes(cfg, provider, provider_file, session/'probe', recover=False)
         if cfg.batch.exists():
             raise ValueError('Destination batch exists. Use a new audited recovery batch; never overwrite existing runs.')
-        preflight(cfg, command, session/'preflight.log')
+        preflight(cfg, command, session/'preflight.log', enforce_capacity=True)
         require_private_file(cfg.path('key_file'))
         verify_his(cfg)
         if cfg.mode in {'comparison','recover','factorial','heldout','formal'}:

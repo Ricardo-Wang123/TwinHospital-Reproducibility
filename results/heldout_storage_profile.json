@@ -1,0 +1,16 @@
+{
+  "scope": "allocated bytes for evidence in the development archive",
+  "verified_paid": 170,
+  "terminal_attempts_including_partial": 185,
+  "allocated_bytes": {
+    "terminal_attempts": 519405568,
+    "native_observation": 159186944,
+    "model_evidence": 252481536
+  },
+  "excluded": [
+    "OpenHIS database growth",
+    "final audit and reports",
+    "operation replay output",
+    "working copies and filesystem overhead"
+  ]
+}
