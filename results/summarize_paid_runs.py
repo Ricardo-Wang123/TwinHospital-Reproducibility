@@ -360,8 +360,9 @@ def summarize(batch, audit_path, case_manifest=None, clinical_catalogue=None, *,
     summary = read(batch / 'batch_summary.json')
     specification_bytes = (batch / 'specification.json').read_bytes()
     spec = json.loads(specification_bytes)
+    design = spec.get('linked_acceptance') or {}
     effort_plan = spec.get('heldout_effort_analysis')
-    if effort_plan is not None and ((spec.get('linked_acceptance') or {}).get('independent_crossed') is not True
+    if effort_plan is not None and (design.get('independent_crossed') is not True
                                     or effort_plan != heldout_effort_plan()):
         raise ValueError('The held-out effort analysis differs from its frozen specification.')
     audit = read(audit_path)
@@ -440,9 +441,10 @@ def summarize(batch, audit_path, case_manifest=None, clinical_catalogue=None, *,
                   'queue_to_payment_seconds_p95': quantiles(timings, n=20, method='inclusive')[-1] if len(timings)>1 else None}}
     if effort_plan is not None:
         result['heldout_effort_analysis'] = effort_plan
+    configurations = design['profiles'] if design.get('independent_crossed') is True else runs
     for task in ('preconsult', 'documentation', 'prescription'):
         rows = {}
-        for workflow in sorted({r['conditions'][task]['workflow'] for r in runs}):
+        for workflow in sorted({r['conditions'][task]['workflow'] for r in configurations}):
             sub = [r for r in runs if r['conditions'][task]['workflow'] == workflow]
             row = {'observed': len(sub)}
             if task == 'prescription':
@@ -450,7 +452,7 @@ def summarize(batch, audit_path, case_manifest=None, clinical_catalogue=None, *,
                 if decisions.keys() - {'approve', 'revise', 'defer', 'reject', 'block', 'request_revision', 'escalate'}:
                     raise ValueError('Unexpected original prescription decision category.')
                 row['first_decision'] = dict(decisions)
-                screening = Counter()
+                screening = Counter(screening_counts([])) if not sub else Counter()
                 for run in sub:
                     screening.update(run['screening'])
                 row['screening'] = dict(screening)

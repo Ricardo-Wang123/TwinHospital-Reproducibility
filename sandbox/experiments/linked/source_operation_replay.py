@@ -38,6 +38,7 @@ CATEGORIES = {
     'unauthorized_signing': 'unauthorized_signatory',
     'duplicate_transaction': 'duplicate_payment',
 }
+FORMAL_REQUESTS_PER_CELL = {'single_fault': 4, 'compliant_control': 16}
 REQUIRED_OPS = {
     'patient_bill': ('consultation.save', 'order.save', 'order.attest', 'payment.prepare', 'payment.commit'),
     'missing_encounter': ('queue.enter',),
@@ -100,7 +101,7 @@ def validate_schedule(schedule, cohort, *, engineering=False):
             raise ValueError('formal replay requires 500 distinct preselected source patients')
         counts = Counter((r['group'], r['operation_category'], r['request_condition']) for r in rows)
         expected = Counter({(g, c, condition): n for g in GROUPS for c in CATEGORIES
-                            for condition, n in [('single_fault', 4), ('compliant_control', 16)]})
+                            for condition, n in FORMAL_REQUESTS_PER_CELL.items()})
         if counts != expected or Counter(r['group'] for r in members.values()) != Counter({g: 200 for g in GROUPS}):
             raise ValueError('formal allocation must preserve all 25 disease/operation cells')
     return rows

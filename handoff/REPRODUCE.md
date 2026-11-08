@@ -194,7 +194,9 @@ Size the working volume for encounter files, model evidence, native observation 
   --receipt "$WORK/heldout_run/evidence_compression.jsonl" --follow
 ~~~
 
-After the native audit, run the `operations` subcommand if the bundle includes the frozen schedule, then run `report`. The operation replay exercises the shared gateway on fresh OpenHIS objects reconstructed from the baseline assignment. An unavailable baseline leaves its preassigned operation unresolved. The report uses the same Application I and II metrics and keeps all assigned encounters and replay requests in their respective Application III denominators. Its output is `heldout_results/`. [Result reconstruction](../results/README.md)
+After the native audit, run the `operations` subcommand if the bundle includes the frozen schedule, then run `report`. The operation replay exercises the shared gateway on fresh OpenHIS objects reconstructed from the baseline assignment. An unavailable baseline leaves its preassigned operation unresolved. The report uses the same Application I and II metrics and keeps all assigned encounters and replay requests in their respective Application III denominators.
+
+The output directory `heldout_results/` contains `summary.json`, `REPORT.md`, and the generated ACL fragment `acl_heldout_results.tex`. The fragment can be included as a separate results section in the paper. When a final-prescription assessment is available, add `--human-review "$REVIEW_RECORD"` after `report` to include its verified coverage and any recorded outcomes. Use a fresh output directory with `--output` when exporting an updated report. [Result reconstruction](../results/README.md)
 
 ## Replay paired operations
 

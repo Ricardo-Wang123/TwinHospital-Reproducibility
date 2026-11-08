@@ -72,7 +72,7 @@ class CampaignTests(unittest.TestCase):
                          {GROUPS[0]: 2, GROUPS[1]: 1})
 
     def test_heldout_report_retains_every_assigned_encounter(self):
-        from handoff.reader_report import comparison_summary
+        from handoff.reader_report import comparison_summary, write_report
         from tools.audit_linked_workflows import audit_batch
 
         cases = [{'case_id': group, 'patient_key': f'test-{group}', 'group': group,
@@ -103,6 +103,15 @@ class CampaignTests(unittest.TestCase):
             self.assertEqual(len(report['profiles']), 27)
             self.assertEqual(report['verified_paid'], 0)
             self.assertIsNone(report['paid_cohort_metrics'])
+            self.assertEqual({group: entry['planned'] for group, entry in report['assignments_by_disease'].items()},
+                             {group: 27 for group in GROUPS})
+            output = root / 'results'
+            write_report(*arguments, output)
+            tables = (output / 'acl_heldout_results.tex').read_text()
+            self.assertIn(r'\textbf{Total} & 5 & 135 & 0 & 0 & 0 & 135', tables)
+            self.assertIn('Application II: Modeled Staff Effort', tables)
+            self.assertIn('Effort per delivered artifact is undefined', tables)
+            self.assertNotIn('Operation replay.', tables)
             audit = json.loads(private.read_text())
             self.assertEqual(audit['audit']['experiment_status'], 'independent_heldout_crossing')
             audit['crosswalk'][0]['case_id'] = cases[1]['case_id']

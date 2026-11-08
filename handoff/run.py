@@ -322,6 +322,7 @@ def main():
     actions.add_parser('operations', help='Run the frozen operation tests on their preselected sources.')
     report_parser = actions.add_parser('report', help='Summarize the comparison by paper application.')
     report_parser.add_argument('--output', type=Path)
+    report_parser.add_argument('--human-review', type=Path, help='Optional held-out final-prescription assessment record.')
     args = parser.parse_args()
     cfg = RunConfig(args.config)
     if 'openhis_assets' in cfg.fields:
@@ -344,7 +345,7 @@ def main():
         results_name = 'heldout_results' if cfg.mode == 'heldout' else 'reader_results'
         return write_report(cfg.batch, audit_directory(cfg) / 'audit.private.json', cfg.path('manifest'),
                             cfg.path('clinical_catalogue'), cfg.base / 'operation_replay' / 'summary.json',
-                            args.output or cfg.base / results_name)
+                            args.output or cfg.base / results_name, human_review=args.human_review)
     live = args.action == 'run' and args.execute
     state = cfg.path('launcher_state', cfg.path('ledger').parent / 'handoff_runs')
     stamp = datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S%fZ')

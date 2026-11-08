@@ -75,6 +75,8 @@ The audit must contain run-level entries. In the review record, set `cohort_sha2
 
 The resulting `acl_results.tex` updates the abstract, body, and appendix together. Place it beside `twinhospital_acl.tex` and compile the paper. Publish a separate aggregate and rendered table file for each new analyzed cohort, together with its execution profile and partition. Keep the existing snapshot available for comparison.
 
+The held-out `report` command generates `acl_heldout_results.tex` with the same artifact, review, and effort calculations, the paired intervals, and assignment and safety counts by disease. The fragment displays unavailable ratios as dashes. It includes operation results only when a replay binds to the frozen schedule. Include it with `\input{acl_heldout_results}` alongside the existing study results. The manuscript uses `booktabs`, `tabularx`, `float`, and `placeins` for the fragment. [Held-out export](../handoff/REPRODUCE.md#run-a-held-out-cohort)
+
 ## Content references
 
 Fact-level assessment requires aligned expected items, normalized values, and an allowed source for each item or assertion. An incorrect value is present for omission counting and conflicting for mismatch counting. Unknown source values and unresolved paraphrases have separate labels.

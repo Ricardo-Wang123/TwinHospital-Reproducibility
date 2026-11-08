@@ -84,7 +84,7 @@ def cohort_fingerprint(paid):
     return sha256('\n'.join(sorted(hashes)).encode()).hexdigest()
 
 
-def validate_cohort(metrics, paid):
+def validate_cohort(metrics, paid, *, allow_unknown_delivery=False):
     groups = dict(Counter(r['group'] for r in paid))
     if (len(paid) != metrics['verified_paid'] or not paid or groups != metrics['groups']
             or metrics['paid_cohort_sha256'] != cohort_fingerprint(paid)):
@@ -109,9 +109,10 @@ def validate_cohort(metrics, paid):
         rows = metrics['task'][task]
         if set(rows) != {key for key, _ in configurations} or sum(r['observed'] for r in rows.values()) != len(paid):
             raise ValueError(f'{task} configuration counts do not partition the paid cohort')
-    for task in ('preconsult', 'documentation'):
-        if any(row['qualified'] is None for row in metrics['task'][task].values()):
-            raise ValueError(f'{task} delivery evidence is indeterminate; resolve it before rendering the paper')
+    if not allow_unknown_delivery:
+        for task in ('preconsult', 'documentation'):
+            if any(row['qualified'] is None for row in metrics['task'][task].values()):
+                raise ValueError(f'{task} delivery evidence is indeterminate; resolve it before rendering the paper')
 
 
 def human_review_statement(review, paid):
@@ -192,9 +193,11 @@ def effort_weight_rows(task, rows):
         yield task_label, label, baseline_shift, min(shifts), max(shifts)
 
 
-def render(metrics, audit, review, probes):
+def manuscript_values(metrics, audit, review, probes, *, heldout=False):
     paid = paid_cohort(audit)
-    validate_cohort(metrics, paid)
+    validate_cohort(metrics, paid, allow_unknown_delivery=heldout)
+    if not heldout and (review is None or probes is None):
+        raise ValueError('The published cohort requires its assessment and operation replay records.')
     total = len(paid)
     workflow = metrics['full_workflow']
     rx = metrics['task']['prescription']
@@ -255,15 +258,17 @@ def render(metrics, audit, review, probes):
     for key, label in CONFIGURATIONS['preconsult']:
         row = pre[key]
         role = row['modeled_minutes_by_role_per_delivered']
-        pre_rows.append((label, ratio(row['qualified'], row['observed']),
+        qualified = row['qualified']
+        pre_rows.append((label, DASH if qualified is None else ratio(qualified, row['observed']),
                          number(role.get('nurse', 0) if row['qualified'] else None),
                          number(role.get('doctor', 0) if row['qualified'] else None),
                          number(row['mean_modeled_minutes']),
-                         ratio(row['first_pass_delivered'], row['observed']),
+                         DASH if qualified is None else ratio(row['first_pass_delivered'], row['observed']),
                          row['physician_supplementation_actions']))
     for key, label in CONFIGURATIONS['documentation']:
         row = notes[key]
-        note_rows.append((label, ratio(row['qualified'], row['observed']),
+        qualified = row['qualified']
+        note_rows.append((label, DASH if qualified is None else ratio(qualified, row['observed']),
                           number(row['mean_modeled_minutes']), row['saved_physician_revisions'],
                           number(row['note_rework_seconds'] / row['observed'], 1) if row['observed'] else DASH,
                           ratio(row['first_final_draft_accepted'], row['observed']),
@@ -303,7 +308,7 @@ def render(metrics, audit, review, probes):
             f'A pharmacist or senior pharmacist reviewed {final_reviewed} of these orders, '
             f'and {final_approved} received approval.'
         )
-    probe_rows, probe_statement = probe_results(probes)
+    probe_rows, probe_statement = probe_results(probes) if probes is not None else ([], '')
     cohort_rows = [(label, system, metrics['source_cases_by_group'].get(key, 0),
                     metrics['groups'].get(key, 0)) for key, label, system in STRATA]
     cohort_rows.append((r'\textbf{Total}', '', metrics['source_cases'], total))
@@ -339,6 +344,9 @@ def render(metrics, audit, review, probes):
         matched_table.append((r'\multicolumn{5}{@{}l}{\textit{' + title + '}}',))
         baseline, *alternatives = CONFIGURATIONS[task]
         for key, label in alternatives:
+            if heldout and key not in matched[task]:
+                matched_table.append((label, 0, 0, DASH, DASH))
+                continue
             row = matched[task][key]
             blocks = row['matched_blocks']
             histories = row['source_histories']
@@ -349,20 +357,23 @@ def render(metrics, audit, review, probes):
                     raise ValueError('Undefined matched effort with observed pairs')
                 matched_table.append((label, 0, 0, DASH, DASH))
                 continue
-            max_blocks = min(metrics['task'][task][key]['qualified'], metrics['task'][task][baseline[0]]['qualified'])
+            paired_rows = (metrics['task'][task][name] for name in (key, baseline[0]))
+            max_blocks = min(row['observed'] if row['qualified'] is None else row['qualified'] for row in paired_rows)
             if (not 0 < histories <= min(blocks, metrics['source_cases']) or blocks > max_blocks
                     or not all(math.isfinite(value) for value in (low, mean, high)) or not low <= mean <= high):
                 raise ValueError('Invalid history-balanced effort contrast')
             matched_table.append((label, blocks, histories, rf'\({mean:+.2f}\)', rf'\([{low:+.2f}, {high:+.2f}]\)'))
-    reviewed_handoff = matched['preconsult']['ai_nurse_review']
+    reviewed_handoff = matched['preconsult'].get('ai_nurse_review') if heldout else matched['preconsult']['ai_nurse_review']
     matched_statement = ''
-    if reviewed_handoff['mean_difference_minutes'] is not None:
+    if reviewed_handoff is not None and reviewed_handoff['mean_difference_minutes'] is not None:
         matched_statement = (
             'The matched contrast for AI with nurse review relative to nurse-agent intake was '
             rf'\({reviewed_handoff["mean_difference_minutes"]:+.2f}\) minutes across '
             f'{reviewed_handoff["matched_blocks"]} blocks from {reviewed_handoff["source_histories"]} histories.'
         )
-    delivered_handoffs = sum(row['qualified'] for row in pre.values())
+    pre_delivery = [row['qualified'] for row in pre.values()]
+    note_delivery = [row['qualified'] for row in notes.values()]
+    delivered_handoffs = sum(pre_delivery) if None not in pre_delivery else None
     first_pass_handoffs = sum(row['first_pass_delivered'] for row in pre.values())
     interim_notes = notes['realtime']
     macros = {
@@ -375,14 +386,15 @@ def render(metrics, audit, review, probes):
         'InitialApprovals': decisions['approve'],
         'InitialNonapprovals': decisions['defer'] + decisions['reject'],
         'RxReferenceSummary': ref_statement,
-        'HumanReviewStatement': human_review_statement(review, paid),
+        'HumanReviewStatement': human_review_statement(review, paid) if review is not None else '',
         'RxAlertSummary': alert_statement,
         'RxFinalEvidenceSummary': final_flag_statement,
-        'NurseDelivered': ratio(pre['nurse_only']['qualified'], pre['nurse_only']['observed']),
-        'AIDelivered': ratio(pre['ai_only']['qualified'], pre['ai_only']['observed']),
-        'ReviewedDelivered': ratio(pre['ai_nurse_review']['qualified'], pre['ai_nurse_review']['observed']),
-        'HandoffsNeedingFollowup': ratio(delivered_handoffs - first_pass_handoffs, delivered_handoffs),
-        'NotesDelivered': ratio(sum(r['qualified'] for r in notes.values()), total),
+        'NurseDelivered': pre_rows[0][1],
+        'AIDelivered': pre_rows[1][1],
+        'ReviewedDelivered': pre_rows[2][1],
+        'HandoffsNeedingFollowup': DASH if delivered_handoffs is None else
+            ratio(delivered_handoffs - first_pass_handoffs, delivered_handoffs),
+        'NotesDelivered': DASH if None in note_delivery else ratio(sum(note_delivery), total),
         'InterimAvailability': ratio(interim_notes['interim_notes_before_close'], interim_notes['observed']),
         'RealtimeVersions': notes['realtime']['saved_note_versions'], 'RealtimeNotes': notes['realtime']['observed'],
         'PostvisitVersions': notes['postvisit']['saved_note_versions'], 'PostvisitNotes': notes['postvisit']['observed'],
@@ -399,16 +411,20 @@ def render(metrics, audit, review, probes):
         'WeightSensitivitySummary': weight_statement,
         'MatchedHandoffSummary': matched_statement,
     }
-    all_tables = [
-        ('CohortRows', cohort_rows), ('PrescriptionRows', rx_rows), ('AlertRows', alerts),
-        ('FollowupAlertRows', followup_alerts), ('PreconsultRows', pre_rows),
-        ('DocumentationRows', note_rows), ('WorkflowRows', workflow_rows), ('ProbeRows', probe_rows),
-        ('WeightSensitivityRows', weight_table),
-        ('MatchedEffortRows', matched_table),
-    ]
+    all_tables = {
+        'CohortRows': cohort_rows, 'PrescriptionRows': rx_rows, 'AlertRows': alerts,
+        'FollowupAlertRows': followup_alerts, 'PreconsultRows': pre_rows,
+        'DocumentationRows': note_rows, 'WorkflowRows': workflow_rows, 'ProbeRows': probe_rows,
+        'WeightSensitivityRows': weight_table, 'MatchedEffortRows': matched_table,
+    }
+    return macros, all_tables
+
+
+def render(metrics, audit, review, probes):
+    macros, all_tables = manuscript_values(metrics, audit, review, probes)
     return ('% Generated from linked-encounter metrics and native audit.\n'
             + ''.join(command(k, v) for k, v in macros.items()) + '\n'
-            + ''.join(table(name, rows) for name, rows in all_tables))
+            + ''.join(table(name, rows) for name, rows in all_tables.items()))
 
 
 def main():

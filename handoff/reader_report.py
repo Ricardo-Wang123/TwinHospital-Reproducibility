@@ -6,7 +6,9 @@ import json
 
 from results.render_linked_manuscript import OPERATIONS, SAFE_FAULT_OUTCOMES, probe_results
 from results.summarize_paid_runs import read, summarize
+from sandbox.experiments.linked.cases import GROUPS
 from sandbox.experiments.linked.linked_acceptance import READER_DESIGN_VERSION
+from sandbox.experiments.linked.source_operation_replay import FORMAL_REQUESTS_PER_CELL
 
 
 WORKFLOWS = {
@@ -22,7 +24,14 @@ WORKFLOWS = {
 }
 
 
-def comparison_summary(batch, audit_path, manifest, clinical_catalogue, operation_path):
+def assignment_counts(rows):
+    return {'planned': len(rows), 'outcomes': dict(Counter(row['runtime_status'] for row in rows)),
+            'verified_paid': sum(row['verified_paid'] is True for row in rows),
+            'eligible_for_paper_metrics': sum(row['verified_paid'] is True
+                                              and row['formal']['correct_completion'] is True for row in rows)}
+
+
+def comparison_data(batch, audit_path, manifest, clinical_catalogue, operation_path):
     spec_path = batch / 'specification.json'
     specification_bytes = spec_path.read_bytes()
     specification_hash = sha256(specification_bytes).hexdigest()
@@ -40,26 +49,25 @@ def comparison_summary(batch, audit_path, manifest, clinical_catalogue, operatio
             or Counter(row['profile'] for row in rows)
             != Counter({profile['label']: len(specification['cases']) for profile in design['profiles']})):
         raise ValueError('The audit does not cover the planned assignments for this batch.')
+    groups = {case['case_id']: case['group'] for case in specification['cases']}
     if heldout:
-        expected = {(case['case_id'], profile['label']) for case in specification['cases']
+        expected = {(case_id, profile['label']) for case_id in groups
                     for profile in design['profiles']}
         crosswalk = audit_document['crosswalk']
-        profiles_by_id = {row['study_id']: row['profile'] for row in rows}
+        rows_by_id = {row['study_id']: row for row in rows}
         if (len(crosswalk) != len(rows) or {(row['case_id'], row['condition']) for row in crosswalk} != expected
-                or {row['study_id'] for row in crosswalk} != profiles_by_id.keys()
-                or any(profiles_by_id[row['study_id']] != row['condition'] for row in crosswalk)):
+                or {row['study_id'] for row in crosswalk} != rows_by_id.keys()
+                or any(rows_by_id[row['study_id']]['profile'] != row['condition']
+                       or rows_by_id[row['study_id']]['group'] != groups[row['case_id']] for row in crosswalk)):
             raise ValueError('The held-out audit does not bind every planned case and configuration.')
     profiles = []
     for profile in design['profiles']:
         selected = [row for row in rows if row['profile'] == profile['label']]
         profiles.append({
             'workflows': {task: c['workflow'] for task, c in profile['conditions'].items()},
-            'planned': len(selected),
-            'outcomes': dict(Counter(row['runtime_status'] for row in selected)),
-            'verified_paid': sum(row['verified_paid'] is True for row in selected),
-            'eligible_for_paper_metrics': sum(row['verified_paid'] is True
-                                              and row['formal']['correct_completion'] is True for row in selected),
+            **assignment_counts(selected),
         })
+    replay = None
     operations = None
     if operation_path.is_file():
         replay = read(operation_path)
@@ -70,6 +78,13 @@ def comparison_summary(batch, audit_path, manifest, clinical_catalogue, operatio
             if not frozen or replay.get('heldout_operations') != frozen or replay['planned_units'] != frozen['planned_units']:
                 raise ValueError('The operation replay does not match the held-out schedule.')
         probe_results(replay)  # Check that all scheduled requests are represented.
+        if heldout:
+            cells = {(row['disease'], row['operation'], row['condition']): sum(row['counts'].values())
+                     for row in replay['by_cell']}
+            expected_cells = {(group, key, condition): count for group in GROUPS for key, *_ in OPERATIONS
+                              for condition, count in FORMAL_REQUESTS_PER_CELL.items()}
+            if len(cells) != len(replay['by_cell']) or cells != expected_cells:
+                raise ValueError('The operation replay does not cover every planned disease and operation cell.')
         operations = []
         for key, label, *_ in OPERATIONS:
             tests = {condition: Counter() for condition in ('single_fault', 'compliant_control')}
@@ -85,7 +100,7 @@ def comparison_summary(batch, audit_path, manifest, clinical_catalogue, operatio
                 'executed_controls': controls['control_allowed'], 'control_requests': sum(controls.values()),
             })
     paid = summarize(batch, audit_path, manifest, clinical_catalogue, allow_unverified=True)
-    return {
+    report = {
         'batch': specification['batch'],
         'design': 'three-profile pilot' if design.get('quick') else '27-profile full crossing',
         'source_cases_by_group': dict(Counter(case['group'] for case in specification['cases'])),
@@ -99,6 +114,20 @@ def comparison_summary(batch, audit_path, manifest, clinical_catalogue, operatio
         'paid_cohort_metrics': paid,
         'operation_replay': operations,
     }
+    if heldout:
+        by_disease = {}
+        for group in GROUPS:
+            selected = [row for row in rows if row['group'] == group]
+            safety = Counter(row['formal']['unsafe_execution'] for row in selected)
+            by_disease[group] = {**assignment_counts(selected), 'observed_unsafe': safety[True],
+                                 'safety_unresolved': safety[None]}
+        report['assignments_by_disease'] = by_disease
+    return report, audit, replay
+
+
+def comparison_summary(batch, audit_path, manifest, clinical_catalogue, operation_path):
+    report, _, _ = comparison_data(batch, audit_path, manifest, clinical_catalogue, operation_path)
+    return report
 
 
 def number(value):
@@ -134,7 +163,7 @@ def render(report):
                     rate = f"{metric['numerator']}/{metric['denominator']}" if metric['denominator'] else '—'
                     value += f' · Rule-scoped FPR {rate}'
                 else:
-                    value = f"{row['qualified']} delivered"
+                    value = 'Delivery unresolved' if row['qualified'] is None else f"{row['qualified']} delivered"
                     if task == 'documentation' and workflow == 'realtime':
                         value += f", {row['interim_notes_before_close']} interim notes before consultation ended"
                 lines.append(f"| {label} · {WORKFLOWS[workflow]} | {row['observed']} | {value} |")
@@ -146,7 +175,8 @@ def render(report):
         ])
         for task, label in (('preconsult', 'Handoff'), ('documentation', 'Note')):
             for workflow, row in tasks[task].items():
-                lines.append(f"| {label} · {WORKFLOWS[workflow]} | {row['qualified']} | "
+                delivered = '—' if row['qualified'] is None else row['qualified']
+                lines.append(f"| {label} · {WORKFLOWS[workflow]} | {delivered} | "
                              f"{number(row['mean_modeled_minutes'])} | {number(row.get('mean_note_turnaround_seconds'))} |")
         lines.extend(['', 'Modeled work uses the study activity weights. Turnaround uses elapsed runtime. '
                       'The JSON includes rework, role effort, and matched contrasts when paired cells are available.', ''])
@@ -192,10 +222,19 @@ def render(report):
     return '\n'.join(lines) + '\n'
 
 
-def write_report(batch, audit_path, manifest, clinical_catalogue, operation_path, output):
-    report = comparison_summary(batch, audit_path, manifest, clinical_catalogue, operation_path)
+def write_report(batch, audit_path, manifest, clinical_catalogue, operation_path, output, *, human_review=None):
+    report, audit, replay = comparison_data(batch, audit_path, manifest, clinical_catalogue, operation_path)
+    latex = None
+    if report.get('evaluation_partition') == 'test':
+        from results.render_heldout_tables import render as render_heldout
+
+        latex = render_heldout(report, audit, replay, read(human_review) if human_review is not None else None)
+    elif human_review is not None:
+        raise ValueError('Use --human-review with a held-out report.')
     output.mkdir(parents=True, mode=0o700)
     (output / 'summary.json').write_text(json.dumps(report, ensure_ascii=False, indent=2, allow_nan=False) + '\n',
                                          encoding='utf-8')
     (output / 'REPORT.md').write_text(render(report), encoding='utf-8')
+    if latex is not None:
+        (output / 'acl_heldout_results.tex').write_text(latex, encoding='utf-8')
     print(f'Comparison report written to {output / "REPORT.md"}')
