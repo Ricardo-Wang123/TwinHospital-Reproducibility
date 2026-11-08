@@ -19,6 +19,7 @@ from .run import ROOT, RunConfig, read
 BUNDLE_VERSION = 'twinhospital.inputs/1'
 CASE_KEYS = ('case_id', 'patient_key', 'group', 'split', 'data_kind')
 CROSSED_MODES = {'comparison', 'factorial', 'heldout'}
+OPERATION_SCHEDULE = 'operation_schedule.json'
 RELEASE_REQUIRED = ('release/health-app.jar', 'openhis-seed/openhis_300_seed.dump',
                     'openhis-seed/20-restore-openhis-seed.sh', 'openhis-seed/run-upgrades.sh',
                     'tools/runtime/provision.py')
@@ -85,6 +86,14 @@ def inputs(manifest, case_files):
     return references
 
 
+def relocate_operation_schedule(schedule, sources, destinations):
+    from sandbox.experiments.linked.source_operation_replay import validate_schedule
+
+    rows = validate_schedule(schedule, {'cases': sources})
+    paths = {row['case_id']: row['path'] for row in destinations}
+    return {**schedule, 'cases': [{**row, 'path': paths[row['case_id']]} for row in rows]}
+
+
 def pack(args):
     target = args.output.resolve()
     if target.is_relative_to(ROOT):
@@ -108,12 +117,19 @@ def pack(args):
     if any(not source.is_file() for source in sources.values()):
         raise ValueError('A catalogue, workflow template, or native fixture file is missing.')
 
-    target.mkdir(parents=True, mode=0o700)
     frozen = []
     for i, row in enumerate(references, 1):
         name = f'cases/{i:04}.json'
         sources[name] = Path(row['path'])
         frozen.append({**row, 'path': name})
+    schedule = None
+    if args.operation_schedule:
+        schedule = read(args.operation_schedule)
+        for row in schedule['cases']:
+            row['path'] = str((args.operation_schedule.parent / row['path']).resolve())
+        schedule = relocate_operation_schedule(schedule, references, frozen)
+
+    target.mkdir(parents=True, mode=0o700)
     checksums = {}
     for name, source in sources.items():
         destination = target / name
@@ -124,6 +140,9 @@ def pack(args):
         raise ValueError('A case file changed during bundle preparation.')
     write(target / 'manifest.json', {'cases': frozen, 'case_count': len(frozen)})
     checksums['manifest.json'] = digest(target / 'manifest.json')
+    if schedule is not None:
+        write(target / OPERATION_SCHEDULE, schedule)
+        checksums[OPERATION_SCHEDULE] = digest(target / OPERATION_SCHEDULE)
     write(target / 'bundle.json', {
         'version': BUNDLE_VERSION, 'files': checksums, 'openhis_release': release,
         'fixtures': fixtures, 'case_count': len(frozen),
@@ -141,7 +160,8 @@ def configure(args):
         name = row['path']
         if not name.startswith('cases/') or receipt['files'].get(name) != row['file_sha256']:
             raise ValueError('A case is not covered by the input bundle.')
-        row['path'] = str((bundle / name).resolve())
+    portable = manifest['cases']
+    manifest['cases'] = [{**row, 'path': str((bundle / row['path']).resolve())} for row in portable]
     select_cases(manifest)
     if args.frozen_runtime and args.mode != 'factorial':
         raise ValueError('The historical runtime applies to the original factorial design.')
@@ -153,6 +173,11 @@ def configure(args):
         raise ValueError('Development exclusions apply to held-out runs.')
     if args.quick and args.mode != 'comparison':
         raise ValueError('--quick applies to reader comparisons.')
+    schedule = None
+    if OPERATION_SCHEDULE in receipt['files']:
+        if args.mode != 'heldout':
+            raise ValueError('A preassigned operation schedule applies to the held-out cohort.')
+        schedule = relocate_operation_schedule(read(bundle / OPERATION_SCHEDULE), portable, manifest['cases'])
 
     provider = read(args.provider)
     provider.pop('key_file', None)
@@ -205,13 +230,16 @@ def configure(args):
     if args.mode == 'comparison':
         from sandbox.experiments.linked.source_operation_replay import CATEGORIES
 
-        fields['operation_schedule'] = 'operation_schedule.json'
+        fields['operation_schedule'] = OPERATION_SCHEDULE
         source = manifest['cases'][0]
         write(target / fields['operation_schedule'], {'cases': [
             {**source, 'local_test_id': f'{category}-{condition}',
              'operation_category': category, 'request_condition': condition}
             for category in CATEGORIES for condition in ('single_fault', 'compliant_control')
         ]})
+    if schedule is not None:
+        fields['operation_schedule'] = OPERATION_SCHEDULE
+        write(target / OPERATION_SCHEDULE, schedule)
     config = target / 'run.local.json'
     write(config, fields)
     RunConfig(config)
@@ -232,6 +260,8 @@ def main():
     make.add_argument('--workflow-policy', type=Path)
     make.add_argument('--inherit-native', type=Path,
                       help='Reuse a verified bundle’s catalogues, fixtures, and workflow policy.')
+    make.add_argument('--operation-schedule', type=Path,
+                      help='Freeze the preassigned 500 held-out operation tests with their source cases.')
     make.set_defaults(action_function=pack)
     setup = actions.add_parser('configure', help='Verify a bundle and generate a machine-local configuration.')
     setup.add_argument('--bundle', required=True, type=Path)

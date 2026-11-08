@@ -100,6 +100,8 @@ class RunConfig:
             command += ['--mode', 'linked-acceptance', '--engineering-only',
                         '--independent-crossed', '--acceptance-attempts', '1',
                         '--exclude-development-manifest', self.path('development_manifest')]
+            if 'operation_schedule' in self.fields:
+                command += ['--heldout-operation-schedule', self.path('operation_schedule')]
         elif self.mode == 'formal':
             command += ['--mode', 'matrix', '--formal-experiment', '--analysis-plan', self.path('analysis_plan'),
                         '--acceptance-batch', self.path('acceptance_batch'), '--acceptance-audit', self.path('acceptance_audit')]
@@ -183,6 +185,10 @@ def preflight(config, command, log_path):
         result['unpaid_to_dispatch'] = recovery['new_assignment_count']
     if spec.get('linked_acceptance'):
         result['planned_encounters'] = spec['linked_acceptance']['planned_unique_encounters']
+    if spec.get('heldout_operations'):
+        result['planned_operation_tests'] = spec['heldout_operations']['planned_units']
+    if config.mode == 'heldout':
+        log_path.with_name('preflight.json').write_text(output.stdout, encoding='utf-8')
     print(json.dumps(result, ensure_ascii=False), flush=True)
     return spec
 
@@ -273,15 +279,15 @@ def audit(config, observe):
 def operation_replay(config):
     from sandbox.experiments.linked.source_operation_replay import run
 
-    if config.mode != 'comparison':
-        raise ValueError('The prepared paired schedule belongs to a reader comparison.')
+    if config.mode not in {'comparison', 'heldout'} or 'operation_schedule' not in config.fields:
+        raise ValueError('Operation replay requires a comparison or held-out batch with a prepared schedule.')
     verify_his(config)
     replay_id = config.name[:50] + '-ops-' + sha256(config.name.encode()).hexdigest()[:10]
     output = config.base / 'operation_replay'
     run(config.path('operation_schedule'), config.path('manifest'), config.batch, output, replay_id,
         config.path('catalog', config.deploy / 'catalog_mapping.json'),
         config.path('diagnosis_catalog', config.deploy / 'diagnosis_mapping.json'),
-        engineering=True, deployment_dir=config.deploy)
+        engineering=config.mode == 'comparison', deployment_dir=config.deploy)
     print(f'Paired operation results: {output / "summary.json"}')
 
 
@@ -313,8 +319,8 @@ def main():
     launch.add_argument('--execute', action='store_true')
     audit_parser = actions.add_parser('audit', help='Analyze the closed batch; output stays local.')
     audit_parser.add_argument('--observe-native', action='store_true')
-    actions.add_parser('operations', help='Run the five paired operation checks on the preselected source.')
-    report_parser = actions.add_parser('report', help='Summarize reader results by paper application.')
+    actions.add_parser('operations', help='Run the frozen operation tests on their preselected sources.')
+    report_parser = actions.add_parser('report', help='Summarize the comparison by paper application.')
     report_parser.add_argument('--output', type=Path)
     args = parser.parse_args()
     cfg = RunConfig(args.config)
@@ -333,11 +339,12 @@ def main():
     if args.action == 'report':
         from .reader_report import write_report
 
-        if cfg.mode != 'comparison':
-            raise ValueError('Use a reader comparison for this report.')
+        if cfg.mode not in {'comparison', 'heldout'}:
+            raise ValueError('Use a reader comparison or held-out batch for this report.')
+        results_name = 'heldout_results' if cfg.mode == 'heldout' else 'reader_results'
         return write_report(cfg.batch, audit_directory(cfg) / 'audit.private.json', cfg.path('manifest'),
                             cfg.path('clinical_catalogue'), cfg.base / 'operation_replay' / 'summary.json',
-                            args.output or cfg.base / 'reader_results')
+                            args.output or cfg.base / results_name)
     live = args.action == 'run' and args.execute
     state = cfg.path('launcher_state', cfg.path('ledger').parent / 'handoff_runs')
     stamp = datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S%fZ')

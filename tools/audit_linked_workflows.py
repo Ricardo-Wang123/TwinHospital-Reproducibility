@@ -369,8 +369,13 @@ def _audit_locked(batch, public, private, observe_native, observer, deployment_d
         raise RuntimeError('Source changed during audit; refusing a mixed-version public result')
     if any(sha(ROOT/name)!=source['sha256'] for name,source in analyzer_sources.items()):
         raise RuntimeError('Analyzer source changed during audit')
+    experiment_status = 'engineering_only'
+    if spec.get('formal_experiment') is True:
+        experiment_status = 'formal_declared_in_spec'
+    elif design and design.get('independent_crossed'):
+        experiment_status = 'independent_heldout_crossing'
     report = {'version': VERSION, 'created_at': datetime.now(timezone.utc).isoformat(),
-        'experiment_status': 'formal_declared_in_spec' if spec.get('formal_experiment') is True else 'engineering_only',
+        'experiment_status': experiment_status,
         'source_specification_sha256': sha(batch/'specification.json'), 'source_files_unchanged': True,
         'analyzer_code_sha256': {name:source['sha256'] for name,source in analyzer_sources.items()},
         'native_observation_requested': observe_native, 'native_mutations': 0, 'model_calls': 0,

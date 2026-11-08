@@ -23,6 +23,7 @@ import re
 from .cases import GROUPS, load_case
 from .batch_observation import deployment_metadata
 from .contracts import runtime_case
+from .linked_acceptance import BASELINE_LABEL
 from .native_his import NativeBlocked, NativeOpenHISPort, digest, isolated_port, write_private
 from .protocol_his import PaperProtocolPort
 from .run_batch import validate_anchor_evidence
@@ -52,6 +53,12 @@ def read(path):
 
 def sha(path):
     return hashlib.sha256(Path(path).read_bytes()).hexdigest()
+
+
+def replay_code_hashes():
+    return {name: sha(Path(__file__).with_name(name)) for name in (
+        'source_operation_replay.py', 'safety_paper.py', 'safety_native.py',
+        'protocol_his.py', 'native_his.py', 'run_batch.py', 'cases.py', 'contracts.py')}
 
 
 def unchanged(files):
@@ -120,7 +127,7 @@ def load_checkpoint(row, source_batch, source_spec):
     ip = root / row['case_id'] / 'attempts.json'
     protected[str(ip)] = sha(ip)
     index = read(ip)
-    entry = index['attempts'].get('linked_baseline_anchor') or {}
+    entry = index['attempts'].get(BASELINE_LABEL) or {}
     if not entry.get('result_path'):
         raise ValueError('canonical source result unavailable')
     rp = Path(entry['result_path']).resolve()
@@ -294,7 +301,9 @@ def _run_closed_batch(schedule_path, cohort_path, source_batch, output, run_id,
     os.umask(0o077)
     if not re.fullmatch(r'[A-Za-z0-9_-]{1,70}', run_id):
         raise ValueError('use a safe unique run ID')
-    schedule, cohort = read(schedule_path), read(cohort_path)
+    schedule_bytes = Path(schedule_path).read_bytes()
+    cohort_bytes = Path(cohort_path).read_bytes()
+    schedule, cohort = json.loads(schedule_bytes), json.loads(cohort_bytes)
     rows = validate_schedule(schedule, cohort, engineering=engineering)
     output = Path(output).resolve()
     spec = read(source_batch / 'specification.json')
@@ -302,12 +311,22 @@ def _run_closed_batch(schedule_path, cohort_path, source_batch, output, run_id,
     source_summary = read(summary_path)
     if source_summary.get('batch') != spec.get('batch') or not source_summary.get('session_finished_at'):
         raise ValueError('source batch must be closed before operation replay')
-    if not engineering and spec.get('formal_experiment') is not True:
-        raise ValueError('an engineering source batch cannot be a formal experiment')
+    design = spec.get('linked_acceptance') or {}
+    heldout = (spec.get('mode') == 'linked-acceptance' and design.get('independent_crossed') is True
+               and design.get('evaluation_partition') == 'test')
+    cohort_hash = hashlib.sha256(cohort_bytes).hexdigest()
+    schedule_hash = hashlib.sha256(schedule_bytes).hexdigest()
+    code_hashes = replay_code_hashes()
     if not engineering:
-        bound = spec.get('formal_inputs') or {}
-        if sha(cohort_path) != bound.get('cohort_sha256') or sha(schedule_path) != bound.get('operation_schedule_sha256'):
+        if not heldout and spec.get('formal_experiment') is not True:
+            raise ValueError('formal replay requires a frozen test cohort and source batch')
+        bound = spec.get('heldout_operations' if heldout else 'formal_inputs') or {}
+        if cohort_hash != bound.get('cohort_sha256') or schedule_hash != bound.get('operation_schedule_sha256'):
             raise ValueError('formal replay cohort or schedule differs from the source batch input freeze')
+        if heldout and (bound.get('source_profile') != BASELINE_LABEL or bound.get('planned_units') != len(rows)):
+            raise ValueError('held-out replay source profile or planned operation count differs from the freeze')
+        if heldout and bound.get('code_sha256') != code_hashes:
+            raise ValueError('held-out replay implementation differs from the freeze')
     capture = source_summary.get('native_observation')
     if (not engineering or capture) and (capture or {}).get('status') != 'closed':
         raise ValueError('source native observation must be closed before operation replay')
@@ -333,6 +352,8 @@ def _run_closed_batch(schedule_path, cohort_path, source_batch, output, run_id,
     (output / 'source_checkpoints').mkdir(mode=0o700)
     protected = {str(Path(p).resolve()): sha(p) for p in [schedule_path, cohort_path,
         source_batch / 'specification.json', summary_path, catalog_path, diagnosis_path]}
+    if protected[str(Path(schedule_path).resolve())] != schedule_hash or protected[str(Path(cohort_path).resolve())] != cohort_hash:
+        raise ValueError('replay cohort or schedule changed during preflight')
     if deployment_hashes:
         protected.update({str(deployment_dir / name): value for name, value in deployment_hashes.items()})
     bindings, source_files = prepare_bindings(rows, source_batch, spec, output)
@@ -345,9 +366,9 @@ def _run_closed_batch(schedule_path, cohort_path, source_batch, output, run_id,
                 'entire_MAS_rerun': False, 'source_object_ids_remapped': True,
                 'missing_source_policy': 'retain unresolved cell; never select another successful patient',
                 'note_edit_policy': 'preserve actual clinical text and add a nonclinical revision marker; vary only lock precondition',
-                'code_sha256': {name: sha(Path(__file__).with_name(name)) for name in
-                    ('source_operation_replay.py', 'safety_paper.py', 'safety_native.py',
-                     'protocol_his.py', 'native_his.py', 'run_batch.py', 'cases.py', 'contracts.py')}}
+                'code_sha256': code_hashes}
+    if not engineering and heldout:
+        manifest['heldout_operations'] = bound
     write_private(output / 'manifest.json', manifest)
     executor = SourceOperationReplay(output, run_id, mapping, diagnoses, credentials_path=credentials_path)
     for binding in bindings.values():

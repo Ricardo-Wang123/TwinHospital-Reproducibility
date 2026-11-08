@@ -176,11 +176,15 @@ Pack the new manifest by inheriting the study's native settings. Then configure 
   --mode heldout --development-manifest "$DEVELOPMENT_MANIFEST" \
   --patients-per-disease "$K" --batch heldout_01 --workers 1 \
   --output "$WORK/heldout_run"
+RUN="$WORK/heldout_run/run.local.json"
+.venv/bin/python -m handoff.run --config "$RUN" check
 ~~~
 
-Set `K` to the equal number of distinct test patients in each of the five strata. The runner assigns each patient to all 27 configurations, with one attempt per assignment. Use the same `provision`, `set-key`, `run --execute`, and audit commands for the new batch.
+Set `K` to the equal number of distinct test patients in each of the five strata. The runner assigns each patient to all 27 configurations, with one attempt per assignment. For the planned 1,000-patient comparison, set `K=200` and add `--operation-schedule "$LOCAL_SCHEDULE"` to `pack`. This includes the preassigned Application III requests in the input bundle. The 500 requests use 500 patients from the same cohort, with four fault requests and sixteen controls per disease and operation. The batch specification binds both manifests, the replay code, and the baseline configuration used as the replay source. [Operation schedule format](#replay-paired-operations)
 
-Report the held-out denominator and terminal outcomes separately from the development snapshot. The result scripts derive each task's counts from the new audit. Independent operation probes use their own denominator. [Result reconstruction](../results/README.md)
+The local `check` command reports 27,000 planned encounters and 500 planned operations for a 1,000-patient bundle with the schedule. Use the same `provision`, `set-key`, `run --execute`, and `audit --observe-native` subcommands to collect the held-out outcomes. Set the dispatch window with `--dispatch-hours` when configuring the batch. Each encounter retains the observation window in the inherited workflow policy.
+
+After the native audit, run the `operations` subcommand if the bundle includes the frozen schedule, then run `report`. The operation replay exercises the shared gateway on fresh OpenHIS objects reconstructed from the baseline assignment. An unavailable baseline leaves its preassigned operation unresolved. The report uses the same Application I and II metrics and keeps all assigned encounters and replay requests in their respective Application III denominators. Its output is `heldout_results/`. [Result reconstruction](../results/README.md)
 
 ## Replay paired operations
 

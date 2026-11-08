@@ -70,6 +70,42 @@ class CampaignTests(unittest.TestCase):
         self.assertEqual({cell['group']: cell['planned_patients'] for cell in cells},
                          {GROUPS[0]: 2, GROUPS[1]: 1})
 
+    def test_heldout_report_retains_every_assigned_encounter(self):
+        from handoff.reader_report import comparison_summary
+        from tools.audit_linked_workflows import audit_batch
+
+        cases = [{'case_id': group, 'patient_key': f'test-{group}', 'group': group,
+                  'split': 'test', 'data_kind': 'mimic_derived'} for group in GROUPS]
+        models = {'tool_a': 'tool'}
+        design = freeze_design(cases, models, patients_per_group=1, factorial=True, max_attempts=1, independent=True)
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            batch = root / 'batch'
+            batch.mkdir()
+            (batch / 'batch.lock').touch()
+            specification = {'batch': 'heldout', 'mode': 'linked-acceptance', 'formal_experiment': False,
+                             'models': {'role_model': 'role', 'tool_models': models},
+                             'execution_policy': {'workers': 1}, 'linked_acceptance': design, 'cases': cases,
+                             'development_exclusion_sha256': 'a' * 64,
+                             'acceptance_source_patient_hashes': [digest(case['patient_key']) for case in cases]}
+            (batch / 'specification.json').write_text(json.dumps(specification))
+            (batch / 'batch_summary.json').write_text(json.dumps({'batch': 'heldout', 'cases': []}))
+            private = root / 'audit.json'
+            audit_batch(batch, root / 'public', private)
+            arguments = (batch, private, None, None, root / 'operations.json')
+            report = comparison_summary(*arguments)
+            self.assertEqual(report['evaluation_partition'], 'test')
+            self.assertEqual(report['planned'], 135)
+            self.assertEqual(len(report['profiles']), 27)
+            self.assertEqual(report['verified_paid'], 0)
+            self.assertIsNone(report['paid_cohort_metrics'])
+            audit = json.loads(private.read_text())
+            self.assertEqual(audit['audit']['experiment_status'], 'independent_heldout_crossing')
+            audit['crosswalk'][0]['case_id'] = cases[1]['case_id']
+            private.write_text(json.dumps(audit))
+            with self.assertRaisesRegex(ValueError, 'every planned case and configuration'):
+                comparison_summary(*arguments)
+
     def test_factorial_coverage_requires_every_combination_and_contains_one_control(self):
         cases = [{'case_id': f'{g}-{i}', 'patient_key': f'{g}-{i}', 'group': g,
                   'split': 'development', 'data_kind': 'mimic_derived'}

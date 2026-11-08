@@ -5,6 +5,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
+from handoff.inputs import relocate_operation_schedule
 from sandbox.experiments.linked import source_operation_replay as replay
 from sandbox.experiments.linked.native_his import NativeBlocked, digest, write_private
 
@@ -54,6 +55,43 @@ class AllocationTests(unittest.TestCase):
         schedule['cases'][0]['runtime_input_hash'] = 'c' * 64
         with self.assertRaisesRegex(ValueError, 'shared-cohort source'):
             replay.validate_schedule(schedule, cohort, engineering=True)
+
+    def test_packed_schedule_changes_only_source_paths(self):
+        schedule, cohort = population()
+        relocated = [{**row, 'path': f'cases/{i:04}.json'} for i, row in enumerate(cohort['cases'], 1)]
+        copied = relocate_operation_schedule(schedule, cohort['cases'], relocated)
+        self.assertEqual(len(replay.validate_schedule(copied, {'cases': relocated})), 500)
+        self.assertEqual([{k: v for k, v in row.items() if k != 'path'} for row in copied['cases']],
+                         [{k: v for k, v in row.items() if k != 'path'} for row in schedule['cases']])
+
+    def test_heldout_replay_accepts_only_the_preassigned_schedule_bytes(self):
+        schedule, cohort = population()
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            batch, source, operations = root / 'batch', root / 'cohort.json', root / 'operations.json'
+            batch.mkdir()
+            write_private(source, cohort)
+            write_private(operations, schedule)
+            write_private(batch / 'specification.json', {
+                'batch': 'heldout', 'mode': 'linked-acceptance', 'formal_experiment': False,
+                'linked_acceptance': {'independent_crossed': True, 'evaluation_partition': 'test'},
+                'heldout_operations': {'source_profile': replay.BASELINE_LABEL, 'planned_units': 500,
+                                       'cohort_sha256': replay.sha(source), 'operation_schedule_sha256': replay.sha(operations),
+                                       'code_sha256': replay.replay_code_hashes()},
+            })
+            write_private(batch / 'batch_summary.json', {'batch': 'heldout', 'session_finished_at': 'closed',
+                                                          'native_observation': {'status': 'closed'}})
+            parameters = (operations, source, batch, root / 'output', 'replay', None, None, False, None)
+            with self.assertRaisesRegex(ValueError, 'explicit source deployment'):
+                replay._run_closed_batch(*parameters)
+            with patch.object(replay, 'replay_code_hashes', return_value={}):
+                with self.assertRaisesRegex(ValueError, 'implementation differs from the freeze'):
+                    replay._run_closed_batch(*parameters)
+            schedule['cases'].reverse()  # Same balanced cells, different frozen schedule.
+            write_private(operations, schedule)
+            with self.assertRaisesRegex(ValueError, 'differs from the source batch input freeze'):
+                replay._run_closed_batch(*parameters)
+            self.assertFalse((root / 'output').exists())
 
 
 class BindingTests(unittest.TestCase):

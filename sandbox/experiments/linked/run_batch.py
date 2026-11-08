@@ -968,6 +968,8 @@ def main():
                         help='Select the three predefined whole-visit reader configurations.')
     parser.add_argument('--exclude-development-manifest', type=Path,
                         help='Private manifest with development patient keys in the same identity namespace.')
+    parser.add_argument('--heldout-operation-schedule', type=Path,
+                        help='Preassigned operation tests bound to an independent crossed cohort.')
     parser.add_argument('--acceptance-attempts', type=int, choices=(1, MAX_ENGINEERING_ATTEMPTS),
                         help='Maximum independent attempts per engineering assignment')
     parser.add_argument('--acceptance-factorial', action='store_true',
@@ -1008,6 +1010,8 @@ def main():
                      'every configuration, and one attempt per assignment.')
     if args.exclude_development_manifest and not args.independent_crossed:
         parser.error('--exclude-development-manifest applies only to independent crossed runs')
+    if args.heldout_operation_schedule and not args.independent_crossed:
+        parser.error('--heldout-operation-schedule applies only to independent crossed runs')
     if args.reader_comparison and not (
         args.mode == 'linked-acceptance' and args.acceptance_factorial
         and args.acceptance_attempts == 1 and args.workflow_policy
@@ -1042,7 +1046,8 @@ def main():
     from .batch_observation import deployment_metadata, observed_batch, capture_summary
     args.observation_metadata = deployment_metadata(args.observation_deploy,args.workflow_policy_data) if args.capture_native else None
     formal_inputs = bind_formal_inputs(args.manifest) if args.formal_experiment else None
-    cases = select_cases(_read(args.manifest), args.limit)
+    manifest_bytes = args.manifest.read_bytes()
+    cases = select_cases(json.loads(manifest_bytes), args.limit)
     if args.independent_crossed:
         exclusion = args.exclude_development_manifest.read_bytes()
         development = json.loads(exclusion)['cases']
@@ -1050,6 +1055,16 @@ def main():
             raise ValueError('A nonempty development-partition manifest is required.')
         if {row['patient_key'] for row in development} & {case['patient_key'] for case in cases}:
             raise ValueError('A source patient occurs in both partitions.')
+    heldout_operations = None
+    if args.heldout_operation_schedule:
+        from .source_operation_replay import replay_code_hashes, validate_schedule
+
+        schedule_bytes = args.heldout_operation_schedule.read_bytes()
+        rows = validate_schedule(json.loads(schedule_bytes), {'cases': cases})
+        heldout_operations = {'cohort_sha256': hashlib.sha256(manifest_bytes).hexdigest(),
+                              'operation_schedule_sha256': hashlib.sha256(schedule_bytes).hexdigest(),
+                              'source_profile': BASELINE_LABEL, 'planned_units': len(rows),
+                              'code_sha256': replay_code_hashes()}
     if formal_inputs and bind_formal_inputs(args.manifest) != formal_inputs:
         raise ValueError('formal input files changed during case preflight')
     config, mapping = _read(args.provider_config), _read(args.catalog)
@@ -1181,6 +1196,8 @@ def main():
             else 'one_encounter_per_patient_then_verify' if args.workers > 1
             else 'one_encounter_then_verify_before_admitting_next')
         specification['execution_policy']['dispatch_order'] = acceptance['schedule_policy']
+    if heldout_operations is not None:
+        specification['heldout_operations'] = heldout_operations
     if args.acceptance_recovery_plan:
         if file_sha256(args.manifest) != _read(args.acceptance_recovery_plan)['frozen_manifest_sha256']:
             raise ValueError('Recovery requires the exact frozen case manifest')

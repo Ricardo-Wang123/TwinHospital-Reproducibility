@@ -1,4 +1,4 @@
-"""Report a reader comparison using the same task metrics as the study."""
+"""Report crossed encounters using the same task metrics as the study."""
 
 from collections import Counter
 from hashlib import sha256
@@ -28,9 +28,11 @@ def comparison_summary(batch, audit_path, manifest, clinical_catalogue, operatio
     specification_hash = sha256(specification_bytes).hexdigest()
     specification = json.loads(specification_bytes)
     design = specification.get('linked_acceptance', {})
-    if design.get('version') != READER_DESIGN_VERSION:
-        raise ValueError('The batch is not a reader comparison.')
-    audit = read(audit_path)['audit']
+    heldout = design.get('independent_crossed') is True and design.get('evaluation_partition') == 'test'
+    if design.get('version') != READER_DESIGN_VERSION and not heldout:
+        raise ValueError('The batch is not a reader comparison or independent held-out crossing.')
+    audit_document = read(audit_path)
+    audit = audit_document['audit']
     rows = audit['runs']
     if (audit['source_specification_sha256'] != specification_hash
             or len(rows) != design['planned_unique_encounters']
@@ -38,6 +40,15 @@ def comparison_summary(batch, audit_path, manifest, clinical_catalogue, operatio
             or Counter(row['profile'] for row in rows)
             != Counter({profile['label']: len(specification['cases']) for profile in design['profiles']})):
         raise ValueError('The audit does not cover the planned assignments for this batch.')
+    if heldout:
+        expected = {(case['case_id'], profile['label']) for case in specification['cases']
+                    for profile in design['profiles']}
+        crosswalk = audit_document['crosswalk']
+        profiles_by_id = {row['study_id']: row['profile'] for row in rows}
+        if (len(crosswalk) != len(rows) or {(row['case_id'], row['condition']) for row in crosswalk} != expected
+                or {row['study_id'] for row in crosswalk} != profiles_by_id.keys()
+                or any(profiles_by_id[row['study_id']] != row['condition'] for row in crosswalk)):
+            raise ValueError('The held-out audit does not bind every planned case and configuration.')
     profiles = []
     for profile in design['profiles']:
         selected = [row for row in rows if row['profile'] == profile['label']]
@@ -54,6 +65,10 @@ def comparison_summary(batch, audit_path, manifest, clinical_catalogue, operatio
         replay = read(operation_path)
         if replay['source_inputs_sha256'].get(str(spec_path.resolve())) != specification_hash:
             raise ValueError('The operation replay belongs to a different batch.')
+        if heldout:
+            frozen = specification.get('heldout_operations')
+            if not frozen or replay.get('heldout_operations') != frozen or replay['planned_units'] != frozen['planned_units']:
+                raise ValueError('The operation replay does not match the held-out schedule.')
         probe_results(replay)  # Check that all scheduled requests are represented.
         operations = []
         for key, label, *_ in OPERATIONS:
@@ -72,8 +87,9 @@ def comparison_summary(batch, audit_path, manifest, clinical_catalogue, operatio
     paid = summarize(batch, audit_path, manifest, clinical_catalogue, allow_unverified=True)
     return {
         'batch': specification['batch'],
-        'design': 'three-profile pilot' if design['quick'] else '27-profile full crossing',
-        'source_cases_by_group': design['planned_patients_by_group'],
+        'design': 'three-profile pilot' if design.get('quick') else '27-profile full crossing',
+        'source_cases_by_group': dict(Counter(case['group'] for case in specification['cases'])),
+        **({'evaluation_partition': 'test'} if heldout else {}),
         'role_model': specification['models']['role_model'],
         'tool_model': specification['models']['tool_models']['tool_a'],
         'planned': len(rows),
@@ -152,7 +168,7 @@ def render(report):
                      f"{row['eligible_for_paper_metrics']} |")
     lines.extend(['', '### Paired operation checks', ''])
     if report['operation_replay'] is None:
-        lines.append('Run the paired operation schedule to populate this section.')
+        lines.append('Run the configured operation schedule to populate this section.')
     else:
         lines.extend(['| Operation | Verified safe faults | Executed controls |', '| --- | ---: | ---: |'])
         for row in report['operation_replay']:
@@ -167,4 +183,4 @@ def write_report(batch, audit_path, manifest, clinical_catalogue, operation_path
     (output / 'summary.json').write_text(json.dumps(report, ensure_ascii=False, indent=2, allow_nan=False) + '\n',
                                          encoding='utf-8')
     (output / 'REPORT.md').write_text(render(report), encoding='utf-8')
-    print(f'Reader comparison report written to {output / "REPORT.md"}')
+    print(f'Comparison report written to {output / "REPORT.md"}')
