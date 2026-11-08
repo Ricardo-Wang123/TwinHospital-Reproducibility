@@ -6,13 +6,21 @@ Use the MAS in this repository, the OpenHIS reader release, and your own cases i
 
 Use Python 3.12 on macOS or Linux, Docker with Compose v2, and an OpenAI-compatible Chat Completions endpoint. The [reader release](https://github.com/Ricardo-Wang123/TwinHospital-Reproducibility/releases/tag/openhis-reader-v1) provides the OpenHIS 2.0.5 backend, its source, and an independently constructed sample dataset.
 
-Clone this repository. From its root, set a working directory outside the checkout. Download the runtime archive from the release page to that directory and extract it.
+Clone this repository using your GitHub access. Download `openhis-twinhospital-runtime.tar.gz` from the release page to the working directory outside the checkout.
 
 ~~~sh
+git clone https://github.com/Ricardo-Wang123/TwinHospital-Reproducibility.git
+cd TwinHospital-Reproducibility
 WORK="$HOME/twinhospital-work"
 mkdir -p "$WORK"
+~~~
+
+After downloading the archive, extract it and install the Python dependencies. The shell time zone aligns registration and read-back dates with OpenHIS.
+
+~~~sh
 tar -xzf "$WORK/openhis-twinhospital-runtime.tar.gz" -C "$WORK"
 OPENHIS="$WORK/openhis-reader"
+export TZ=Asia/Shanghai
 
 python3.12 -m venv .venv
 .venv/bin/python -m pip install -r requirements-linked.txt
