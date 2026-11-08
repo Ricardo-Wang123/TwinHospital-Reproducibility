@@ -7,9 +7,10 @@ collects its own window; closing performs an exhaustive session scan, including
 unframed effects and late low IDs. max(event_id) is never a completeness cursor.
 """
 from __future__ import annotations
-import ast,contextvars,datetime as dt,fcntl,hashlib,importlib.util,json,os,secrets,threading,time
-from contextlib import contextmanager
+import ast,contextvars,datetime as dt,fcntl,hashlib,importlib.util,json,os,secrets,subprocess,threading,time
+from contextlib import contextmanager, nullcontext
 from pathlib import Path
+from tempfile import NamedTemporaryFile
 from .native_his import ALLOWED,NativeError,NativeBlocked,write_private,digest
 
 VERSION='committed-native-observation-2'
@@ -110,9 +111,38 @@ class IsolatedObservationDB:
         self.sql("UPDATE th_observation_v1.control SET request_id=NULL,updated_at=clock_timestamp() WHERE singleton AND session_id="+q(session)+" AND request_id="+q(request)+" AND NOT quarantined;")
     def quarantine(self,session,reason):
         self.sql("BEGIN; UPDATE th_observation_v1.control SET quarantined=true,reason="+q(reason)+",updated_at=clock_timestamp() WHERE singleton AND session_id="+q(session)+"; UPDATE th_observation_v1.session SET status='quarantined' WHERE session_id="+q(session)+"; COMMIT;")
-    def events(self,session):
-        # Full session rescan intentionally includes low IDs that committed late.
-        return self.value("SELECT coalesce(json_agg(m ORDER BY event_id),'[]'::json) FROM th_observation_v1.mutation m WHERE session_id="+q(session))
+    @contextmanager
+    def stream_events(self, session):
+        """Read one ordered snapshot in bounded fetches, including late low IDs."""
+        container = subprocess.check_output([*self.manage.COMPOSE, 'ps', '-q', 'postgres'], text=True).strip()
+        if not container:
+            raise ObservationUnknown('The isolated PostgreSQL service is not running')
+        owner = subprocess.check_output(['docker', 'inspect', '--format',
+            '{{ index .Config.Labels "com.docker.compose.project.config_files" }}', container], text=True).strip()
+        if Path(owner).resolve() != self.deployment_dir / 'compose.yaml':
+            raise ObservationUnknown('The PostgreSQL service belongs to a different deployment')
+        query = ('SELECT row_to_json(m) FROM th_observation_v1.mutation m '
+                 'WHERE session_id=' + q(session) + ' ORDER BY event_id')
+        command = [*self.manage.COMPOSE, 'exec', '-T', 'postgres', 'psql', '-X', '-q', '-At',
+                   '-U', 'postgres', '-d', 'openhis_205_local', '-v', 'ON_ERROR_STOP=1',
+                   '-v', 'FETCH_COUNT=256', '-c', 'BEGIN READ ONLY', '-c', query, '-c', 'COMMIT']
+        with subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, encoding='utf-8') as process:
+            def rows():
+                for line in process.stdout:
+                    if line.strip():
+                        yield json.loads(line)
+                if process.wait() != 0:
+                    raise ObservationUnknown('The full native event scan did not finish')
+
+            try:
+                yield rows()
+            finally:
+                if process.poll() is None:
+                    process.kill()
+
+    def events(self, session):
+        with self.stream_events(session) as rows:
+            return list(rows)
     def request_events(self,session,request):
         return self.value("SELECT coalesce(json_agg(m ORDER BY event_id),'[]'::json) FROM th_observation_v1.mutation m WHERE session_id="+q(session)+" AND request_window_id="+q(request))
     def end(self,session,unresolved=False):
@@ -189,10 +219,32 @@ class CaptureSession:
             ctl=self.db.control()
             if ctl.get('session_id')==self.session_id:self.db.quarantine(self.session_id,'unclassified_post_path')
         raise ObservationUnknown('Unclassified POST was not dispatched; measurement capability unknown, not a safety result')
-    def collect(self):
-        rows=self.db.events(self.session_id)
-        write_private(self.events_path,{'session_id':self.session_id,'scanned_at':utc(),'full_session_rescan':True,'events':rows})
-        return rows
+    def collect(self, *, retain_rows=True):
+        export = getattr(self.db, 'stream_events', None)
+        context = export(self.session_id) if export else nullcontext(self.db.events(self.session_id))
+        retained = [] if retain_rows else None
+        metadata = {'session_id': self.session_id, 'scanned_at': utc(), 'full_session_rescan': True}
+        count = 0
+        with NamedTemporaryFile(mode='w', encoding='utf-8', dir=self.root, delete=False,
+                                prefix='.native-scan-', suffix='.tmp') as output:
+            temporary = Path(output.name)
+            try:
+                output.write(json.dumps(metadata, ensure_ascii=False)[:-1] + ',\n"events": [\n')
+                with context as rows:
+                    for row in rows:
+                        if count:
+                            output.write(',\n')
+                        json.dump(row, output, ensure_ascii=False, allow_nan=False, separators=(',', ':'))
+                        count += 1
+                        if retained is not None:
+                            retained.append(row)
+                output.write('\n]}\n')
+                output.flush()
+                os.fsync(output.fileno())
+                os.replace(temporary, self.events_path)
+            finally:
+                temporary.unlink(missing_ok=True)
+        return retained if retain_rows else count
     def invoke(self,operation,payload,scope,call):
         """One genuine native write; returned business result is never altered."""
         with self.lock():
@@ -232,7 +284,7 @@ class CaptureSession:
                 # Preserve the window for a late commit; releasing the OS lock does
                 # not clear the persistent quarantine. No automatic safe retry.
                 self.db.quarantine(self.session_id,type(exc).__name__)
-                try:after=self.db.snapshot(scope);write_private(self.root/(request+'_uncertain_after.json'),after);self.collect()
+                try:after=self.db.snapshot(scope);write_private(self.root/(request+'_uncertain_after.json'),after);self.collect(retain_rows=False)
                 except Exception:pass
                 self.log('business_request_outcome',request_id=request,status='unresolved_quarantined',error_type=type(exc).__name__,native_effect=None)
                 raise
@@ -242,13 +294,13 @@ class CaptureSession:
             if ctl['session_id']!=self.session_id:raise ObservationUnknown('Capture does not own the instance')
             unresolved=bool(ctl['quarantined'] or ctl['request_id'])
             if unresolved and not(permit_unresolved and reason):raise ObservationUnknown('Unresolved request remains under observation; explicit reason required to end unknown')
-            rows=self.collect();coverage=self.db.coverage();meta=json.loads(self.meta_path.read_text())
+            count=self.collect(retain_rows=False);coverage=self.db.coverage();meta=json.loads(self.meta_path.read_text())
             unchanged=coverage==meta['coverage'];unresolved=unresolved or not unchanged
             self.db.end(self.session_id,unresolved)
             meta.update(status='closed_unresolved' if unresolved else 'closed',finished_at=utc(),end_reason=reason,
               coverage_at_end=coverage,coverage_unchanged=unchanged,
-              observed_event_count=len(rows),whole_system_safe=None,formal_correct_completion=None)
-            write_private(self.meta_path,meta);self.log('capture_ended',status=meta['status'],event_count=len(rows),whole_system_safe=None)
+              observed_event_count=count,whole_system_safe=None,formal_correct_completion=None)
+            write_private(self.meta_path,meta);self.log('capture_ended',status=meta['status'],event_count=count,whole_system_safe=None)
             return meta
 
 class ObservedHTTPClient:

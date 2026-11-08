@@ -7,6 +7,7 @@ in the returned report.
 """
 from collections import defaultdict
 from datetime import datetime
+from hashlib import sha256
 import json
 
 from .native_his import digest, VALID_SIGNED_REQUEST_STATES
@@ -25,6 +26,15 @@ def _date(value):
         return result if result.tzinfo else None
     except (AttributeError, TypeError, ValueError):
         return None
+
+
+def _capture_digest(capture):
+    # Use the same canonical encoding as digest() without serializing the entire capture at once.
+    encoder = json.JSONEncoder(ensure_ascii=False, sort_keys=True, separators=(',', ':'))
+    fingerprint = sha256()
+    for piece in encoder.iterencode(capture):
+        fingerprint.update(piece.encode())
+    return fingerprint.hexdigest()
 
 
 def prepare_capture(capture, spec):
@@ -126,7 +136,7 @@ def prepare_capture(capture, spec):
             'errors':tuple(sorted(errors)), 'native_by_run':native_by_run,
             'native_by_action':native_by_action, 'gateway_by_run':gateway_by_run,
             'write_journal_by_run':write_journal_by_run, 'events_by_request':events_by_request,
-            'parents':parents, 'raw_capture_sha256':digest(capture)}
+            'parents':parents, 'raw_capture_sha256':_capture_digest(capture)}
 
 
 def verify(run, spec, capture, protocol, *, prepared=None):

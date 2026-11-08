@@ -5,7 +5,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-from tools.compress_finished_evidence import compress_file, final_attempts, sha
+from tools.compress_finished_evidence import compress_file, final_attempts, run, sha
 
 
 @unittest.skipUnless(Path('/usr/bin/ditto').exists(), 'APFS compression uses the macOS system tool')
@@ -57,6 +57,24 @@ class EvidenceCompressionTests(unittest.TestCase):
         index['attempts']['condition_a']['status']='completed'
         (case/'attempts.json').write_text(json.dumps(index))
         self.assertEqual(list(final_attempts(batch)), [attempt.resolve()])
+
+    def test_follow_checks_final_attempt_after_writer_closes(self):
+        batch = self.root / 'batch'
+        case = batch / 'case_a'
+        result_path = case / 'condition_a/runs/run_a/run.json'
+        batch.mkdir()
+
+        def writer_closed(_):
+            result_path.parent.mkdir(parents=True)
+            result_path.write_text(json.dumps({'case_id': 'case_a', 'status': 'completed'}))
+            (case / 'attempts.json').write_text(json.dumps({'case_id': 'case_a', 'attempts': {
+                'condition_a': {'status': 'completed', 'result_path': str(result_path)},
+            }}))
+            return False
+
+        with patch('tools.compress_finished_evidence.batch_active', side_effect=writer_closed):
+            receipt = run(batch, self.root / 'compression.jsonl', follow=True)
+        self.assertEqual(receipt['final_attempts_checked'], 1)
 
     def test_post_replace_verification_failure_restores_original_inode(self):
         original_inode = self.path.stat().st_ino

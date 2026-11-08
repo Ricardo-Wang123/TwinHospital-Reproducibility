@@ -27,6 +27,8 @@ Each family has 40 faults and 160 controls. Tests use independent fictional fixt
 
 ## Reproduction and evidence
 
+The native observer records writes by request window. At close it exports all committed rows from one read-only PostgreSQL snapshot in bounded fetches. The complete export replaces the prior local snapshot only after the scan finishes. The scan includes rows with lower event IDs that committed after an earlier read. [PostgreSQL psql fetch settings](https://www.postgresql.org/docs/16/app-psql.html)
+
 ```bash
 .venv/bin/python -m sandbox.experiments.linked.safety_paper \
   --output output/safety_paper_NEW_VERSION --run-id safety_paper_NEW_VERSION

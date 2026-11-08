@@ -25,7 +25,7 @@ The [HIS interface check](his_interface_checks.json) reports a separate, scripte
 
 ## Recompute the encounter metrics
 
-An authorized recipient can verify a received evidence bundle from any directory. This offline computation uses the frozen case bytes, completed traces, native audit, and assessment sidecars.
+An authorized recipient can verify a received evidence bundle from any directory. This offline computation uses the frozen case bytes, completed traces, native audit, and assessment sidecars. It checks and scores one complete trace at a time, then groups the resulting measurements using the same scoring rules and denominators.
 
 ~~~sh
 .venv/bin/python -m handoff.evidence recompute \

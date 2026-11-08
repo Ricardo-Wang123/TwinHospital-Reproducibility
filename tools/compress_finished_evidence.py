@@ -125,6 +125,8 @@ def run(batch, receipt, follow=False):
     with lock.open('w') as handle:
         fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
         while True:
+            # Check the writer before scanning so a closed batch always receives a final pass.
+            active = follow and batch_active(batch)
             for attempt in final_attempts(batch):
                 if str(attempt) in seen:
                     continue
@@ -143,7 +145,7 @@ def run(batch, receipt, follow=False):
                 seen.add(str(attempt))
                 print(json.dumps({'final_attempts_checked': len(seen), 'compressed_files': files,
                                   'saved_mib': round(saved/2**20, 2)}), flush=True)
-            if not follow or not batch_active(batch):
+            if not active:
                 break
             time.sleep(10)
     return {'final_attempts_checked': len(seen), 'compressed_files': files, 'saved_bytes': saved,

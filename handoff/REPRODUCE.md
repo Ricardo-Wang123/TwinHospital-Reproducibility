@@ -184,6 +184,14 @@ Set `K` to the equal number of distinct test patients in each of the five strata
 
 The local `check` command reports 27,000 planned encounters and 500 planned operations for a 1,000-patient bundle with the schedule. Use the same `provision`, `set-key`, `run --execute`, and `audit --observe-native` subcommands to collect the held-out outcomes. Set the dispatch window with `--dispatch-hours` when configuring the batch. Each encounter retains the observation window in the inherited workflow policy.
 
+Size the working volume for encounter files, model evidence, native observation files, and the OpenHIS database. On APFS, start this command in a separate terminal once the runner creates `batch.lock`. It compresses indexed terminal attempts and verifies each file's contents, path, and permissions. The receipt stays in the private workspace.
+
+~~~sh
+.venv/bin/python -m tools.compress_finished_evidence \
+  --batch "$WORK/heldout_run/batches/heldout_01" \
+  --receipt "$WORK/heldout_run/evidence_compression.jsonl" --follow
+~~~
+
 After the native audit, run the `operations` subcommand if the bundle includes the frozen schedule, then run `report`. The operation replay exercises the shared gateway on fresh OpenHIS objects reconstructed from the baseline assignment. An unavailable baseline leaves its preassigned operation unresolved. The report uses the same Application I and II metrics and keeps all assigned encounters and replay requests in their respective Application III denominators. Its output is `heldout_results/`. [Result reconstruction](../results/README.md)
 
 ## Replay paired operations

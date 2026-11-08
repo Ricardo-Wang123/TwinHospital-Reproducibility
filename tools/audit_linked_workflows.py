@@ -34,7 +34,8 @@ def read(path):
 
 
 def sha(path):
-    return hashlib.sha256(Path(path).read_bytes()).hexdigest()
+    with Path(path).open('rb') as stream:
+        return hashlib.file_digest(stream, 'sha256').hexdigest()
 
 
 def private_json(path, value):
@@ -177,7 +178,8 @@ def _audit_locked(batch, public, private, observe_native, observer, deployment_d
             data=tracked(capture_root/'native_committed_mutations.json')
             jp=inside(capture_root/'observation_intents.jsonl',batch)
             originals[str(jp)]=sha(jp)
-            journal=[json.loads(line) for line in jp.read_text().splitlines() if line]
+            with jp.open(encoding='utf-8') as stream:
+                journal = [json.loads(line) for line in stream if line.strip()]
             raw_capture={'metadata':meta,'mutations':data,'journal':journal}
         except (OSError,ValueError,TypeError):
             raw_capture={'metadata':{},'mutations':{},'journal':[]}

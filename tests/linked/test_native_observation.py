@@ -1,4 +1,5 @@
 import copy,fcntl,json,multiprocessing,os,tempfile,unittest
+from contextlib import contextmanager
 from pathlib import Path
 from sandbox.experiments.linked.native_observation import CaptureSession,ObservationUnknown,ObservedHTTPClient,api_coverage,READ_AUTH,WRITES
 from sandbox.experiments.linked.native_observation_analysis import analyze,audit_folder
@@ -50,6 +51,25 @@ class CaptureTests(unittest.TestCase):
         self.db.rows=[{'event_id':9}];self.cap.collect()
         self.db.rows.append({'event_id':4})
         self.assertEqual({r['event_id'] for r in self.cap.collect()},{4,9})
+    def test_partial_stream_does_not_replace_the_last_export_or_close_the_session(self):
+        self.db.rows = [{'event_id': 9}]
+        self.cap.collect()
+        previous = self.cap.events_path.read_bytes()
+
+        @contextmanager
+        def failed_scan(session):
+            def rows():
+                yield {'event_id': 4}
+                raise ObservationUnknown('interrupted full scan')
+            yield rows()
+
+        self.db.stream_events = failed_scan
+        with self.assertRaisesRegex(ObservationUnknown, 'interrupted full scan'):
+            self.cap.close()
+        self.assertEqual(self.cap.events_path.read_bytes(), previous)
+        self.assertEqual(self.db.control()['session_id'], self.cap.session_id)
+        self.assertEqual(list(self.cap.root.glob('*.tmp')), [])
+
     def test_request_collection_does_not_reserialize_entire_session_and_close_keeps_late_foreign_effects(self):
         calls=[]
         original=self.db.events
