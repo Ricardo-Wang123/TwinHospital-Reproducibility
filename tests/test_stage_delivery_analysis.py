@@ -5,6 +5,7 @@ from pathlib import Path
 import tempfile
 import unittest
 
+from results.summarize_paid_runs import heldout_effort_plan, matched_stage_effort
 from sandbox.experiments.linked.contracts import digest, paper_conditions, runtime_case
 from sandbox.experiments.linked.cases import GROUPS
 from sandbox.experiments.linked.programmatic_delivery import VERSION as DELIVERY_VERSION
@@ -25,6 +26,52 @@ def row(qualifies, seconds=60):
 
 def units():
     return [{'unit_id': str(i), 'patient_key': 'p'+str(i), 'group': 'disease'} for i in range(4)]
+
+
+class HeldoutMatchedEffortTests(unittest.TestCase):
+    @staticmethod
+    def block(case_id, group, difference, prescription='pprs_baseline'):
+        return [
+            {'case_id': case_id, 'group': group, 'conditions': {
+                'preconsult': {'workflow': intake}, 'prescription': {'workflow': prescription},
+                'documentation': {'workflow': 'manual_documentation'},
+            }, 'stages': {'preconsult': {'qualifies': True,
+                                        'activities': [('nurse', 'information_collection', minutes * 60)]}}}
+            for intake, minutes in (('nurse_only', 5), ('ai_only', 5 + difference))
+        ]
+
+    def test_stratified_interval_weights_histories_equally_across_matched_blocks(self):
+        first, second = GROUPS[:2]
+        runs = (self.block('a', first, -2) + self.block('a', first, 0, 'sequential')
+                + self.block('b', first, 3) + self.block('c', second, -3) + self.block('d', second, 5))
+        plan = heldout_effort_plan()
+        contrast = matched_stage_effort(runs, 'preconsult', 'nurse_only', analysis_plan=plan)['ai_only']
+        self.assertEqual(contrast['matched_blocks'], 5)
+        self.assertEqual(contrast['source_histories'], 4)
+        self.assertEqual(contrast['mean_difference_minutes'], 1)
+        bootstrap = contrast['bootstrap']
+        self.assertEqual(bootstrap['status'], 'estimated')
+        self.assertEqual(bootstrap['ci'], [-2, 4])
+        self.assertEqual(bootstrap['valid_resamples'], 10000)
+        self.assertEqual(bootstrap['stratum_patient_counts'], {group: 2 if group in (first, second) else 0
+                                                               for group in GROUPS})
+        reordered = matched_stage_effort(runs[::-1], 'preconsult', 'nurse_only', analysis_plan=plan)
+        self.assertEqual(reordered['ai_only'], contrast)
+
+    def test_sparse_stratum_and_missing_paired_condition_keep_explicit_denominators(self):
+        first, second = GROUPS[:2]
+        runs = self.block('a', first, 0) + self.block('b', first, 0) + self.block('c', second, 0)
+        contrasts = matched_stage_effort(runs, 'preconsult', 'nurse_only', analysis_plan=heldout_effort_plan())
+        observed = contrasts['ai_only']
+        self.assertEqual(observed['source_histories'], 3)
+        self.assertEqual(observed['mean_difference_minutes'], 0)
+        self.assertEqual(observed['bootstrap']['status'], 'insufficient_within_stratum_replication')
+        self.assertIsNone(observed['bootstrap']['ci'])
+        missing = contrasts['ai_nurse_review']
+        self.assertEqual(missing['matched_blocks'], 0)
+        self.assertIsNone(missing['mean_difference_minutes'])
+        self.assertEqual(missing['bootstrap']['status'], 'fewer_than_two_source_patients')
+        self.assertIsNone(missing['bootstrap']['ci'])
 
 
 class PatientPairedDeliveryTests(unittest.TestCase):

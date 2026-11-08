@@ -150,6 +150,21 @@ def render(report):
                              f"{number(row['mean_modeled_minutes'])} | {number(row.get('mean_note_turnaround_seconds'))} |")
         lines.extend(['', 'Modeled work uses the study activity weights. Turnaround uses elapsed runtime. '
                       'The JSON includes rework, role effort, and matched contrasts when paired cells are available.', ''])
+        plan = paid.get('heldout_effort_analysis')
+        if plan is not None:
+            lines.extend([
+                '| Matched contrast | Blocks | Source histories | Difference (modeled min) | 95% CI |',
+                '| --- | ---: | ---: | ---: | ---: |',
+            ])
+            for task, label in (('preconsult', 'Handoff'), ('documentation', 'Note')):
+                baseline = WORKFLOWS[plan['contrasts'][task]['baseline']]
+                for workflow, row in paid['matched_stage_effort'][task].items():
+                    interval = row['bootstrap']['ci']
+                    limits = ' to '.join(map(number, interval)) if interval is not None else '—'
+                    lines.append(f"| {label} · {WORKFLOWS[workflow]} minus {baseline} | {row['matched_blocks']} | "
+                                 f"{row['source_histories']} | {number(row['mean_difference_minutes'])} | {limits} |")
+            lines.extend(['', 'Each interval resamples the contributing source histories within disease. '
+                          'An interval requires at least two contributing histories per represented disease.', ''])
     lines.extend([
         '## Application III · Workflow integrity', '',
         f"{report['verified_paid']}/{report['planned']} assigned encounters had verified native payment and workflow checks.",

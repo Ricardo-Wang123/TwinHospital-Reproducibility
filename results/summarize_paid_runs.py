@@ -5,8 +5,11 @@ from hashlib import sha256
 import json
 import math
 from pathlib import Path
+from random import Random
 from statistics import fmean, median, quantiles
 
+from sandbox.experiments.linked import analysis_counts, programmatic_delivery
+from sandbox.experiments.linked.cases import GROUPS
 from sandbox.experiments.linked.clinical_faults import registry
 from sandbox.experiments.linked.contracts import digest
 from sandbox.experiments.linked.prescription_analysis import measures, reference_from_stage
@@ -19,6 +22,21 @@ from sandbox.experiments.linked.safe_context_adapter import VisibleDocumentedCan
 HANDOFF_ACTIVITY = {'information_collection', 'summary_documentation', 'summary_review',
                     'handoff_verification', 'handoff_supplementation', 'handoff_correction'}
 NOTE_ACTIVITY = {'documentation', 'note_review', 'note_rework', 'attestation'}
+
+
+def heldout_effort_plan():
+    sources = (Path(__file__), Path(analysis_counts.__file__), Path(programmatic_delivery.__file__))
+    return {
+        'version': 'source_history_matched_effort_v1',
+        'contrasts': {
+            'preconsult': {'baseline': 'nurse_only', 'assisted': ['ai_only', 'ai_nurse_review']},
+            'documentation': {'baseline': 'manual_documentation', 'assisted': ['postvisit', 'realtime']},
+        },
+        'bootstrap': {'seed': 20261107, 'repeats': 10000, 'alpha': .05, 'stratify_by_disease': True},
+        'resampling_unit': 'contributing_source_history_within_disease',
+        'minimum_histories_per_represented_stratum': 2,
+        'analysis_sha256': {source.name: sha256(source.read_bytes()).hexdigest() for source in sources},
+    }
 
 
 def task_activities(run, task):
@@ -221,7 +239,31 @@ def linked_progression(runs):
     }
 
 
-def matched_stage_effort(runs, task, baseline):
+def matched_effort_interval(history_means, group_by_history, plan):
+    strata = {group: [] for group in GROUPS}
+    for case_id in sorted(history_means):
+        strata[group_by_history[case_id]].append(history_means[case_id])
+    represented = [values for values in strata.values() if values]
+    result = {'ci': None, 'valid_resamples': 0, 'undefined_resamples': 0,
+              'stratum_patient_counts': {group: len(values) for group, values in strata.items()}}
+    if len(history_means) < 2:
+        return {**result, 'status': 'fewer_than_two_source_patients'}
+    if any(len(values) < plan['minimum_histories_per_represented_stratum'] for values in represented):
+        return {**result, 'status': 'insufficient_within_stratum_replication'}
+
+    settings = plan['bootstrap']
+    rng = Random(settings['seed'])
+    draws = []
+    for _ in range(settings['repeats']):
+        sample = (value for stratum in represented for value in rng.choices(stratum, k=len(stratum)))
+        draws.append(fmean(sample))
+    alpha = settings['alpha']
+    return {**result, 'ci': [analysis_counts.percentile(draws, alpha / 2),
+                             analysis_counts.percentile(draws, 1 - alpha / 2)],
+            'status': 'estimated', 'valid_resamples': len(draws)}
+
+
+def matched_stage_effort(runs, task, baseline, *, analysis_plan=None):
     """Match delivery-qualified traces by history and the other two configurations."""
     blocks = defaultdict(lambda: defaultdict(list))
     variants = set()
@@ -236,14 +278,23 @@ def matched_stage_effort(runs, task, baseline):
         staff_seconds = sum(seconds for _, _, seconds in stage['activities'])
         blocks[run['case_id'], other][workflow].append(staff_seconds)
 
+    assisted_workflows = sorted(variants - {baseline})
+    if analysis_plan is not None:
+        contrast = analysis_plan['contrasts'][task]
+        if contrast['baseline'] != baseline or variants - {baseline, *contrast['assisted']}:
+            raise ValueError('Observed workflows differ from the prespecified effort contrasts.')
+        assisted_workflows = contrast['assisted']
+        groups = {run['case_id']: run['group'] for run in runs}
+
     result = {}
-    for assisted in sorted(variants - {baseline}):
+    for assisted in assisted_workflows:
         by_history = defaultdict(list)
         for (case_id, _), observed in blocks.items():
             if baseline in observed and assisted in observed:
                 delta = fmean(observed[assisted]) - fmean(observed[baseline])
                 by_history[case_id].append(delta / 60)
-        history_means = [fmean(deltas) for deltas in by_history.values()]
+        means_by_history = {case_id: fmean(deltas) for case_id, deltas in by_history.items()}
+        history_means = means_by_history.values()
         result[assisted] = {
             'matched_blocks': sum(map(len, by_history.values())),
             'source_histories': len(by_history),
@@ -251,6 +302,8 @@ def matched_stage_effort(runs, task, baseline):
             'min_history_difference_minutes': min(history_means, default=None),
             'max_history_difference_minutes': max(history_means, default=None),
         }
+        if analysis_plan is not None:
+            result[assisted]['bootstrap'] = matched_effort_interval(means_by_history, groups, analysis_plan)
     return result
 
 
@@ -307,6 +360,10 @@ def summarize(batch, audit_path, case_manifest=None, clinical_catalogue=None, *,
     summary = read(batch / 'batch_summary.json')
     specification_bytes = (batch / 'specification.json').read_bytes()
     spec = json.loads(specification_bytes)
+    effort_plan = spec.get('heldout_effort_analysis')
+    if effort_plan is not None and ((spec.get('linked_acceptance') or {}).get('independent_crossed') is not True
+                                    or effort_plan != heldout_effort_plan()):
+        raise ValueError('The held-out effort analysis differs from its frozen specification.')
     audit = read(audit_path)
     audit = audit.get('audit', audit)
     specification_hash = audit.get('source_specification_sha256')
@@ -367,8 +424,9 @@ def summarize(batch, audit_path, case_manifest=None, clinical_catalogue=None, *,
               'groups': disease_counts,
               'linked_progression': linked_progression(runs),
               'matched_stage_effort': {
-                  'preconsult': matched_stage_effort(runs, 'preconsult', 'nurse_only'),
-                  'documentation': matched_stage_effort(runs, 'documentation', 'manual_documentation'),
+                  'preconsult': matched_stage_effort(runs, 'preconsult', 'nurse_only', analysis_plan=effort_plan),
+                  'documentation': matched_stage_effort(runs, 'documentation', 'manual_documentation',
+                                                        analysis_plan=effort_plan),
               },
               'effort_scope': 'task-specific staff activities; encounter-wide effort retained separately',
               'task': {}, 'full_workflow': {
@@ -380,6 +438,8 @@ def summarize(batch, audit_path, case_manifest=None, clinical_catalogue=None, *,
                   'queue_to_payment_seconds_mean': fmean(timings),
                   'queue_to_payment_seconds_median': median(timings),
                   'queue_to_payment_seconds_p95': quantiles(timings, n=20, method='inclusive')[-1] if len(timings)>1 else None}}
+    if effort_plan is not None:
+        result['heldout_effort_analysis'] = effort_plan
     for task in ('preconsult', 'documentation', 'prescription'):
         rows = {}
         for workflow in sorted({r['conditions'][task]['workflow'] for r in runs}):

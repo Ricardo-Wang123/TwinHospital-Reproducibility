@@ -1202,7 +1202,10 @@ def main():
     if acceptance is not None:
         specification['linked_acceptance'] = acceptance
         if args.independent_crossed:
+            from results.summarize_paid_runs import heldout_effort_plan
+
             specification['development_exclusion_sha256'] = hashlib.sha256(exclusion).hexdigest()
+            specification['heldout_effort_analysis'] = heldout_effort_plan()
         specification['acceptance_source_patient_hashes'] = sorted(digest(r['patient_key']) for r in cases)
         specification['execution_policy']['dispatch_unit'] = (
             'one_isolated_encounter_per_assignment' if acceptance['schedule_policy'] == ASSIGNMENT_SCHEDULE_POLICY
