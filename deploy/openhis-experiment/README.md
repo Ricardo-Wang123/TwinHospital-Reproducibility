@@ -5,7 +5,6 @@
 ```sh
 python3 deploy/openhis-experiment/manage.py up
 python3 deploy/openhis-experiment/manage.py provision
-python3 deploy/openhis-experiment/smoke.py --count 5
 python3 deploy/openhis-experiment/manage.py status
 ```
 
@@ -40,7 +39,3 @@ result = port.execute(operation, payload, context)
 五种 `SIM-*` 药品是独立建立的工程目录，保持各自成分、规格、剂型；价格和库存完全模拟，未验证真实药品产品注册或收费。剂量与开药数量分别保留，例如 `500 mg` 与 `14 tablet`。本版原生显示组件对 `dose_unit_ratio` 使用除法，库存换算组件用乘法，语义冲突；工程目录把该自动换算设空，禁止以剂量单位出库计费。处方仍逐字段核对剂量、数量、单位、途径、频次、患者和就诊，结算用明确数量单位。此限制不能作为真实药品安全验证的结论。
 
 新增的五条诊断目录是本地实验术语记录，未注册医保映射；它们提供可选择标签，不是病例真值。若医生输出目录外诊断则保留失败，不能替换为最近类别。
-
-## 已验证和记录
-
-2026-11-07 的 `native-smoke-20261107-v8` 对五个独立虚构病例各完成从注册到文书锁定及现金结算，5/5 实际读回成功，0 次模型调用。它验证工程接口，不是五类临床任务已通过。运行原始记录、失败重试前版本及摘要在本目录被 Git 忽略的 `runtime/`，状态文件及日志权限 0600。摘要可以抽取到 appendix；不能将既存源病例内容或凭据写进论文。端口适配器单元测试为 `python3 -m unittest tests.test_linked_native_his -v`。

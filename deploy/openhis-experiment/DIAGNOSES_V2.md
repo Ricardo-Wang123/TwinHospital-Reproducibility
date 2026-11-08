@@ -4,7 +4,7 @@
 
 当前目录有 **63 项**，使用本机正式 MIMIC-IV 2.2 包中 `hosp/d_icd_diagnoses.csv.gz` 的 `icd_version=10` 原码及英文原描述。公开字段标为 `ICD-10-CM`，词表版本为 `MIMIC-IV-2.2-source-era-unspecified`；不声称是已核验的 FY2027 或现行医院收费词表。
 
-原来的五个定义行和 `diagnosis_mapping.json` 保持不变。v2 复用这五个原生 ID，并在 **twinhospital-exp** 独立库追加 58 个新定义。63/63 已实际通过原生目录接口读回；旧五条数据库完整记录在追加前后相同。完整映射含原生定义 ID，仅供本地运行；公开统计见 `diagnosis_v2_verification.json`。
+v2 复用原来的五个原生 ID，并在 **twinhospital-exp** 独立库追加 58 个新定义。完整映射含原生定义 ID，供本地运行。
 
 ## 覆盖范围与界限
 
@@ -29,7 +29,7 @@
 
 这两个含义另行核对了 [FY2027 官方编码指南](https://www.cms.gov/files/document/fy-2027-icd-10-cm-coding-guidelines.pdf) 中的随访及其他就诊原因部分。该核对不等于目录全部 63 项已按 FY2027 逐项验证。
 
-## 重建、追加、验证
+## 重建与安装
 
 ```sh
 .venv/bin/python deploy/openhis-experiment/build_diagnoses_mimic_v2.py \
@@ -38,18 +38,6 @@
 
 此命令只读诊断字典成员，不读患者、就诊或诊断关系表。生成 `diagnosis_mapping_v2.json`、`diagnosis_metadata_v2.json` 与 `experiment-diagnoses-v2.sql`；生成物留在有授权的本地环境。metadata 保存整个 ZIP、压缩成员和解压 CSV 的 SHA-256。SQL 只有追加；ID 冲突时验证原行，绝不覆盖旧定义。
 
-SQL 只允许通过 `manage.py` 的固定独立 Compose 项目执行，不用于桌面原 HIS。本次已经执行并读回。应用后可用以下无模型测试，另建纯虚构患者验证 `Z76.0` 和 `E11.65` 的目录选择、诊断写入及读回：
-
-```sh
-.venv/bin/python deploy/openhis-experiment/smoke_diagnoses_v2.py
-```
-
-测试仅覆盖注册、队列、接诊和诊断写入；不是完整流程、不是实际疾病判断。它不写药物医嘱或目标药费；注册可能产生本地模拟挂号费。详细原生证据在 `runtime/` 私有目录，公开摘要为 `diagnosis_v2_smoke.json`。
+通过 `manage.py` 在独立 Compose 项目应用 SQL。
 
 下一版临床编排必须按目录返回的 `system=ICD-10-CM` 使用它，并在规格记录映射文件 hash。旧运行快照继续使用旧映射及旧标签，不改写为新版本。v2 不要求医生知道码的年代；来源元数据供审计与论文方法使用。
-
-## 官方新版包下载记录
-
-尝试了 [CMS FY2027 ZIP](https://www.cms.gov/files/zip/2027-code-descriptions-tabular-order.zip) 与 [CDC 官方 ZIP](https://ftp.cdc.gov/pub/health_statistics/nchs/publications/ICD10CM/2027/icd10cm-code-descriptions-2027.zip)。本机 CLI 和 Safari 均无法建立 TLS 连接；没有关闭证书验证或绕过安全警告。`build_diagnoses_v2.py` 保留作将来的官方 FY2027 包解析器，尚未用于实际词表生成，不能冒称它已校验当前目录。
-
-验证：3 项源字典构建测试、3 项备用官方解析器测试通过；63 项原生目录读回成功；独立虚构病例的两条诊断真实写入并读回成功。所有这些均是工程验证，独立临床评审仍待完成。

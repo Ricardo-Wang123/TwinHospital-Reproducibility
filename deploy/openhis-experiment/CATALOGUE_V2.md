@@ -19,8 +19,8 @@
 - 原生剂量换算字段存在显示与库存换算约定不一致，V2 不启用该转换；模型必须分别提供明确剂量与发药数量。
 - `normalize_medication()` 返回独立注释，不修改原始记录。MIMIC 的 NDC/GSN/内部药品码不会被猜测成 SIM 编码；剂型/缓释类型或规格不明时保留原文并标 unknown。历史开过药不推断当前正在服用。
 
-## 验证与复跑
+## 构建与安装
 
-`build_catalogue_v2.py` 生成版本化 fixture，`manage.py catalog-v2` 只对 `twinhospital-exp` 应用。`smoke_catalogue_v2.py` 用独立虚构病人逐产品验证实际 HTTP 写入、签署、文书锁定和本地现金记账读回。2026-11-07 的 14 项均通过，私有日志在 `runtime/catalogue-v2-smoke-20261107-v1`；无患者标识的证明见 `catalogue_v2_verification.json`。这些是接口验证，剂量是明确标注的接口占位数，不是临床处方或 MAS 实验结果。
+`build_catalogue_v2.py` 生成版本化 fixture，`manage.py catalog-v2` 只对 `twinhospital-exp` 应用。
 
-参考资料：每项产品的精确 DailyMed 链接位于 `catalogue_metadata_v2.json` 的 `source_references`。RxNav 在线查询本次 TLS 连接失败，未填猜测的 RxCUI。
+每项产品的 DailyMed 链接位于 `catalogue_metadata_v2.json` 的 `source_references`。

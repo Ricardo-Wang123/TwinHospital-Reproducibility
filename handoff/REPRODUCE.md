@@ -1,6 +1,6 @@
 # Run TwinHospital
 
-Use Python 3.12 on macOS or Linux, Docker with Compose v2, and an isolated OpenHIS release. Run commands from the repository root. Set `WORK` to a private absolute directory **outside** the checkout and `OPENHIS` to the authorized release directory.
+Use Python 3.12 on macOS or Linux, Docker with Compose v2, and the separately supplied whale/Java 17 OpenHIS release. Run commands from the repository root. Set `WORK` to a private absolute directory **outside** the checkout and `OPENHIS` to the extracted release root.
 
 ~~~sh
 WORK="$HOME/twinhospital-private"
