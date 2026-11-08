@@ -115,7 +115,7 @@ def prescription_references(runs, spec, manifest, clinical_catalogue=None):
     formularies = {}
     projections = {}
     for entry in entries:
-        raw = Path(entry['path']).read_bytes()
+        raw = (manifest.parent / entry['path']).read_bytes()
         case_id = entry['case_id']
         if sha256(raw).hexdigest() != expected[case_id]:
             raise ValueError('Source case differs from the frozen batch.')
@@ -260,25 +260,36 @@ def matched_stage_effort(runs, task, baseline):
 
 def summarize(batch, audit_path, case_manifest=None, clinical_catalogue=None):
     batch = batch.resolve()
-    summary, spec = (read(batch / name) for name in ('batch_summary.json', 'specification.json'))
+    summary = read(batch / 'batch_summary.json')
+    specification_bytes = (batch / 'specification.json').read_bytes()
+    spec = json.loads(specification_bytes)
     audit = read(audit_path)
-    audited = audit.get('audit', audit)['runs']
+    audit = audit.get('audit', audit)
+    specification_hash = audit.get('source_specification_sha256')
+    if specification_hash is not None and specification_hash != sha256(specification_bytes).hexdigest():
+        raise ValueError('The native audit belongs to a different batch specification.')
+    audited = audit['runs']
     paid = [row for row in audited if row['verified_paid'] is True
             and row['formal']['correct_completion'] is True]
-    raw_runs = []
+    expected_hashes = {r['source_run_file_sha256'] for r in paid}
+    if len(paid) != len(expected_hashes):
+        raise ValueError('The native audit repeats a paid trace digest.')
+    hashes, runs = set(), []
     for case in summary['cases']:
         for item in case['attempts'].values():
             if item['status'] != 'completed':
                 continue
-            path = Path(item['result_path']).resolve()
+            path = (batch / item['result_path']).resolve()
             if not path.is_relative_to(batch):
                 raise ValueError('Run archive path is outside the specified batch.')
-            raw_runs.append(path.read_bytes())
-    hashes = {sha256(raw).hexdigest() for raw in raw_runs}
-    if (not raw_runs or len(hashes) != len(raw_runs) or len(paid) != len(raw_runs)
-            or hashes != {r['source_run_file_sha256'] for r in paid}):
+            raw = path.read_bytes()
+            run_hash = sha256(raw).hexdigest()
+            if run_hash in hashes or run_hash not in expected_hashes:
+                raise ValueError('Paid run index does not match the archived native audit.')
+            hashes.add(run_hash)
+            runs.append(json.loads(raw))
+    if not runs or hashes != expected_hashes:
         raise ValueError('Paid run index does not match the archived native audit.')
-    runs = [json.loads(raw) for raw in raw_runs]
     if len({r['run_id'] for r in runs}) != len(runs):
         raise ValueError('Duplicate run identity.')
     if any(r['evaluation_unit'] != 'complete_encounter' for r in runs):

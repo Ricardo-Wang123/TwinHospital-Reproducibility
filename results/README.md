@@ -23,7 +23,27 @@ The encounter rates above describe the paid analysis cohort. Held-out outcomes u
 
 ## Recompute the encounter metrics
 
-Run from the repository root on the authorized archive host. The summarizer checks trace digests against the native audit and evaluates the frozen case and product references.
+An authorized recipient can verify a received evidence bundle from any directory. This offline computation uses the frozen case bytes, completed traces, native audit, and assessment sidecars.
+
+~~~sh
+.venv/bin/python -m handoff.evidence recompute \
+  --bundle "$PAID_EVIDENCE_BUNDLE" --output "$WORK/recomputed"
+cmp "$WORK/recomputed/verified_paid_results.json" results/verified_paid_results_170.json
+cmp "$WORK/recomputed/acl_results.tex" results/acl_results_170.tex
+~~~
+
+To create the evidence bundle in the authorized environment, use the frozen input bundle and the original completed batch and assessment files:
+
+~~~sh
+.venv/bin/python -m handoff.evidence pack \
+  --batch "$BATCH_DIR" --audit "$NATIVE_AUDIT" --inputs "$FROZEN_BUNDLE" \
+  --human-review "$HUMAN_REVIEW" --probes "$OPERATION_REPLAYS" \
+  --output "$PAID_EVIDENCE_BUNDLE"
+~~~
+
+The packer binds the audit to the original batch specification, preserves the exact trace and case bytes, and replaces host-specific index paths with relative paths. It verifies the recomputed outputs before completing the bundle. Keep this material within the authorized data environment.
+
+For direct analysis of the original archive, the same summarizer can be run separately:
 
 ~~~sh
 .venv/bin/python -m results.summarize_paid_runs \

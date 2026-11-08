@@ -36,9 +36,12 @@ The native smoke should report `native_complete paid`. It performs no model call
 ~~~sh
 .venv/bin/python -m handoff.run --config "$RUN" check
 .venv/bin/python -m handoff.run --config "$RUN" set-key
+.venv/bin/python -m handoff.run --config "$RUN" probe
 .venv/bin/python -m handoff.run --config "$RUN" run --execute
 .venv/bin/python -m handoff.run --config "$RUN" status
 ~~~
+
+The `probe` command sends nonclinical text to the two configured model IDs and stores the responses in a local receipt. It can run before OpenHIS provisioning. The launch action checks both routes again immediately before dispatch.
 
 ## Repeat the study configuration
 
@@ -78,11 +81,11 @@ RUN="$WORK/repeat_run/run.local.json"
 
 The preflight reports ten inputs, the model IDs, and 270 planned encounters (27 configurations per source history). It verifies the 20-worker setting and 120-minute observation window for this replay. The launcher probes the two models with nonclinical messages before dispatch. The observed request, role and native-state traces stay in the local batch directory. Use `status` and `audit --observe-native` after closure. The audit verifies terminal payment, note, and order state.
 
-The published tables describe the 170 audited paid encounters. Replaying the configurations generates fresh model responses. Use the authorized original traces for exact recomputation of the published table values. [Results and recomputation commands](../results/README.md)
+The published tables describe the 170 audited paid encounters. Replaying the configurations generates fresh model responses. The authorized evidence package reproduces the published table values from the recorded traces on a different host, without model access. [Results and recomputation commands](../results/README.md)
 
 ## Run a held-out cohort
 
-Build cases with [the same runtime format](CASE_FORMAT.md). Assign them to `split: "test"` using the same source identity namespace as the development cases. Check disjointness in the restricted source registry before assigning opaque IDs. Use the same clinical catalogue, native mappings, fixture sequence, and workflow policy as the comparison cohort. Freeze the batch before seeing results.
+Build cases with [the same runtime format](CASE_FORMAT.md). Assign them to `split: "test"` using the same source identity namespace as the development cases. Check disjointness in the restricted source registry before assigning opaque IDs. Include all histories used in development, including prompt and rule tuning, in the exclusion manifest. Use the same clinical catalogue, native mappings, fixture sequence, and workflow policy as the comparison cohort. Freeze the batch before seeing results.
 
 Pack the new manifest by inheriting the study's native settings. Then configure a crossed batch on the current branch:
 
@@ -104,6 +107,8 @@ Report the held-out denominator and terminal outcomes separately from the develo
 
 ## Model or environment check fails
 
-A failed nonclinical probe leaves the batch undispatched. Check the exact endpoint, access to both configured IDs, and the private probe receipt. HTTP errors and transport failures are separate outcomes. A replacement key for the same approved route can be entered with `set-key`. A different model or route is a separately recorded execution configuration.
+Dispatch begins after both probes pass. Check the exact endpoint, access to both configured IDs, and the private probe receipt. Enter a replacement key for the same approved endpoint with `set-key`. Changing the provider endpoint or model IDs creates a distinct execution configuration. The run also records the local transport mode.
+
+An HTTP 401 is a credential rejection. A missing HTTP status points to a failure before an HTTP response, such as DNS, routing, or TLS. The recorded macOS run used a process-bound route to the same HTTPS endpoint. On a machine that needs a specific route, provide a private copy of the provider profile via `configure --provider`. The [route adapter](../sandbox/experiments/linked/network_route.py) accepts an existing physical interface, a confirmed public DNS address, and the original HTTPS hostname, with TLS verification enforced. Keep machine-specific addresses and credentials in the local setup.
 
 The Compose project belongs to the deployment directory that created it. On a host that already runs TwinHospital, use that directory or a separate isolated smoke project on the current branch. A smoke project uses `TH_OPENHIS_PROJECT=twinhospital-exp-smoke-<name>` and a matching `TH_OPENHIS_PORT` between 28082 and 28199. Export both variables for provisioning and execution, and pass the matching `--his-url` to the standalone native smoke script.

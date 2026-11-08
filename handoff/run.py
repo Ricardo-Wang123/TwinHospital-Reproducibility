@@ -192,7 +192,7 @@ def provision_his(config):
     verify_his(config)
 
 
-def verify_routes(config, provider, provider_file, receipt):
+def verify_routes(config, provider, provider_file, receipt, *, recover=True):
     from sandbox.experiments.linked.provider import BudgetLedger
 
     models = list(dict.fromkeys([provider['role_model'], *provider['tool_models'].values()]))
@@ -216,8 +216,10 @@ def verify_routes(config, provider, provider_file, receipt):
     print(json.dumps({'nonclinical_probes': [{k: row[k] for k in ('model','status','http_status') if k in row}
                                            for row in rows]}, ensure_ascii=False), flush=True)
     if output.returncode or len(rows) != len(models) or any(row['status'] != 'completed' for row in rows):
+        if any(row.get('http_status') == 401 for row in rows):
+            raise ValueError('The provider rejected the API credential (HTTP 401). Dispatch is blocked.')
         raise ValueError('The configured role/tool routes are not both available. No cases were dispatched.')
-    if ledger.summary()['provider_unavailable']:
+    if recover and ledger.summary()['provider_unavailable']:
         ledger.recover_provider(recovery_id=receipt.parent.name, config_sha256=sha256(provider_file.read_bytes()).hexdigest(),
                                 probes_by_model={row['model']: row['request_id'] for row in rows},
                                 evidence={'probe_receipt_sha256': sha256(path.read_bytes()).hexdigest()}, config=provider)
@@ -258,6 +260,7 @@ def main():
     actions = parser.add_subparsers(dest='action', required=True)
     actions.add_parser('check', help='Validate inputs and recoverable assignments without case dispatch.')
     actions.add_parser('set-key', help='Save a key in the local configured 0600 file.')
+    actions.add_parser('probe', help='Send nonclinical model health probes without provisioning or dispatch.')
     actions.add_parser('provision', help='Start isolated OpenHIS and apply this input bundle’s fixtures.')
     actions.add_parser('status', help='Show closed-batch counts without printing case data.')
     launch = actions.add_parser('run', help='Preflight by default; use --execute to launch.')
@@ -286,12 +289,15 @@ def main():
     provider_file = session / 'provider.local.json'
     provider_file.write_text(json.dumps(provider, ensure_ascii=False) + '\n', encoding='utf-8')
     command = cfg.command(provider_file)
-    if not live:
+    if not live and args.action != 'probe':
         preflight(cfg, command, session/'preflight.log')
         return
 
     with (state / 'dispatch.lock').open('a') as lock:
         fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        if args.action == 'probe':
+            require_private_file(cfg.path('key_file'))
+            return verify_routes(cfg, provider, provider_file, session/'probe', recover=False)
         if cfg.batch.exists():
             raise ValueError('Destination batch exists. Use a new audited recovery batch; never overwrite existing runs.')
         preflight(cfg, command, session/'preflight.log')
