@@ -6,6 +6,8 @@ Each source case can initialize independent encounter replicas. All configuratio
 
 The queue, imported chart, dialogue, handoff, and review decisions live in TwinHospital. The native encounter, diagnoses, encodable orders, locked notes, and cash records live in OpenHIS. Frontend-only form checks and interaction behavior require a separate browser evaluation. The experiment uses local simulated cash and the declared operational constraints.
 
+Figure 1 shows the role-scoped request to OpenHIS and the verified state read back into TwinHospital as separate arrows. [Vector figure source](../docs/figures/draw_linked_overview.py)
+
 ## FHIR R4 workflow operations
 
 For new batches, `--his-interface fhir-r4` uses FHIR R4's HTTP operation protocol. A loopback bridge scoped to each assignment receives `application/fhir+json` at `POST [base]/$th-…`. `GET [base]/metadata` returns the `CapabilityStatement`. `GET [base]/OperationDefinition/{id}` describes the parameter names, types, and cardinalities for each operation. Requests carry `Parameters` with logical `Patient` and `Encounter` references and identifiers for the case, assignment, actor, and target objects. A JSON `Attachment` carries each structured artifact where specified. The response is a `Parameters` receipt with the observed read-back, or an `OperationOutcome` on rejection or error. Transport uncertainty requires reconciliation before a retry. [HL7 FHIR R4 operations](https://hl7.org/fhir/R4/operations.html) · [Bridge implementation](../sandbox/experiments/linked/fhir_his.py)
