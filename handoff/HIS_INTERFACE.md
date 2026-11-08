@@ -45,4 +45,18 @@ curl --fail --location https://hl7.org/fhir/R4/fhir.schema.json.zip -o "$WORK/fh
 cmp "$WORK/his-interface-schema-check/fhir_schema.json" results/fhir_r4_wire_checks.json
 ~~~
 
+## Replay archived workflow operations
+
+The archived comparison selects the paid trace with the lowest SHA-256 in each disease stratum before executing either arm. It verifies the source case, trace, and catalogue hashes and reconstructs the recorded payloads. The replay preserves the order of the selected workflow actions, including note drafts saved during consultation. Each arm registers a fresh patient and encounter, submits the recorded handoff, diagnoses, medication lines, and note versions, and settles the signed order's charges using the new encounter and bill. Independent OpenHIS reads verify the diagnoses, signed and settled order, locked note, payment amount, and charge linkage. Both interfaces matched the archived values for all five pairs. This replays accepted operations with no model calls. [Aggregate](../results/archived_his_interface_checks.json)
+
+Use a fresh dedicated loopback [OpenHIS instance](../deploy/openhis-experiment/README.md) provisioned with the frozen study fixtures. Set `TH_OPENHIS_PROJECT` to that smoke project's name and `TH_OPENHIS_PORT` to its alternate port. Use the authorized paid evidence bundle and matching catalogue files in the same local data environment. The replay publishes aggregate counts. Per-encounter checkpoints stay in the private output directory.
+
+~~~sh
+.venv/bin/python -m sandbox.experiments.linked.replay_archived_interfaces \
+  --bundle "$PAID_EVIDENCE_BUNDLE" --catalog "$FROZEN_BUNDLE/catalog.json" \
+  --diagnoses "$FROZEN_BUNDLE/diagnosis_catalog.json" --credentials "$SMOKE_CREDENTIALS" \
+  --fhir-schema "$WORK/fhir.schema.json.zip" --output "$WORK/archived-his-replay"
+cmp "$WORK/archived-his-replay/aggregate.json" results/archived_his_interface_checks.json
+~~~
+
 For further model experiments, retain the three application definitions, the 27 crossed configurations, and the five existing operation probes. Freeze the source-disjoint inputs, tool and role models, rule catalogue, interface, and scoring before launch. Record all assigned outcomes. For completed encounters, trace which handoffs reached verification, which prescription candidates were revised before signing, and which accepted notes and payments persisted. Report model-driven outcomes separately from the transport comparison.

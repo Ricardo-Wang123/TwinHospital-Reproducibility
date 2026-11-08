@@ -1,0 +1,16 @@
+{
+  "scope": "paired replay of archived accepted workflow operations",
+  "model_calls": 0,
+  "archived_pairs": 5,
+  "matched_pairs": 5,
+  "completed_encounters": {
+    "native": 5,
+    "fhir-r4": 5
+  },
+  "distinct_native_identities": true,
+  "source_diagnoses": 12,
+  "source_signed_lines": 15,
+  "source_note_versions": 7,
+  "fhir_bridge_version": "twinhospital-fhir-r4-1",
+  "operation_definitions_sha256": "7da97fa12d34c762abcbf729d546daeb01de353ef517f620e6255dbadccecec6"
+}

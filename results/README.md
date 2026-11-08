@@ -23,7 +23,7 @@ The encounter rates above describe the paid analysis cohort. Held-out outcomes u
 
 The held-out report uses the same matched effort contrasts. Its frozen specification records the analysis code and settings for 95% percentile intervals with 10,000 resamples of contributing source histories within each disease. Each represented disease needs at least two contributing histories. The report gives the number of matched blocks and histories for each contrast, with per-disease counts and interval status in the JSON. [Held-out execution and report](../handoff/REPRODUCE.md#run-a-held-out-cohort)
 
-The [HIS interface check](his_interface_checks.json) reports a separate, scripted comparison of the native and FHIR R4 transports on fictional inputs. [Reproduce the check](../handoff/HIS_INTERFACE.md#run-and-compare)
+The [HIS interface check](his_interface_checks.json) compares the native and FHIR R4 transports on fictional scripts. The [archived comparison](archived_his_interface_checks.json) replays accepted workflow operations from five paid encounters, one per disease, and verifies both paths against the archived artifact values and settlement amount. [Reproduce the interface checks](../handoff/HIS_INTERFACE.md#run-and-compare)
 
 The archived workflow feedback check covers the reported 170 paid encounters. It reproduces the adapter's local encoding findings with the frozen OpenHIS mapping, matches them to the actual physician revision requests, and checks that the signed-order state appears in the final drafting request and supplies the native charges. [Feedback check results](workflow_feedback_checks_170.json)
 
