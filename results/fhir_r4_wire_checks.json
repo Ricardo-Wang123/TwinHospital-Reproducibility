@@ -1,0 +1,26 @@
+{
+  "scope": "FHIR R4 JSON Schema and published operation parameter checks",
+  "model_calls": 0,
+  "schema_url": "https://hl7.org/fhir/R4/fhir.schema.json.zip",
+  "schema_archive_sha256": "75e5560da3cf503895a44c8ca7af17a83b4cca6c2cb5ba1883d2aec0d1cb5ac6",
+  "operation_definitions_sha256": "7da97fa12d34c762abcbf729d546daeb01de353ef517f620e6255dbadccecec6",
+  "resources_validated": {
+    "CapabilityStatement": 5,
+    "OperationDefinition": 55,
+    "OperationOutcome": 10,
+    "Parameters": 130
+  },
+  "requests_by_operation": {
+    "th-consultation-save": 5,
+    "th-diagnosis-catalogue": 5,
+    "th-encounter-begin-consultation": 5,
+    "th-note-attest": 5,
+    "th-note-revise": 10,
+    "th-note-save": 5,
+    "th-order-attest": 5,
+    "th-order-save": 5,
+    "th-payment-commit": 10,
+    "th-payment-prepare": 10,
+    "th-registration-create": 5
+  }
+}

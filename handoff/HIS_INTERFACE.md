@@ -36,4 +36,13 @@ cmp "$WORK/his-interface-check/aggregate.json" results/his_interface_checks.json
 
 The check uses five fixed fictional case scripts on each path. Each assignment gets its own patient, encounter, and payment identifiers. Independent read-back checks the saved handoff, native diagnosis, signed order, locked note, and linked medication payment. It also checks native state after a rejected unsigned charge, an attempted revision of a locked note, and a duplicate cash request. The [aggregate](../results/his_interface_checks.json) records five matching pairs and ten completed encounters. The detailed `summary.json` and checkpoint files stay in the local output directory. This is a transport check on the same OpenHIS implementation, separate from model-driven outcomes.
 
+To check the FHIR messages exchanged by those scripts, pass `--fhir-schema` with the official HL7 R4 JSON Schema archive. The verifier checks discovery metadata, requests, successful receipts, and error responses. It also checks the input and output parameter names, types, and cardinalities against the definitions returned by the bridge. The aggregate covers all eleven advertised operations across 70 requests and their responses. [HL7 R4 schema and validation scope](https://hl7.org/fhir/R4/validation.html) · [Aggregate](../results/fhir_r4_wire_checks.json)
+
+~~~sh
+curl --fail --location https://hl7.org/fhir/R4/fhir.schema.json.zip -o "$WORK/fhir.schema.json.zip"
+.venv/bin/python -m sandbox.experiments.linked.verify_his_interfaces \
+  --fhir-schema "$WORK/fhir.schema.json.zip" --output "$WORK/his-interface-schema-check"
+cmp "$WORK/his-interface-schema-check/fhir_schema.json" results/fhir_r4_wire_checks.json
+~~~
+
 For further model experiments, retain the three application definitions, the 27 crossed configurations, and the five existing operation probes. Freeze the source-disjoint inputs, tool and role models, rule catalogue, interface, and scoring before launch. Record all assigned outcomes. For completed encounters, trace which handoffs reached verification, which prescription candidates were revised before signing, and which accepted notes and payments persisted. Report model-driven outcomes separately from the transport comparison.
