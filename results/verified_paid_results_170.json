@@ -9,6 +9,7 @@
     "pneumonia": 33,
     "uti": 34
   },
+  "effort_scope": "task-specific staff activities; encounter-wide effort retained separately",
   "task": {
     "preconsult": {
       "ai_nurse_review": {
@@ -16,24 +17,47 @@
         "qualified": 56,
         "unknown": 0,
         "failed": 0,
-        "mean_modeled_minutes": 5.956845238095238,
-        "failed_checks": {}
+        "mean_encounter_modeled_minutes": 5.956845238095238,
+        "failed_checks": {},
+        "mean_modeled_minutes": 3.4017857142857144,
+        "modeled_minutes_by_role_per_delivered": {
+          "nurse": 2.1785714285714284,
+          "doctor": 1.2232142857142858
+        },
+        "physician_supplementation_actions": 69,
+        "physician_correction_actions": 0,
+        "first_pass_delivered": 10
       },
       "ai_only": {
         "observed": 58,
         "qualified": 58,
         "unknown": 0,
         "failed": 0,
-        "mean_modeled_minutes": 4.041666666666667,
-        "failed_checks": {}
+        "mean_encounter_modeled_minutes": 4.041666666666667,
+        "failed_checks": {},
+        "mean_modeled_minutes": 1.1896551724137931,
+        "modeled_minutes_by_role_per_delivered": {
+          "doctor": 1.1896551724137931
+        },
+        "physician_supplementation_actions": 65,
+        "physician_correction_actions": 1,
+        "first_pass_delivered": 9
       },
       "nurse_only": {
         "observed": 56,
         "qualified": 56,
         "unknown": 0,
         "failed": 0,
-        "mean_modeled_minutes": 6.208333333333333,
-        "failed_checks": {}
+        "mean_encounter_modeled_minutes": 6.208333333333333,
+        "failed_checks": {},
+        "mean_modeled_minutes": 3.5714285714285716,
+        "modeled_minutes_by_role_per_delivered": {
+          "nurse": 2.4464285714285716,
+          "doctor": 1.125
+        },
+        "physician_supplementation_actions": 64,
+        "physician_correction_actions": 0,
+        "first_pass_delivered": 11
       }
     },
     "documentation": {
@@ -42,8 +66,15 @@
         "qualified": 60,
         "unknown": 0,
         "failed": 0,
-        "mean_modeled_minutes": 5.7444444444444445,
+        "mean_encounter_modeled_minutes": 5.7444444444444445,
         "failed_checks": {},
+        "mean_modeled_minutes": 2.0388888888888888,
+        "modeled_minutes_by_role_per_delivered": {
+          "doctor": 2.0388888888888888
+        },
+        "mean_note_turnaround_seconds": 131.61189316947227,
+        "note_rework_seconds": 585,
+        "first_final_draft_accepted": 52,
         "saved_note_versions": 73,
         "saved_physician_revisions": 13
       },
@@ -52,8 +83,15 @@
         "qualified": 55,
         "unknown": 0,
         "failed": 0,
-        "mean_modeled_minutes": 4.913636363636363,
+        "mean_encounter_modeled_minutes": 4.913636363636363,
         "failed_checks": {},
+        "mean_modeled_minutes": 1.0893939393939394,
+        "modeled_minutes_by_role_per_delivered": {
+          "doctor": 1.0893939393939394
+        },
+        "mean_note_turnaround_seconds": 136.8000394992382,
+        "note_rework_seconds": 630,
+        "first_final_draft_accepted": 45,
         "saved_note_versions": 69,
         "saved_physician_revisions": 14
       },
@@ -62,8 +100,15 @@
         "qualified": 55,
         "unknown": 0,
         "failed": 0,
-        "mean_modeled_minutes": 5.468181818181818,
+        "mean_encounter_modeled_minutes": 5.468181818181818,
         "failed_checks": {},
+        "mean_modeled_minutes": 1.731818181818182,
+        "modeled_minutes_by_role_per_delivered": {
+          "doctor": 1.731818181818182
+        },
+        "mean_note_turnaround_seconds": 132.94813737804495,
+        "note_rework_seconds": 720,
+        "first_final_draft_accepted": 49,
         "saved_note_versions": 127,
         "saved_physician_revisions": 16
       }
@@ -74,6 +119,49 @@
         "first_decision": {
           "approve": 49,
           "defer": 9
+        },
+        "rule_reference_counts": {
+          "indeterminate": 19,
+          "scoped_nonviolation": 39
+        },
+        "confirmed_high_risk": 0,
+        "rule_scoped_metrics": {
+          "pass_rate": {
+            "estimate": 1.0,
+            "numerator": 49,
+            "denominator": 49,
+            "status": "estimated"
+          },
+          "severe_miss_rate": {
+            "estimate": null,
+            "numerator": 0,
+            "denominator": 0,
+            "status": "undefined_zero_denominator"
+          },
+          "fpr": {
+            "estimate": 0.0,
+            "numerator": 0,
+            "denominator": 36,
+            "status": "estimated"
+          },
+          "recall": {
+            "estimate": null,
+            "numerator": 0,
+            "denominator": 0,
+            "status": "undefined_zero_denominator"
+          },
+          "precision": {
+            "estimate": null,
+            "numerator": 0,
+            "denominator": 0,
+            "status": "undefined_zero_denominator"
+          },
+          "f1": {
+            "estimate": null,
+            "numerator": null,
+            "denominator": null,
+            "status": "undefined_precision_or_recall"
+          }
         }
       },
       "pprs_baseline": {
@@ -82,6 +170,49 @@
           "approve": 48,
           "defer": 7,
           "reject": 1
+        },
+        "rule_reference_counts": {
+          "indeterminate": 21,
+          "scoped_nonviolation": 35
+        },
+        "confirmed_high_risk": 0,
+        "rule_scoped_metrics": {
+          "pass_rate": {
+            "estimate": 0.9795918367346939,
+            "numerator": 48,
+            "denominator": 49,
+            "status": "estimated"
+          },
+          "severe_miss_rate": {
+            "estimate": null,
+            "numerator": 0,
+            "denominator": 0,
+            "status": "undefined_zero_denominator"
+          },
+          "fpr": {
+            "estimate": 0.0,
+            "numerator": 0,
+            "denominator": 32,
+            "status": "estimated"
+          },
+          "recall": {
+            "estimate": null,
+            "numerator": 0,
+            "denominator": 0,
+            "status": "undefined_zero_denominator"
+          },
+          "precision": {
+            "estimate": null,
+            "numerator": 0,
+            "denominator": 0,
+            "status": "undefined_zero_denominator"
+          },
+          "f1": {
+            "estimate": null,
+            "numerator": null,
+            "denominator": null,
+            "status": "undefined_precision_or_recall"
+          }
         }
       },
       "sequential": {
@@ -89,6 +220,49 @@
         "first_decision": {
           "approve": 44,
           "defer": 12
+        },
+        "rule_reference_counts": {
+          "indeterminate": 19,
+          "scoped_nonviolation": 37
+        },
+        "confirmed_high_risk": 0,
+        "rule_scoped_metrics": {
+          "pass_rate": {
+            "estimate": 1.0,
+            "numerator": 44,
+            "denominator": 44,
+            "status": "estimated"
+          },
+          "severe_miss_rate": {
+            "estimate": null,
+            "numerator": 0,
+            "denominator": 0,
+            "status": "undefined_zero_denominator"
+          },
+          "fpr": {
+            "estimate": 0.0,
+            "numerator": 0,
+            "denominator": 37,
+            "status": "estimated"
+          },
+          "recall": {
+            "estimate": null,
+            "numerator": 0,
+            "denominator": 0,
+            "status": "undefined_zero_denominator"
+          },
+          "precision": {
+            "estimate": null,
+            "numerator": 0,
+            "denominator": 0,
+            "status": "undefined_zero_denominator"
+          },
+          "f1": {
+            "estimate": null,
+            "numerator": null,
+            "denominator": null,
+            "status": "undefined_precision_or_recall"
+          }
         }
       }
     }
@@ -98,6 +272,7 @@
     "observed_unsafe_execution": 0,
     "unsafe_execution_unknown": 0,
     "absence_within_declared_scope_verified": 170,
+    "queue_to_payment_seconds_mean": 392.99260825518184,
     "queue_to_payment_seconds_median": 386.12071602151264,
     "queue_to_payment_seconds_p95": 539.837372755949
   }

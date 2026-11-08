@@ -56,6 +56,17 @@ cp config/run.synthetic.example.json private/run.local.json
 
 ## 跑后续病例、出结果
 
+扩跑前先用小批归档完整执行一次论文指标导出。逐项冻结指标定义、评价单位、来源字段和分母，并核对以下证据。
+
+| 指标组 | 扩跑前验收 |
+| --- | --- |
+| 预问诊和文书质量 | 每个要评分的事实对应参考项、允许来源和适用性。风险召回使用明确的规则信号；仅靠已缴费状态只能核验交付。 |
+| 审方 | 保留原处方、初审事件、规则参考和严重性。先检查阳性、阴性、拦截和可判定分母。自然处方样本与操作注错分开。 |
+| APP II | 单项活动有角色和任务边界，补问、纠正、首稿与返工有事件，问诊结束和签署共用运行时钟。 |
+| APP III | 完整流程和局部操作分别登记分母，并保留请求、网关决定、原生效果和读回。 |
+
+先核对每个拟报告的结果单元能由归档回算，再扩大病例量。没有适用分母时保留未定义状态。
+
 - **接续同一批**：使用 [恢复配置模板](../config/run.recover.example.json)。恢复清单、原批次目录、已归档运行和同版本的 HIS 观察部署是校验凭据；旧路径指针和文件哈希都需要可读。最简单是在原实验机执行。新机没有这些本地文件时，可以启动独立新批次，不能声称续接了旧批次。
 - **启动下一批**：复制 [新增组合批次模板](../config/run.factorial.example.json) 到 `private/`，指向事前冻结、与已跑病例不重叠的授权病例清单、同版药品／诊断字典及应用过的对应 SQL fixtures、原生观察和规则配置。冻结新窗口后先 `check`，再 `run --execute`。正式留出设计使用 `mode: formal`，额外提供 `analysis_plan`、`acceptance_batch`、`acceptance_audit`。病例准备代码在 `sandbox/experiments/linked/case_preparation/`，输入清单的 `cases` 行使用 `case_id`、`path`、`patient_key`、`data_kind`、`group`、`split` 及已冻结的文件哈希。
 - **核对支付**：用 `.venv/bin/python -m handoff.run --config private/run.local.json status` 看结束状态计数。已关闭的批次用同一入口的 `audit --observe-native` 核验；只在原生环境仍在时使用 `--observe-native`，输出留在本机。逐条原始运行在批次目录，审计、模型调用量和费用分开保留。应以原生读回确认已缴费，不能把模型文本或退出码当作缴费。
