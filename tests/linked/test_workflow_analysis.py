@@ -249,6 +249,9 @@ class BatchTests(unittest.TestCase):
             out=json.loads((base/'public/workflow_audit.json').read_text())
             self.assertEqual(out['runs'][0]['fresh_read_errors']['advice'],'TimeoutError')
             self.assertIsNone(out['runs'][0]['checks']['fresh_order_fields_match']['value'])
+            private = json.loads((base/'private/map.json').read_text())
+            self.assertEqual(private['raw_post_run_readonly_observations'],
+                             {'S0001-R01': {'errors': {'advice': 'TimeoutError'}}})
 
 
 if __name__ == '__main__': unittest.main()

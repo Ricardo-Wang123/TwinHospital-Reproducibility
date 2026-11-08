@@ -37,7 +37,22 @@ def _capture_digest(capture):
     return fingerprint.hexdigest()
 
 
-def prepare_capture(capture, spec):
+def parent_versions(event):
+    table = event.get('table_name')
+    for row in (event.get('old_data') or {}, event.get('new_data') or {}):
+        if not row.get('id'):
+            continue
+        patient, encounter = row.get('patient_id'), row.get('encounter_id')
+        if table == 'adm_patient':
+            patient = row['id']
+        if table == 'adm_encounter':
+            encounter = row['id']
+        if patient is not None or encounter is not None:
+            yield (table, str(row['id'])), (str(patient) if patient is not None else None,
+                                          str(encounter) if encounter is not None else None)
+
+
+def prepare_capture(capture, spec, *, disk_indexes=None, capture_sha256=None):
     """Index one immutable, finished batch once; callers must not mutate it.
 
     The read-only audit driver verifies its source-file hashes again at the end.
@@ -73,42 +88,53 @@ def prepare_capture(capture, spec):
             or any(api.get('source_sha256', {}).get(k) != spec.get('code_hashes', {}).get(k)
                    for k in ('native_his.py','protocol_his.py'))):
         unknown('captured_gateway_code_or_post_classification_differs')
-    event_ids = [e.get('event_id') for e in events]
-    if len(set(event_ids)) != len(event_ids):
-        unknown('duplicate_committed_event_id')
-    if any(e.get('session_id') != meta.get('session_id') or e.get('table_name') not in TABLES for e in events):
-        unknown('capture_contains_unbound_session_or_table')
     # Request windows supply ordering; business ownership is independently checked
     # against row identities below. They do not authenticate a DB transaction caller.
-    intents, outcomes, active = {}, {}, None
+    intent_operations, outcomes, active = {}, {}, None
     for entry in journal:
         kind, ident = entry.get('event'), entry.get('request_id')
         if kind == 'business_request_intent':
-            if active is not None or not ident or ident in intents:
+            if active is not None or not ident or ident in intent_operations:
                 unknown('native_write_windows_overlap_or_repeat')
-            active = ident; intents[ident] = entry
+            active = ident
+            intent_operations[ident] = entry.get('operation')
         elif kind == 'business_request_outcome':
             if active != ident or ident in outcomes:
                 unknown('native_outcome_not_uniquely_bound')
-            outcomes[ident] = entry; active = None
-    if active is not None or set(intents) != set(outcomes):
+            outcomes[ident] = entry.get('status'), entry.get('observed_event_ids', [])
+            active = None
+    if active is not None or intent_operations.keys() != outcomes.keys():
         unknown('native_request_has_no_final_outcome')
-    events_by_request = defaultdict(list)
+    event_ids, observed_by_request = set(), defaultdict(set)
+    events_by_request = defaultdict(list) if disk_indexes is None else disk_indexes['events_by_request']
     for event in events:
-        events_by_request[event.get('request_window_id')].append(event)
-    for ident, intent in intents.items():
-        outcome = outcomes.get(ident) or {}
-        if intent.get('operation') not in WRITES:
+        event_id, window_id = event.get('event_id'), event.get('request_window_id')
+        if event_id in event_ids:
+            unknown('duplicate_committed_event_id')
+        event_ids.add(event_id)
+        if event.get('session_id') != meta.get('session_id') or event.get('table_name') not in TABLES:
+            unknown('capture_contains_unbound_session_or_table')
+        if window_id not in intent_operations or event.get('attribution') != 'exclusive_window_candidate_not_transaction_proof':
+            unknown('unattributed_or_quarantined_native_effect')
+        if window_id in intent_operations:
+            observed_by_request[window_id].add(event['event_id'])
+        if disk_indexes is None:
+            events_by_request[window_id].append(event)
+    for ident, operation in intent_operations.items():
+        status, expected_ids = outcomes.get(ident, (None, []))
+        if operation not in WRITES:
             unknown('captured_native_write_path_outside_frozen_allowlist')
-        if outcome.get('status') != 'response_and_readback_observed':
+        if status != 'response_and_readback_observed':
             unknown('native_request_outcome_unresolved')
-        observed_ids = {e['event_id'] for e in events_by_request[ident]}
-        if set(outcome.get('observed_event_ids', [])) != observed_ids:
+        if set(expected_ids) != observed_by_request.get(ident, set()):
             unknown('request_scan_differs_from_exhaustive_scan')
-    if any(e.get('request_window_id') not in intents or
-           e.get('attribution') != 'exclusive_window_candidate_not_transaction_proof' for e in events):
-        unknown('unattributed_or_quarantined_native_effect')
 
+    prepared = {'capture': capture, 'spec_binding': digest({'policy': policy, 'code_hashes': spec.get('code_hashes')}),
+                'errors': tuple(sorted(errors)), 'raw_capture_sha256': capture_sha256 or _capture_digest(capture)}
+    if disk_indexes is not None:
+        return {**prepared, **disk_indexes}
+
+    intents = {entry.get('request_id'): entry for entry in journal if entry.get('event') == 'business_request_intent'}
     native_by_run, native_by_action = defaultdict(dict), defaultdict(list)
     gateway_by_run, write_journal_by_run = defaultdict(list), defaultdict(list)
     for ident, entry in intents.items():
@@ -123,20 +149,11 @@ def prepare_capture(capture, spec):
             write_journal_by_run[(intent.get('scope') or {}).get('run_id')].append(entry)
     parents = defaultdict(set)
     for event in events:
-        table = event.get('table_name')
-        for row in (event.get('old_data') or {}, event.get('new_data') or {}):
-            if not row.get('id'): continue
-            p, e = row.get('patient_id'), row.get('encounter_id')
-            if table == 'adm_patient': p = row['id']
-            if table == 'adm_encounter': e = row['id']
-            if p is not None or e is not None:
-                parents[(table, str(row['id']))].add((str(p) if p is not None else None,
-                                                    str(e) if e is not None else None))
-    return {'capture':capture, 'spec_binding':digest({'policy':policy,'code_hashes':spec.get('code_hashes')}),
-            'errors':tuple(sorted(errors)), 'native_by_run':native_by_run,
-            'native_by_action':native_by_action, 'gateway_by_run':gateway_by_run,
-            'write_journal_by_run':write_journal_by_run, 'events_by_request':events_by_request,
-            'parents':parents, 'raw_capture_sha256':_capture_digest(capture)}
+        for key, version in parent_versions(event):
+            parents[key].add(version)
+    return {**prepared, 'native_by_run': native_by_run, 'native_by_action': native_by_action,
+            'gateway_by_run': gateway_by_run, 'write_journal_by_run': write_journal_by_run,
+            'events_by_request': events_by_request, 'parents': parents}
 
 
 def verify(run, spec, capture, protocol, *, prepared=None):

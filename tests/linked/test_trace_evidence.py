@@ -1,10 +1,15 @@
 from copy import deepcopy
+import json
+from pathlib import Path
+from tempfile import TemporaryDirectory
 import unittest
 
+from sandbox.experiments.linked.capture_index import indexed_capture
 from sandbox.experiments.linked.trace_evidence import verify, prepare_capture
 from sandbox.experiments.linked.native_his import digest
 from sandbox.experiments.linked.native_observation import TABLES, api_coverage
 from test_workflow_analysis import fixture, future
+from tools.audit_linked_workflows import audit_batch
 
 
 def bundle():
@@ -61,6 +66,20 @@ def bundle():
     return run,spec,capture,protocol
 
 
+def write_streamed_capture(folder, capture):
+    folder.mkdir(parents=True, exist_ok=True)
+    meta = folder / 'observation_session.json'
+    mutations = folder / 'native_committed_mutations.json'
+    journal = folder / 'observation_intents.jsonl'
+    meta.write_text(json.dumps(capture['metadata']))
+    journal.write_text(''.join(json.dumps(entry) + '\n' for entry in capture['journal']))
+    data = capture['mutations']
+    header = json.dumps({key: value for key, value in data.items() if key != 'events'})
+    mutations.write_text(header[:-1] + ',\n"events": [\n' +
+                         ',\n'.join(json.dumps(event) for event in data['events']) + '\n]}\n')
+    return meta, mutations, journal
+
+
 class TraceEvidenceTests(unittest.TestCase):
     def test_prepared_batch_matches_fresh_analysis_and_rejects_other_sources(self):
         r,s,c,p=bundle();index=prepare_capture(c,s)
@@ -77,6 +96,76 @@ class TraceEvidenceTests(unittest.TestCase):
         self.assertEqual(a['observed_violations'],[])
         self.assertIsNone(a['whole_system_safe'])
         self.assertFalse(a['backend_transaction_caller_identity_verified'])
+
+    def test_streamed_capture_matches_memory_for_complete_and_unbound_events(self):
+        r, s, original, p = bundle()
+        with TemporaryDirectory() as directory:
+            work = Path(directory)
+            for scenario in ('complete', 'unbound', 'ambiguous_owner'):
+                with self.subTest(scenario=scenario):
+                    capture = deepcopy(original)
+                    changes = capture['mutations']
+                    if scenario == 'unbound':
+                        extra = deepcopy(changes['events'][0])
+                        extra['request_window_id'] = 'other-encounter'
+                        changes['events'].append(extra)
+                        capture['metadata']['observed_event_count'] += 1
+                    elif scenario == 'ambiguous_owner':
+                        extra = deepcopy(next(row for row in changes['events'] if row['table_name'] == 'adm_encounter'))
+                        extra.update(event_id=1000, request_window_id='other-encounter')
+                        extra['new_data']['patient_id'] = 999
+                        changes['events'].append(extra)
+                        capture['metadata']['observed_event_count'] += 1
+                        scope = {'run_id': 'other-run', 'action_request_id': 'other-action'}
+                        capture['journal'].extend([
+                            {'event': 'business_request_intent', 'request_id': 'other-encounter', 'scope': scope,
+                             'operation': '/outpatientRegistration/payRegisterFee'},
+                            {'event': 'business_request_outcome', 'request_id': 'other-encounter',
+                             'status': 'response_and_readback_observed', 'observed_event_ids': [1000]},
+                        ])
+                    meta, mutations, journal = write_streamed_capture(work, capture)
+                    expected = verify(r, s, capture, p)
+                    with indexed_capture(meta, mutations, journal, s, workspace=work) as (source, index):
+                        actual = verify(r, s, source, p, prepared=index)
+                    self.assertEqual(actual, expected)
+                    self.assertFalse(list(work.glob('.capture-index-*')))
+                    if scenario == 'unbound':
+                        self.assertIn('unattributed_or_quarantined_native_effect', actual['unknown_reasons'])
+                        self.assertIn('duplicate_committed_event_id', actual['unknown_reasons'])
+                    if scenario == 'ambiguous_owner':
+                        self.assertIn('mutation_business_ownership_unresolved', actual['unknown_reasons'])
+
+    def test_batch_audit_uses_streamed_capture_and_releases_the_private_index(self):
+        r, s, capture, p = bundle()
+        _, binding, _, case = fixture()
+        s.update(mode='linked', cases=[case])
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            batch = root / 'batch'
+            case_dir = batch / case['case_id']
+            attempt = case_dir / 'linked_baseline_anchor'
+            result = attempt / 'runs/fixture/run.json'
+            result.parent.mkdir(parents=True)
+            result.write_text(json.dumps(r))
+            (batch / 'batch.lock').touch()
+            (batch / 'specification.json').write_text(json.dumps(s))
+            (batch / 'batch_summary.json').write_text('{}')
+            (case_dir / 'attempts.json').write_text(json.dumps({'attempts': {
+                'linked_baseline_anchor': {'result_path': str(result), 'status': 'completed'},
+            }}))
+            native = attempt / 'native'
+            native.mkdir()
+            (native / 'native_state.json').write_text(json.dumps({'bindings': {
+                r['run_id'] + ':' + r['case_id']: binding,
+            }}))
+            (native / 'protocol_state.json').write_text(json.dumps(p))
+            write_streamed_capture(batch / 'native_observation', capture)
+            private = root / 'private/audit.json'
+            audit_batch(batch, root / 'public', private)
+            report = json.loads(private.read_text())['audit']
+            self.assertIs(report['runs'][0]['formal']['correct_completion'], True)
+            self.assertEqual(report['runs'][0]['trace_capture_evidence'], verify(r, s, capture, p))
+            self.assertFalse(list(private.parent.glob('.capture-index-*')))
 
     def test_full_auditor_joins_actual_trace_proof_with_paid_endpoint(self):
         from sandbox.experiments.linked.workflow_analysis import audit_run

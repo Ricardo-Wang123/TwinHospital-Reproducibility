@@ -6,6 +6,7 @@ No model calls, clinical mutation, payment action, or source-file rewriting.
 """
 from __future__ import annotations
 import argparse
+from contextlib import ExitStack
 from datetime import datetime, timezone
 import fcntl
 import hashlib
@@ -15,7 +16,9 @@ import json
 import os
 from pathlib import Path
 import re
+from shutil import copyfileobj
 import sys
+from tempfile import TemporaryFile
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
@@ -39,13 +42,23 @@ def sha(path):
         return hashlib.file_digest(stream, 'sha256').hexdigest()
 
 
-def private_json(path, value):
+def private_json(path, value, observations):
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
     fd = os.open(path, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
     with os.fdopen(fd, 'w') as stream:
-        json.dump(value, stream, ensure_ascii=False, indent=2, allow_nan=False)
-        stream.write('\n')
+        stream.write('{\n')
+        for name, field in value.items():
+            stream.write('  ' + json.dumps(name) + ': ')
+            json.dump(field, stream, ensure_ascii=False, indent=2, allow_nan=False)
+            stream.write(',\n')
+        stream.write('  "raw_post_run_readonly_observations": ')
+        if observations is None:
+            stream.write('{}')
+        else:
+            observations.seek(0)
+            copyfileobj(observations, stream)
+        stream.write('\n}\n')
 
 
 def inside(path, root):
@@ -153,17 +166,17 @@ def audit_batch(batch_dir, public_dir, private_path, *, observe_native=False, ob
     if not (batch/'batch_summary.json').exists():
         raise ValueError('Finished batch summary required')
     lock_path = batch/'batch.lock'
-    with lock_path.open('r') as lock:
+    with lock_path.open('r') as lock, ExitStack() as resources:
         fcntl.flock(lock, fcntl.LOCK_SH | fcntl.LOCK_NB)
         return _audit_locked(batch, public, private, observe_native, observer,
-                            Path(deployment_dir or ROOT/'deploy/openhis-experiment').resolve(), catalog_path)
+                            Path(deployment_dir or ROOT/'deploy/openhis-experiment').resolve(), catalog_path, resources)
 
 
-def _audit_locked(batch, public, private, observe_native, observer, deployment_dir, catalog_path):
+def _audit_locked(batch, public, private, observe_native, observer, deployment_dir, catalog_path, resources):
     originals = {}
     source_paths=(Path(__file__), ROOT/'sandbox/experiments/linked/workflow_analysis.py',
         ROOT/'sandbox/experiments/linked/trace_evidence.py', ROOT/'sandbox/experiments/linked/native_observation_analysis.py',
-        ROOT/'sandbox/experiments/linked/linked_acceptance.py')
+        ROOT/'sandbox/experiments/linked/linked_acceptance.py', ROOT/'sandbox/experiments/linked/capture_index.py')
     analyzer_sources={str(p.relative_to(ROOT)):{'sha256':sha(p),'source':p.read_text()} for p in source_paths}
     def tracked(path):
         path = inside(path, batch)
@@ -171,21 +184,28 @@ def _audit_locked(batch, public, private, observe_native, observer, deployment_d
         return read(path)
     spec = tracked(batch/'specification.json')
     batch_summary = tracked(batch/'batch_summary.json')
-    raw_capture=None
+    raw_capture = prepared_capture = None
     capture_root=batch/'native_observation'
     if (capture_root/'observation_session.json').exists():
+        from sandbox.experiments.linked.capture_index import LegacyMutationFormat, indexed_capture
+
         try:
-            meta=tracked(capture_root/'observation_session.json')
-            data=tracked(capture_root/'native_committed_mutations.json')
-            jp=inside(capture_root/'observation_intents.jsonl',batch)
-            originals[str(jp)]=sha(jp)
-            with jp.open(encoding='utf-8') as stream:
-                journal = [json.loads(line) for line in stream if line.strip()]
-            raw_capture={'metadata':meta,'mutations':data,'journal':journal}
+            meta, mutations, journal = (inside(capture_root/name, batch) for name in
+                ('observation_session.json', 'native_committed_mutations.json', 'observation_intents.jsonl'))
+            for path in (meta, mutations, journal):
+                originals[str(path)] = sha(path)
+            try:
+                raw_capture, prepared_capture = resources.enter_context(
+                    indexed_capture(meta, mutations, journal, spec, workspace=private.parent))
+            except LegacyMutationFormat:
+                with journal.open(encoding='utf-8') as stream:
+                    rows = [json.loads(line) for line in stream if line.strip()]
+                raw_capture = {'metadata': read(meta), 'mutations': read(mutations), 'journal': rows}
         except (OSError,ValueError,TypeError):
             raw_capture={'metadata':{},'mutations':{},'journal':[]}
     from sandbox.experiments.linked.trace_evidence import prepare_capture
-    prepared_capture = prepare_capture(raw_capture,spec) if raw_capture is not None else None
+    if raw_capture is not None and prepared_capture is None:
+        prepared_capture = prepare_capture(raw_capture, spec)
     if spec.get('mode') not in {'linked', 'matrix', 'linked-acceptance'}:
         raise ValueError('Unsupported batch evaluation unit')
     valid_conditions = {c.config_id: c for c in paper_conditions(model_families=spec.get('models',{}).get('tool_models'))}
@@ -266,7 +286,13 @@ def _audit_locked(batch, public, private, observe_native, observer, deployment_d
                 break
     if observe_native and observer is None:
         observer = ReadOnlyObserver(deployment_dir=deployment_dir)
-    rows, crosswalk, observations = [], [], {}
+    rows, crosswalk = [], []
+    observations = None
+    observation_count = 0
+    if observe_native:
+        private.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+        observations = resources.enter_context(TemporaryFile(mode='w+t', encoding='utf-8', dir=private.parent))
+        observations.write('{')
     native_bindings = {'patient_id': {}, 'encounter_id': {}}
     for n, case in enumerate(spec.get('cases', []), 1):
         case_path = inside(batch/str(case['case_id']), batch)
@@ -329,7 +355,10 @@ def _audit_locked(batch, public, private, observe_native, observer, deployment_d
                 except Exception as exc:
                     observation = {'errors': {'observer': type(exc).__name__}}
                 if observation:
-                    observations[study] = observation
+                    body = json.dumps(observation, ensure_ascii=False, allow_nan=False)
+                    prefix = ',' if observation_count else ''
+                    observations.write(prefix + json.dumps(study) + ':' + body)
+                    observation_count += 1
                 row = audit_run(run, spec, expected_case=case, binding=native, protocol=protocol,
                                 fresh_observation=observation, catalogue=mapping, raw_capture=raw_capture,
                                 prepared_capture=prepared_capture)
@@ -398,11 +427,14 @@ def _audit_locked(batch, public, private, observe_native, observer, deployment_d
     if design:
         report['linked_acceptance_gate'] = summarize_gate(design, rows)
         report['linked_acceptance_gate']['reused_native_identity_runs'] = len(reused)
+    if observations is not None:
+        observations.write('}')
     private_json(private, {'audit': report, 'source_file_hashes': originals, 'crosswalk': crosswalk,
-                           'analyzer_source_archive':analyzer_sources,
-                           'raw_post_run_readonly_observations': observations})
+                           'analyzer_source_archive':analyzer_sources}, observations)
     public.mkdir(parents=True, mode=0o755)
-    (public/'workflow_audit.json').write_text(json.dumps(report, ensure_ascii=False, indent=2, allow_nan=False)+'\n')
+    with (public/'workflow_audit.json').open('w', encoding='utf-8') as stream:
+        json.dump(report, stream, ensure_ascii=False, indent=2, allow_nan=False)
+        stream.write('\n')
     (public/'workflow_audit.html').write_text(_html(report))
     (public/'future_observation_contract.json').write_text(json.dumps({'template_not_prespecified': WINDOW_POLICY_TEMPLATE,
         'readback_requirements': READBACK_REQUIREMENTS,
