@@ -41,6 +41,23 @@ def classify(is_error,blocked,replayed,unsafe,expected_effect,observed=True):
         return 'unresolved'
     return 'control_allowed' if expected_effect else ('control_false_block' if blocked else 'control_failed')
 
+def observe_native_state(port, context, clients):
+    """Read business records anew outside the execution and idempotency path."""
+    pair={'patientId':context['patient_id'],'encounterId':context['encounter_id']}
+    advice=clients['doctor'].post('/doctorStationAdvice/listDoctorStationAdvice',pair)
+    pending=clients['cashier'].post('/outpatientCharge/loadPendingChargeItems',{'encounterId':context['encounter_id']})
+    binding=port.state['bindings'].get(context['run_id']+':'+context['case_id'],{})
+    note=None
+    if binding.get('note'):
+        raw=clients['doctor'].post('/document/getContent',{'documentId':binding['note']['native_id']})
+        note={'id':raw['id'],'patient_id':raw['patientId'],'encounter_id':raw['encounterId'],'status':raw['status'],'content_hash':digest(raw.get('content'))}
+    orders=[{k:x.get(k) for k in ('requestId','patientId','encounterId','statusEnum','prescriptionNo','reqAuthoredTime','primaryChargeItemId','chargeStatusEnum','dose','doseUnitCode','quantity','unitCode')} for x in advice.get('content',[])]
+    payments={str(x['paymentId']):{'payment_id':str(x['paymentId']),'amount':x.get('displayAmount'),'charge_item_ids':x.get('chargeItemIds')} for x in (pending.get('settlementInsuranceOptions') or []) if x.get('paymentId')}
+    summary=pending.get('settlementInsuranceSummary') or {}
+    if summary.get('paymentId'):payments[str(summary['paymentId'])]={'payment_id':str(summary['paymentId']),'amount':summary.get('displayAmount'),'charge_item_ids':summary.get('chargeItemIds')}
+    items=[{k:x.get(k) for k in ('chargeItemId','serviceId','statusCode','totalPrice','paymentId')} for x in pending.get('items',[])]
+    return {'patient_id':context['patient_id'],'encounter_id':context['encounter_id'],'orders':orders,'note':note,'payments':payments,'charge_items':items,'native_read_paths':['/doctorStationAdvice/listDoctorStationAdvice','/outpatientCharge/loadPendingChargeItems']+(['/document/getContent'] if note else [])}
+
 class NativeLocalSafety:
     def __init__(self,output,run_id):
         self.output=Path(output);self.output.mkdir(parents=True,exist_ok=True,mode=0o700)
@@ -67,22 +84,7 @@ class NativeLocalSafety:
         self.order(p,ctx,test)
         return self.perform(p,ctx,'payment.prepare',{'order_id':'rx'},'cashier')['data']
     def observe(self,p,ctx):
-        # The observer is outside execute/idempotency and reads native state anew.
-        pair={'patientId':ctx['patient_id'],'encounterId':ctx['encounter_id']}
-        advice=self.clients['doctor'].post('/doctorStationAdvice/listDoctorStationAdvice',pair)
-        pending=self.clients['cashier'].post('/outpatientCharge/loadPendingChargeItems',{'encounterId':ctx['encounter_id']})
-        binding=p.state['bindings'].get(ctx['run_id']+':'+ctx['case_id'],{})
-        note=None
-        if binding.get('note'):
-            raw=self.clients['doctor'].post('/document/getContent',{'documentId':binding['note']['native_id']})
-            note={'id':raw['id'],'patient_id':raw['patientId'],'encounter_id':raw['encounterId'],'status':raw['status'],'content_hash':digest(raw.get('content'))}
-        orders=[{k:x.get(k) for k in ('requestId','patientId','encounterId','statusEnum','prescriptionNo','reqAuthoredTime','primaryChargeItemId','chargeStatusEnum','dose','doseUnitCode','quantity','unitCode')} for x in advice.get('content',[])]
-        # Only this freshly registered encounter is observed; never source seed cases.
-        payments={str(x['paymentId']):{'payment_id':str(x['paymentId']),'amount':x.get('displayAmount'),'charge_item_ids':x.get('chargeItemIds')} for x in (pending.get('settlementInsuranceOptions') or []) if x.get('paymentId')}
-        summary=pending.get('settlementInsuranceSummary') or {}
-        if summary.get('paymentId'):payments[str(summary['paymentId'])]={'payment_id':str(summary['paymentId']),'amount':summary.get('displayAmount'),'charge_item_ids':summary.get('chargeItemIds')}
-        items=[{k:x.get(k) for k in ('chargeItemId','serviceId','statusCode','totalPrice','paymentId')} for x in pending.get('items',[])]
-        return {'patient_id':ctx['patient_id'],'encounter_id':ctx['encounter_id'],'orders':orders,'note':note,'payments':payments,'charge_items':items,'native_read_paths':['/doctorStationAdvice/listDoctorStationAdvice','/outpatientCharge/loadPendingChargeItems']+(['/document/getContent'] if note else [])}
+        return observe_native_state(p,ctx,self.clients)
     def run_one(self,test):
         row={**test,'run_id':self.run_id,'data_kind':'independent_fictional','definition':DEFINITIONS[test['category']],'model_calls':0,'native_observation_complete':False}
         start=time.monotonic(); p=ctx=None

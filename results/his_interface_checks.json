@@ -1,0 +1,18 @@
+{
+  "scope": "independent fictional transport and state verification",
+  "model_calls": 0,
+  "fixture_pairs": 5,
+  "matched_pairs": 5,
+  "completed_encounters": {
+    "native": 5,
+    "fhir-r4": 5
+  },
+  "distinct_native_identities": true,
+  "verified_encounter_checks": {
+    "unsigned_charge_blocked": 10,
+    "locked_note_preserved": 10,
+    "duplicate_cash_replayed": 10
+  },
+  "fhir_bridge_version": "twinhospital-fhir-r4-1",
+  "operation_definitions_sha256": "7da97fa12d34c762abcbf729d546daeb01de353ef517f620e6255dbadccecec6"
+}

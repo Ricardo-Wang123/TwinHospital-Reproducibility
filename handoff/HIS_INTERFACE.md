@@ -24,6 +24,14 @@ These named operations are TwinHospital's workflow contract over FHIR R4. Each o
 
 Pass `--his-interface fhir-r4` when configuring a **fresh** comparison or engineering batch using the current checkout. The selected bridge version, code digest, and operation-definition digest are frozen in that batch's specification. An existing batch keeps its recorded interface. The `cohort-170-runtime` tag and the version 1 reader kit use the original native path. [Run commands](REPRODUCE.md#4-run-a-paper-comparison)
 
-For a transport comparison, freeze the same fictional inputs and scripted decisions on both paths. Create fresh encounters, then compare the verified patient and encounter bindings, signed order, locked content, and linked settlement. Compare whether each rejected or unresolved action produces a native effect using independent read-back. Report results with their interface and separate them from model-driven runs.
+With the isolated [OpenHIS reader runtime](../deploy/openhis-experiment/README.md) running and provisioned, compare both interfaces without a model endpoint. Run from the repository root and choose a fresh output directory.
+
+~~~sh
+.venv/bin/python -m sandbox.experiments.linked.verify_his_interfaces \
+  --output "$WORK/his-interface-check"
+cmp "$WORK/his-interface-check/aggregate.json" results/his_interface_checks.json
+~~~
+
+The check uses five fixed fictional case scripts on each path. Each assignment gets its own patient, encounter, and payment identifiers. Independent read-back checks the saved handoff, native diagnosis, signed order, locked note, and linked medication payment. It also checks native state after a rejected unsigned charge, an attempted revision of a locked note, and a duplicate cash request. The [aggregate](../results/his_interface_checks.json) records five matching pairs and ten completed encounters. The detailed `summary.json` and checkpoint files stay in the local output directory. This is a transport check on the same OpenHIS implementation, separate from model-driven outcomes.
 
 For further model experiments, retain the three application definitions, the 27 crossed configurations, and the five existing operation probes. Freeze the source-disjoint inputs, tool and role models, rule catalogue, interface, and scoring before launch. Record all assigned outcomes. For completed encounters, trace which handoffs reached verification, which prescription candidates were revised before signing, and which accepted notes and payments persisted. Report model-driven outcomes separately from the transport comparison.

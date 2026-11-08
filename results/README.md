@@ -21,6 +21,8 @@ The manuscript reports 170 verified paid encounters from ten MIMIC-IV developmen
 
 The encounter rates above describe the paid analysis cohort. Held-out outcomes use a separate result snapshot. Operational progress and traces are retained in the local experiment archive. [Run and recovery guide](../handoff/README.md)
 
+The [HIS interface check](his_interface_checks.json) reports a separate, scripted comparison of the native and FHIR R4 transports on fictional inputs. [Reproduce the check](../handoff/HIS_INTERFACE.md#run-and-compare)
+
 ## Recompute the encounter metrics
 
 An authorized recipient can verify a received evidence bundle from any directory. This offline computation uses the frozen case bytes, completed traces, native audit, and assessment sidecars.
