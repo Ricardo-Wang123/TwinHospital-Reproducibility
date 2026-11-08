@@ -1,0 +1,29 @@
+# Hospital interface and encounter state
+
+TwinHospital coordinates the agents, role views, workflow rules, and evidence. The isolated OpenHIS 2.0.5 backend executes the hospital operations and commits their records to its database. The archived cohort used the HTTP application endpoints shipped with the OpenHIS workbench. The adapter authenticates to OpenHIS with the assigned role, submits the request, and reads the resulting business state. Setup and independent audit access to the database are separate from the execution path.
+
+Each source case can initialize independent encounter replicas. All configurations start with the same source history, constructed visit, formulary, and visibility rules. Every replica gets fresh agent contexts and native patient, encounter, and business identifiers. The saved handoff becomes a physician input after retrieval. A review or encoding issue returns the affected version to the responsible role. A signed order supplies the charge items used in simulated settlement. The trace connects each transition to the artifact or state that the next step uses. This defines the outpatient workflow twin. [Case format](CASE_FORMAT.md) · [Execution protocol](../deploy/openhis-experiment/PROTOCOL.md)
+
+The queue, imported chart, dialogue, handoff, and review decisions live in TwinHospital. The native encounter, diagnoses, encodable orders, locked notes, and cash records live in OpenHIS. Frontend-only form checks and interaction behavior require a separate browser evaluation. The experiment uses local simulated cash and the declared operational constraints.
+
+## FHIR R4 workflow operations
+
+For new batches, `--his-interface fhir-r4` uses FHIR R4's HTTP operation protocol. A loopback bridge scoped to each assignment receives `application/fhir+json` at `POST [base]/$th-…`. `GET [base]/metadata` returns the `CapabilityStatement`. `GET [base]/OperationDefinition/{id}` describes the parameter names, types, and cardinalities for each operation. Requests carry `Parameters` with logical `Patient` and `Encounter` references and identifiers for the case, assignment, actor, and target objects. A JSON `Attachment` carries each structured artifact where specified. The response is a `Parameters` receipt with the observed read-back, or an `OperationOutcome` on rejection or error. Transport uncertainty requires reconciliation before a retry. [HL7 FHIR R4 operations](https://hl7.org/fhir/R4/operations.html) · [Bridge implementation](../sandbox/experiments/linked/fhir_his.py)
+
+| Workflow step | FHIR R4 project operations | OpenHIS action and read-back |
+| --- | --- | --- |
+| Registration and reception | `$th-registration-create`, `$th-encounter-begin-consultation` | Create the patient and registration, then start reception and verify the bound encounter and physician. |
+| Diagnosis | `$th-diagnosis-catalogue`, `$th-consultation-save` | Read the hospital diagnosis catalogue, save selected diagnoses, and verify the resulting diagnosis records. The consultation narrative and transcript stay with the simulator. |
+| Prescription | `$th-order-save`, `$th-order-attest` | Save mapped medication lines, sign under the registered physician, and verify the native request identifiers and signed state. |
+| Documentation | `$th-note-save`, `$th-note-revise`, `$th-note-attest` | Save and retrieve the document, check its version binding, then submit and verify the locked content. |
+| Simulated settlement | `$th-payment-prepare`, `$th-payment-commit` | Read the signed order's charge items, prepare the bill, commit local cash, and check the payment identifier and amount. |
+
+These named operations are TwinHospital's workflow contract over FHIR R4. Each operation delegates to the existing authorization, identity, version, idempotency, and read-back checks. The vendor connector translates to OpenHIS application requests. A connector for another HIS needs equivalent business actions, code mappings, role permissions, and receipts. This repository implements the OpenHIS connector. The read-only FHIR exporter supplied with OpenHIS is a separate service.
+
+## Run and compare
+
+Pass `--his-interface fhir-r4` when configuring a **fresh** comparison or engineering batch using the current checkout. The selected bridge version, code digest, and operation-definition digest are frozen in that batch's specification. An existing batch keeps its recorded interface. The `cohort-170-runtime` tag and the version 1 reader kit use the original native path. [Run commands](REPRODUCE.md#4-run-a-paper-comparison)
+
+For a transport comparison, freeze the same fictional inputs and scripted decisions on both paths. Create fresh encounters, then compare the verified patient and encounter bindings, signed order, locked content, and linked settlement. Compare whether each rejected or unresolved action produces a native effect using independent read-back. Report results with their interface and separate them from model-driven runs.
+
+For further model experiments, retain the three application definitions, the 27 crossed configurations, and the five existing operation probes. Freeze the source-disjoint inputs, tool and role models, rule catalogue, interface, and scoring before launch. Record all assigned outcomes. For completed encounters, trace which handoffs reached verification, which prescription candidates were revised before signing, and which accepted notes and payments persisted. Report model-driven outcomes separately from the transport comparison.

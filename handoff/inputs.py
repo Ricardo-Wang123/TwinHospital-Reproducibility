@@ -145,6 +145,8 @@ def configure(args):
     select_cases(manifest)
     if args.frozen_runtime and args.mode != 'factorial':
         raise ValueError('The historical runtime applies to the original factorial design.')
+    if args.frozen_runtime and args.his_interface != 'native':
+        raise ValueError('The historical runtime uses the original native HIS path.')
     if args.mode == 'heldout' and not args.development_manifest:
         raise ValueError('The held-out run needs a development manifest in the same identity namespace.')
     if args.development_manifest and args.mode != 'heldout':
@@ -170,6 +172,8 @@ def configure(args):
     }
     if args.frozen_runtime:
         fields['frozen_runtime'] = str(args.frozen_runtime.resolve())
+    if args.his_interface != 'native':
+        fields['his_interface'] = args.his_interface
     if args.development_manifest:
         fields['development_manifest'] = str(args.development_manifest.resolve())
     if args.quick:
@@ -237,6 +241,7 @@ def main():
     setup.add_argument('--provider', type=Path, default=ROOT / 'config/provider.example.json')
     setup.add_argument('--data-policy', type=Path)
     setup.add_argument('--frozen-runtime', type=Path)
+    setup.add_argument('--his-interface', choices=('native', 'fhir-r4'), default='native')
     setup.add_argument('--development-manifest', type=Path)
     setup.add_argument('--workers', type=int, choices=range(1, 33),
                        help='Use the input bundle’s recorded workers by default for crossed runs.')

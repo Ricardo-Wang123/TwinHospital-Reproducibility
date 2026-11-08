@@ -4,6 +4,8 @@
 
 TwinHospital simulates outpatient visits in OpenHIS. CAMEL coordinates patient and staff agents through intake, consultation, prescription review, note signing, and simulated payment. Each visit produces a trace linking the agents' dialogue and decisions to records in the hospital system.
 
+Each configuration starts from the same frozen case in an independent encounter. Retrieved handoffs, review feedback, and committed HIS records shape the next step. The archived cohort uses the native OpenHIS application APIs. New runs can use the FHIR R4 workflow operations over the same OpenHIS connector. [Hospital interface and encounter state](handoff/HIS_INTERFACE.md)
+
 ## Run the paper experiments with your data
 
 The experiment kit includes the CAMEL MAS, OpenHIS 2.0.5, and five editable fictional cases. Start with one case across three whole-visit configurations, then run the full 27-combination design on your dataset. The report follows Applications I–III and includes artifact checks, modeled staff effort, and workflow integrity with paired fault and control requests.

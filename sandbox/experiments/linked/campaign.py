@@ -159,6 +159,8 @@ def verify_engineering_acceptance(batch_dir, audit_path, formal_spec, formal_cas
                   'data_policy_hash', 'catalog_hash', 'diagnosis_catalog_hash', 'rules',
                   'workflow_limits', 'modeled_activity_seconds', 'prescription_followthrough_policy')
         changed = [k for k in fields if k not in spec or spec[k] != formal_spec[k]]
+        if spec.get('his_interface') != formal_spec.get('his_interface'):
+            changed.append('his_interface')
         if spec['native_observation']['source_hashes'] != formal_spec['native_observation']['source_hashes']:
             changed.append('native_deployment')
         if changed:

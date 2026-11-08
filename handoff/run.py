@@ -33,6 +33,9 @@ class RunConfig:
         self.mode = self.fields['mode']
         if self.mode not in {'linked', 'comparison', 'factorial', 'heldout', 'formal', 'recover'}:
             raise ValueError('Unsupported run mode.')
+        self.his_interface = self.fields.get('his_interface', 'native')
+        if self.his_interface not in {'native', 'fhir-r4'}:
+            raise ValueError('Unsupported HIS interface.')
         self.name = self.fields['batch']
         if not re.fullmatch('[A-Za-z0-9_-]{1,90}', self.name):
             raise ValueError('Invalid batch name.')
@@ -74,6 +77,8 @@ class RunConfig:
                    '--diagnosis-catalog', self.path('diagnosis_catalog', self.deploy / 'diagnosis_mapping.json'),
                    '--his-credentials', self.credentials, '--his-url', self.his_url,
                    '--workers', str(self.fields.get('workers', 1)), '--close-prescription-loop']
+        if self.his_interface != 'native':
+            command += ['--his-interface', self.his_interface]
         if self.fields.get('uncapped') is True:
             command += ['--uncapped-budget']
         if self.mode in {'comparison', 'factorial', 'heldout', 'recover', 'formal'}:

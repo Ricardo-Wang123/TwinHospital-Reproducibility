@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 import tempfile
 import unittest
+from unittest.mock import patch
 
 from sandbox.experiments.linked.clinical import LinkedEncounterRunner
 from sandbox.experiments.linked.contracts import TaskCondition, paper_conditions, digest
@@ -11,6 +12,8 @@ from sandbox.experiments.linked.chart import HistoryChart
 from sandbox.experiments.linked.chart_projection import expand_projected_record, verify_projection
 from sandbox.experiments.linked.actors import system_prompt
 from sandbox.experiments.linked.response_contracts import contract_for, shape_errors, schema_correction_allowed
+from sandbox.experiments.linked.fhir_his import OPERATIONS, fhir_workflow, operation_code
+from sandbox.experiments.linked.native_his import NativeBlocked
 
 
 def example_case():
@@ -124,6 +127,30 @@ class FakePort:
 class LinkedClinicalTests(unittest.TestCase):
     def runner(self, factory=None, port=None, **kwargs):
         return LinkedEncounterRunner(factory or FakeFactory(), port or FakePort(), FakeRules(), **kwargs)
+
+    def test_fhir_operations_carry_existing_workflow_and_reject_cross_assignment(self):
+        case = example_case()
+        backend = FakePort()
+        with fhir_workflow(backend, case_id=case['case_id'], run_id='fhir-check') as port:
+            metadata = port.session.get(port.base_url + '/metadata', timeout=5).json()
+            self.assertEqual(metadata['fhirVersion'], '4.0.1')
+            definitions = {x['name'] for x in metadata['rest'][0]['operation']}
+            self.assertEqual(definitions, {operation_code(name) for name in OPERATIONS})
+            definition = port.session.get(port.base_url + '/OperationDefinition/th-payment-commit', timeout=5).json()
+            self.assertEqual(definition['resourceType'], 'OperationDefinition')
+            with patch.object(port.session, 'post', wraps=port.session.post) as requests:
+                result = self.runner(port=port).run_case(case, run_id='fhir-check')
+            self.assertEqual(result['status'], 'completed', result.get('error'))
+            self.assertFalse(result['native_complete'])
+            self.assertEqual(result['artifacts']['settlement']['payment']['status'], 'paid')
+            forwarded = [operation_code(operation) for operation, _, _ in backend.calls if operation in OPERATIONS]
+            self.assertEqual([call.args[0].split('$')[1] for call in requests.call_args_list], forwarded)
+            self.assertTrue(all(call.kwargs['json']['resourceType'] == 'Parameters' for call in requests.call_args_list))
+            count = len(backend.calls)
+            with self.assertRaisesRegex(NativeBlocked, 'assigned case'):
+                port.execute('registration.create', {'patient_key': 'other', 'demographics': {}},
+                             {'case_id': 'other', 'run_id': 'fhir-check', 'actor_id': 'cashier-1', 'role': 'cashier'})
+            self.assertEqual(len(backend.calls), count)
 
     def test_exact_paper_matrix_and_model_routing(self):
         conditions = paper_conditions()

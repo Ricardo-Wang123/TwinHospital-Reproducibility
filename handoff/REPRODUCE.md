@@ -83,6 +83,8 @@ Start with `--quick` for a pilot. It schedules three fresh encounters per source
 
 Remove `--quick` to assign every case to all 27 combinations. The full crossing supports matched contrasts that hold the other two stages fixed. Each assignment has its own agent context, encounter, and native records. Comparisons use one worker by default. Set `--workers` when configuring a batch to change parallelism.
 
+For a fresh batch, add `--his-interface fhir-r4` to `configure` to use the FHIR R4 operation bridge. The historical cohort instructions below use the original native path. [HIS protocol and verification](HIS_INTERFACE.md)
+
 ~~~sh
 .venv/bin/python -m handoff.inputs configure \
   --bundle "$WORK/inputs" --assets "$OPENHIS" --provider "$PROVIDER" \

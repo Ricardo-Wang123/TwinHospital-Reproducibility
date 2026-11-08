@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import argparse
 from collections import deque
+from contextlib import nullcontext
 from copy import deepcopy
 from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
 from datetime import datetime, timezone
@@ -603,21 +604,27 @@ def execute_case(case, *, args, config, mapping, ledger, batch_root, stop_event=
             if getattr(args, 'active_native_capture', None) is not None:
                 from .native_observation import ObservedProtocolPort
                 backend = ObservedProtocolPort(backend, args.active_native_capture)
-            runner = LinkedEncounterRunner(factory, backend, make_rule_engine(args, case['formulary']),
-                output_dir=attempt_root/'runs', close_prescription_loop=getattr(args,'close_prescription_loop',False),
-                workflow_policy=getattr(args, 'workflow_policy_data', None))
-            if condition:
-                continuation=None
-                if condition.task == 'prescription' and getattr(args,'close_prescription_loop',False):
-                    if controlled_variant is None:continuation=prescription_continuation_state(anchor,stage_input)
-                    else:
-                        from .prescription_variants import continuation_state as variant_continuation_state
-                        continuation=variant_continuation_state(anchor,controlled_variant,case['formulary'])
-                result = runner.run_task(case, condition, run_id=run_id, stage_input=stage_input,
-                    **({'continuation_state': continuation} if continuation is not None else {}),
-                    **({'controlled_variant':controlled_variant} if controlled_variant is not None else {}))
-            else:
-                result = runner.run_case(case, run_id=run_id, **(linked_conditions or _baseline_conditions()))
+            interface = nullcontext(backend)
+            if getattr(args, 'his_interface', 'native') == 'fhir-r4':
+                from .fhir_his import fhir_workflow
+
+                interface = fhir_workflow(backend, case_id=case['case_id'], run_id=run_id)
+            with interface as his:
+                runner = LinkedEncounterRunner(factory, his, make_rule_engine(args, case['formulary']),
+                    output_dir=attempt_root/'runs', close_prescription_loop=getattr(args,'close_prescription_loop',False),
+                    workflow_policy=getattr(args, 'workflow_policy_data', None))
+                if condition:
+                    continuation=None
+                    if condition.task == 'prescription' and getattr(args,'close_prescription_loop',False):
+                        if controlled_variant is None:continuation=prescription_continuation_state(anchor,stage_input)
+                        else:
+                            from .prescription_variants import continuation_state as variant_continuation_state
+                            continuation=variant_continuation_state(anchor,controlled_variant,case['formulary'])
+                    result = runner.run_task(case, condition, run_id=run_id, stage_input=stage_input,
+                        **({'continuation_state': continuation} if continuation is not None else {}),
+                        **({'controlled_variant':controlled_variant} if controlled_variant is not None else {}))
+                else:
+                    result = runner.run_case(case, run_id=run_id, **(linked_conditions or _baseline_conditions()))
             validate_saved_result(result, expected, stage_input)
             saved = list((attempt_root/'runs').glob('*/run.json'))
             if len(saved) != 1:
@@ -718,6 +725,7 @@ def bind_verified_acceptance_recovery(path, specification):
                  'linked_acceptance', 'acceptance_source_patient_hashes')
     if (previous['batch'] == specification['batch'] or previous['mode'] != 'linked-acceptance'
             or not all(previous[k] == specification[k] for k in immutable)
+            or previous.get('his_interface') != specification.get('his_interface')
             or {k: v for k, v in previous['code_hashes'].items() if k != 'run_batch.py'}
             != {k: v for k, v in specification['code_hashes'].items() if k != 'run_batch.py'}
             or previous['native_observation']['source_hashes'] != specification['native_observation']['source_hashes']
@@ -933,6 +941,8 @@ def main():
         help='Frozen product source metadata for development candidate clinical rules')
     parser.add_argument('--his-credentials', type=Path)
     parser.add_argument('--his-url', default='http://127.0.0.1:28081/api/app')
+    parser.add_argument('--his-interface', choices=('native', 'fhir-r4'), default='native',
+                        help='Select the native path or the FHIR R4 workflow bridge for a fresh batch.')
     parser.add_argument('--mode', choices=('linked', 'matrix', 'linked-acceptance'), default='linked')
     parser.add_argument('--matrix-task', choices=('preconsult','prescription','documentation'),
         help='Execute all frozen configurations of this task; no selection by observed outcome')
@@ -1153,6 +1163,14 @@ def main():
         },
         'formal_experiment': args.formal_experiment,
         'conditions': [item.to_dict() for item in paper_conditions(args.matrix_task,config['tool_models'])] if args.mode == 'matrix' else []}
+    if args.his_interface == 'fhir-r4':
+        from . import fhir_his
+
+        specification['his_interface'] = {
+            'version': fhir_his.VERSION, 'fhir_version': '4.0.1',
+            'operation_definitions_sha256': digest(fhir_his.operation_definitions()),
+            'bridge_sha256': file_sha256(fhir_his.__file__),
+        }
     if acceptance is not None:
         specification['linked_acceptance'] = acceptance
         if args.independent_crossed:
