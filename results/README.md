@@ -25,6 +25,8 @@ The held-out report uses the same matched effort contrasts. Its frozen specifica
 
 The [HIS interface check](his_interface_checks.json) compares the native and FHIR R4 transports on fictional scripts. The [archived comparison](archived_his_interface_checks.json) replays accepted workflow operations from five paid encounters, one per disease, and verifies both paths against the archived artifact values and settlement amount. [Reproduce the interface checks](../handoff/HIS_INTERFACE.md#run-and-compare)
 
+The [paired operation check](app3_interface_checks.json) applies both interfaces to the same ten source-bound APP III requests. It verifies the expected state change for each compliant control and observes state after the four blocked faults and the receipt reuse. The simulator queue probe uses the shared gateway in both paths. [Replay the probes](../handoff/REPRODUCE.md#replay-paired-operations)
+
 The archived workflow feedback check covers the reported 170 paid encounters. It reproduces the adapter's local encoding findings with the frozen OpenHIS mapping, matches them to the actual physician revision requests, and checks that the signed-order state appears in the final drafting request and supplies the native charges. [Feedback check results](workflow_feedback_checks_170.json)
 
 ## Recompute the encounter metrics

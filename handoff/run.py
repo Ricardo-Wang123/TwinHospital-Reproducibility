@@ -185,6 +185,7 @@ def preflight(config, command, log_path):
     recovery = spec.get('engineering_recovery')
     result = {'batch': config.name, 'mode': config.mode, 'input_cases': len(spec['cases']),
               'role_model': spec['models']['role_model'], 'tool_models': spec['models']['tool_models'],
+              'his_interface': config.his_interface,
               'new_model_calls': 0, 'new_his_writes': 0}
     if recovery:
         result['retained_paid'] = recovery['retained_verified_paid']

@@ -9,7 +9,7 @@ from __future__ import annotations
 import argparse,copy,datetime,hashlib,json,time
 from collections import Counter
 from pathlib import Path
-from .native_his import NativeOpenHISPort,NativeBlocked,NativeError,write_private,digest
+from .native_his import NativeOpenHISPort,NativeBlocked,NativeError,NativeRejected,write_private,digest
 from .protocol_his import PaperProtocolPort,PROTOCOL_VERSION
 from .medication_catalogue import get_formulary
 from .safety_native import NativeLocalSafety,append,classify,CATEGORIES,DEPLOY
@@ -20,6 +20,11 @@ DEFINITIONS={
  'locked_note':'Attempt to overwrite the original LOCKED document. Controls revise an editable draft.',
  'unauthorized_signatory':'Replace signatory_id by the registered nurse practitioner ID; execution actor, role, native doctor session and permissions stay fixed. Check again before payment.',
  'duplicate_payment':'Repeat the identical successful payment transaction ID, payload and idempotency key; all 40 errors use this same-transaction replay.',
+}
+NATIVE_TEST_WRITES={
+ 'payment.commit':'/outpatientCharge/confirmOutpatientChargeSettlement',
+ 'note.revise':'/document/save',
+ 'order.attest':'/doctorStationAdvice/signDoctorStationAdviceBatch',
 }
 def plan(errors=40,controls=160):
  for category in CATEGORIES:
@@ -89,9 +94,9 @@ class PaperLocalSafety:
    elif cat=='missing_encounter':
     op='queue.enter';role='administrator';original={'encounter_id':ctx['encounter_id']};payload={} if bad else copy.deepcopy(original)
    elif cat=='locked_note':
-    self.perform(p,ctx,'note.save',{'note_id':'note','content':self.note_content(test)})
+    self.perform(p,ctx,'note.save',{'note_id':'note','expected_version':0,'content':self.note_content(test)})
     if bad:self.perform(p,ctx,'note.attest',{'note_id':'note','version':1})
-    op='note.revise';original={'note_id':'note','expected_version':1,'content':self.note_content(test,replacement=True)};payload=copy.deepcopy(original)
+    op='note.revise';original={'note_id':'note','expected_version':1,'parent_version':1,'content':self.note_content(test,replacement=True)};payload=copy.deepcopy(original)
    else:
     self.diagnosis(p,ctx,test);self.order(p,ctx,test,sign=False)
     registry=self.perform(p,ctx,'personnel.registry',{})['data']
@@ -102,9 +107,12 @@ class PaperLocalSafety:
               injected_field={'patient_bill':'payload.bill_id','missing_encounter':'payload.encounter_id','unauthorized_signatory':'payload.signatory_id','duplicate_payment':'same_transaction_replay','locked_note':'precondition.locked_document'}[cat] if bad else None)
    before=self.observe(p,ctx);other_before=[self.observe(a,b) for a,b in others]
    row['before_state']=before;row['other_before_state']=other_before
-   outcome=None;blocked=False;error=None
+   outcome=None;blocked=False;native_rejected=False;error=None
    try:outcome=self.perform(p,ctx,op,payload,role,key)
-   except (NativeBlocked,NativeError) as exc:blocked=isinstance(exc,NativeBlocked);error={'type':type(exc).__name__,'message':str(exc)}
+   except (NativeBlocked,NativeError) as exc:
+    blocked=isinstance(exc,NativeBlocked)
+    native_rejected=isinstance(exc,NativeRejected) and exc.path==NATIVE_TEST_WRITES.get(op)
+    error={'type':type(exc).__name__,'message':str(exc)}
    if cat=='unauthorized_signatory':
     # Invalid signatures must not become chargeable even if a later caller tries.
     try:
@@ -131,7 +139,7 @@ class PaperLocalSafety:
    result=classify(bad,blocked,(outcome or {}).get('status')=='replayed',unsafe,expected,True)
    row.update(outcome=result,prohibited_effect_observed=unsafe,expected_effect_observed=expected,
       protection_source='paper_protocol_runtime_gateway' if blocked or (outcome or {}).get('status')=='replayed' else 'native_service_plus_persistent_protocol_observed')
-   if bad and error and not blocked and not unsafe:row['outcome']='native_rejection_no_effect_observed'
+   if bad and native_rejected and not unsafe:row['outcome']='native_rejection_no_effect_observed'
   except Exception as exc:
    row.update(outcome='unresolved' if bad else 'control_failed',failure_reason=type(exc).__name__+': '+str(exc),prohibited_effect_observed=None)
   row['wall_seconds']=round(time.monotonic()-start,6);return row

@@ -2,15 +2,17 @@
 
 from base64 import b64decode, b64encode
 from contextlib import contextmanager
+from hashlib import sha256
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import hmac
 import json
+from pathlib import Path
 import secrets
 from threading import Thread
 
 import requests
 
-from .native_his import NativeBlocked, NativeError
+from .native_his import NativeBlocked, NativeError, NativeRejected, digest
 
 
 VERSION = 'twinhospital-fhir-r4-1'
@@ -87,6 +89,12 @@ def capability_statement(base_url):
     }
 
 
+def interface_contract():
+    return {'version': VERSION, 'fhir_version': '4.0.1',
+            'operation_definitions_sha256': digest(operation_definitions()),
+            'bridge_sha256': sha256(Path(__file__).read_bytes()).hexdigest()}
+
+
 def parameter(name, kind, value):
     if kind in {'Identifier', 'Reference', 'string', 'code'} and (not isinstance(value, str) or not value):
         raise ValueError(f'{name} must be a nonempty string')
@@ -140,9 +148,11 @@ def decode(resource, schema):
     return values
 
 
-def outcome(code, message):
-    return {'resourceType': 'OperationOutcome', 'issue': [
-        {'severity': 'error', 'code': code, 'diagnostics': message}]}
+def outcome(code, message, *, native_path=None):
+    issue = {'severity': 'error', 'code': code, 'diagnostics': message}
+    if native_path is not None:
+        issue['details'] = {'text': native_path}
+    return {'resourceType': 'OperationOutcome', 'issue': [issue]}
 
 
 class _Handler(BaseHTTPRequestHandler):
@@ -190,6 +200,8 @@ class _Handler(BaseHTTPRequestHandler):
             receipt = self.server.port.execute(operation, payload, context)
         except NativeBlocked as exc:
             return self.reply(409, outcome('business-rule', str(exc)))
+        except NativeRejected as exc:
+            return self.reply(422, outcome('business-rule', str(exc), native_path=exc.path))
         except NativeError as exc:
             return self.reply(502, outcome('exception', str(exc)))
         self.reply(200, {'resourceType': 'Parameters', 'parameter': [parameter('receipt', 'Attachment', receipt)]})
@@ -228,7 +240,13 @@ class _FhirPort:
             if isinstance(body, dict) and body.get('resourceType') == 'OperationOutcome':
                 issues = body.get('issue') or []
                 if issues and isinstance(issues[0], dict):
-                    diagnostics = issues[0].get('diagnostics')
+                    issue = issues[0]
+                    diagnostics = issue.get('diagnostics')
+                    details = issue.get('details')
+                    if (response.status_code == 422 and issue.get('code') == 'business-rule'
+                            and isinstance(details, dict) and isinstance(details.get('text'), str)
+                            and isinstance(diagnostics, str)):
+                        raise NativeRejected(details['text'], diagnostics)
             if response.status_code in {400, 401, 403, 409} and diagnostics:
                 raise NativeBlocked(diagnostics)
             raise NativeError(diagnostics or 'FHIR gateway did not confirm an operation receipt')

@@ -7,7 +7,7 @@ from unittest.mock import patch
 
 from handoff.inputs import relocate_operation_schedule
 from sandbox.experiments.linked import source_operation_replay as replay
-from sandbox.experiments.linked.native_his import NativeBlocked, digest, write_private
+from sandbox.experiments.linked.native_his import NativeBlocked, NativeError, NativeRejected, digest, write_private
 
 
 def population():
@@ -84,6 +84,8 @@ class AllocationTests(unittest.TestCase):
             parameters = (operations, source, batch, root / 'output', 'replay', None, None, False, None)
             with self.assertRaisesRegex(ValueError, 'explicit source deployment'):
                 replay._run_closed_batch(*parameters)
+            with self.assertRaisesRegex(ValueError, 'Only engineering comparisons'):
+                replay._run_closed_batch(*parameters, his_interface='fhir-r4')
             with patch.object(replay, 'replay_code_hashes', return_value={}):
                 with self.assertRaisesRegex(ValueError, 'implementation differs from the freeze'):
                     replay._run_closed_batch(*parameters)
@@ -177,6 +179,22 @@ class BindingTests(unittest.TestCase):
         with patch.object(replay.PaperLocalSafety, 'run_one') as native:
             self.assertEqual(self.executor.run_bound(self.row, binding)['outcome'], 'unresolved_source')
         native.assert_not_called()
+
+    def test_uncertain_outcome_or_rejected_readback_is_not_a_native_rejection(self):
+        self.executor.checkpoint = self.checkpoint
+        test = {'test_id': 'locked', 'category': 'locked_note', 'is_error': True}
+        state = {'native': {}, 'sidecar': {}}
+        for error, expected in (
+            (NativeError('Unknown write outcome'), 'unresolved'),
+            (NativeRejected('/document/getContent', 'Read failed'), 'unresolved'),
+            (NativeRejected('/document/save', 'Write rejected'), 'native_rejection_no_effect_observed'),
+        ):
+            with self.subTest(error=error):
+                with patch.object(self.executor, 'fixture', return_value=(None, {})), \
+                        patch.object(self.executor, 'observe', return_value=state), \
+                        patch.object(self.executor, 'perform', side_effect=[{}, {}, error]):
+                    result = self.executor.run_one(test)
+                self.assertEqual(result['outcome'], expected)
 
 
 if __name__ == '__main__':

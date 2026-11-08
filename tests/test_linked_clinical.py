@@ -13,7 +13,7 @@ from sandbox.experiments.linked.chart_projection import expand_projected_record,
 from sandbox.experiments.linked.actors import system_prompt
 from sandbox.experiments.linked.response_contracts import contract_for, shape_errors, schema_correction_allowed
 from sandbox.experiments.linked.fhir_his import OPERATIONS, fhir_workflow, operation_code
-from sandbox.experiments.linked.native_his import NativeBlocked
+from sandbox.experiments.linked.native_his import NativeBlocked, NativeError, NativeRejected
 
 
 def example_case():
@@ -151,6 +151,21 @@ class LinkedClinicalTests(unittest.TestCase):
                 port.execute('registration.create', {'patient_key': 'other', 'demographics': {}},
                              {'case_id': 'other', 'run_id': 'fhir-check', 'actor_id': 'cashier-1', 'role': 'cashier'})
             self.assertEqual(len(backend.calls), count)
+
+    def test_fhir_keeps_native_rejection_distinct_from_an_uncertain_write(self):
+        backend = FakePort()
+        scope = {'case_id': 'case-test', 'run_id': 'rejection-test', 'actor_id': 'doctor-1',
+                 'role': 'doctor', 'patient_id': 'patient-test', 'encounter_id': 'encounter-test'}
+        payload = {'note_id': 'note-test', 'expected_version': 1, 'content': {'text': 'revision'}}
+        with fhir_workflow(backend, case_id=scope['case_id'], run_id=scope['run_id']) as port:
+            with patch.object(backend, 'execute', side_effect=NativeRejected('/document/save', 'Rejected')):
+                with self.assertRaises(NativeRejected) as rejected:
+                    port.execute('note.revise', payload, scope)
+                self.assertEqual(rejected.exception.path, '/document/save')
+            with patch.object(backend, 'execute', side_effect=NativeError('Outcome uncertain')):
+                with self.assertRaises(NativeError) as unknown:
+                    port.execute('note.revise', payload, scope)
+                self.assertIs(type(unknown.exception), NativeError)
 
     def test_exact_paper_matrix_and_model_routing(self):
         conditions = paper_conditions()

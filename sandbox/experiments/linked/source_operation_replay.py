@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import argparse
 from collections import Counter
+from contextlib import ExitStack
 from copy import deepcopy
 from datetime import datetime, timezone
 import fcntl
@@ -23,6 +24,7 @@ import re
 from .cases import GROUPS, load_case
 from .batch_observation import deployment_metadata
 from .contracts import runtime_case
+from .fhir_his import OPERATIONS as FHIR_OPERATIONS, fhir_workflow, interface_contract
 from .linked_acceptance import BASELINE_LABEL
 from .native_his import NativeBlocked, NativeOpenHISPort, digest, isolated_port, write_private
 from .protocol_his import PaperProtocolPort
@@ -59,7 +61,7 @@ def sha(path):
 def replay_code_hashes():
     return {name: sha(Path(__file__).with_name(name)) for name in (
         'source_operation_replay.py', 'safety_paper.py', 'safety_native.py',
-        'protocol_his.py', 'native_his.py', 'run_batch.py', 'cases.py', 'contracts.py')}
+        'protocol_his.py', 'native_his.py', 'fhir_his.py', 'run_batch.py', 'cases.py', 'contracts.py')}
 
 
 def unchanged(files):
@@ -196,11 +198,12 @@ def prepare_bindings(rows, source_batch, source_spec, output):
 
 
 class SourceOperationReplay(PaperLocalSafety):
-    def __init__(self, output, run_id, mapping, diagnosis_mapping, *, credentials_path=None):
+    def __init__(self, output, run_id, mapping, diagnosis_mapping, *, credentials_path=None, fhir=False):
         self.output = Path(output)
         self.output.mkdir(parents=True, exist_ok=True, mode=0o700)
         self.run_id, self.mapping, self.diagnosis_mapping = run_id, mapping, diagnosis_mapping
         self.credentials_path = credentials_path
+        self.fhir = fhir
         self.clients = None  # No authentication or native writes before binding checks.
         self.checkpoint = None
         self.source_native_ids = set()
@@ -225,6 +228,8 @@ class SourceOperationReplay(PaperLocalSafety):
             native.clients = self.clients
         p = PaperProtocolPort(native)
         ctx = {'case_id': cid, 'run_id': self.run_id}
+        if self.fhir:
+            p = self.bridges.enter_context(fhir_workflow(p, **ctx))
         # New business identity; original patient and encounter are never edited.
         reg = self.perform(p, ctx, 'registration.create', {'patient_key': cid,
             'demographics': deepcopy(self.checkpoint['demographics'])}, 'administrator')['data']
@@ -245,7 +250,8 @@ class SourceOperationReplay(PaperLocalSafety):
             self.perform(p, ctx, 'order.attest', {'order_id': 'rx', 'signatory_id': signer})
 
     def diagnosis(self, p, ctx, test):
-        self.perform(p, ctx, 'consultation.save', {'content': deepcopy(self.checkpoint['consultation']), 'transcript': []})
+        self.perform(p, ctx, 'consultation.save', {'artifact_id': 'consultation',
+            'content': deepcopy(self.checkpoint['consultation']), 'transcript': []})
 
     def note_content(self, test, *, replacement=False):
         value = deepcopy(self.checkpoint['note'])
@@ -274,7 +280,15 @@ class SourceOperationReplay(PaperLocalSafety):
         self.checkpoint = checkpoint
         test = {'test_id': row['local_test_id'], 'category': CATEGORIES[row['operation_category']],
                 'is_error': row['request_condition'] == 'single_fault', 'fixture_index': GROUPS.index(row['group'])}
-        result = super().run_one(test)
+        try:
+            with ExitStack() as self.bridges:
+                result = super().run_one(test)
+        finally:
+            self.checkpoint = None
+        operation = result.get('operation')
+        if operation:
+            result['target_operation_interface'] = ('fhir-r4' if self.fhir and operation in FHIR_OPERATIONS else
+                                                    'runtime-gateway' if operation == 'queue.enter' else 'native')
         result.update(group=row['group'], operation_category=row['operation_category'],
                       request_condition=row['request_condition'], source_binding=proof,
                       data_kind='source_derived_operation_replay', source_data_kind=row['data_kind'],
@@ -284,21 +298,22 @@ class SourceOperationReplay(PaperLocalSafety):
                       clinical_validity_assessed=False)
         if not result['source_files_unchanged']:
             result.update(outcome='unresolved_source_changed', original_outcome=result['outcome'])
-        self.checkpoint = None
         return result
 
 
 def run(schedule_path, cohort_path, source_batch, output, run_id, catalog_path, diagnosis_path,
-        *, engineering=False, deployment_dir=None):
+        *, engineering=False, deployment_dir=None, his_interface=None, credentials_path=None):
     source_batch = Path(source_batch).resolve()
     with (source_batch / 'batch.lock').open('r') as lock:
         fcntl.flock(lock, fcntl.LOCK_SH | fcntl.LOCK_NB)
         return _run_closed_batch(schedule_path, cohort_path, source_batch, output, run_id,
-                                 catalog_path, diagnosis_path, engineering, deployment_dir)
+                                 catalog_path, diagnosis_path, engineering, deployment_dir,
+                                 his_interface, credentials_path)
 
 
 def _run_closed_batch(schedule_path, cohort_path, source_batch, output, run_id,
-                      catalog_path, diagnosis_path, engineering, deployment_dir):
+                      catalog_path, diagnosis_path, engineering, deployment_dir,
+                      his_interface=None, credentials_path=None):
     os.umask(0o077)
     if not re.fullmatch(r'[A-Za-z0-9_-]{1,70}', run_id):
         raise ValueError('use a safe unique run ID')
@@ -308,6 +323,17 @@ def _run_closed_batch(schedule_path, cohort_path, source_batch, output, run_id,
     rows = validate_schedule(schedule, cohort, engineering=engineering)
     output = Path(output).resolve()
     spec = read(source_batch / 'specification.json')
+    source_interface = spec.get('his_interface')
+    contract = interface_contract()
+    if source_interface is not None and source_interface != contract:
+        raise ValueError('The FHIR bridge differs from the frozen source batch')
+    route = 'fhir-r4' if source_interface else 'native'
+    if his_interface is not None:
+        if his_interface not in {'native', 'fhir-r4'} or (not engineering and his_interface != route):
+            raise ValueError('Only engineering comparisons can change the source batch interface')
+        route = his_interface
+    if credentials_path is not None and (not engineering or deployment_dir is not None or isolated_port() == 28081):
+        raise ValueError('Alternate credentials require an engineering replay on a dedicated smoke port')
     summary_path = source_batch / 'batch_summary.json'
     source_summary = read(summary_path)
     if source_summary.get('batch') != spec.get('batch') or not source_summary.get('session_finished_at'):
@@ -333,7 +359,6 @@ def _run_closed_batch(schedule_path, cohort_path, source_batch, output, run_id,
         raise ValueError('source native observation must be closed before operation replay')
     if not engineering and deployment_dir is None:
         raise ValueError('formal replay requires the explicit source deployment directory')
-    credentials_path = None
     deployment_hashes = None
     if deployment_dir is not None:
         deployment_dir = Path(deployment_dir).resolve()
@@ -367,11 +392,12 @@ def _run_closed_batch(schedule_path, cohort_path, source_batch, output, run_id,
                 'entire_MAS_rerun': False, 'source_object_ids_remapped': True,
                 'missing_source_policy': 'retain unresolved cell; never select another successful patient',
                 'note_edit_policy': 'preserve actual clinical text and add a nonclinical revision marker; vary only lock precondition',
-                'code_sha256': code_hashes}
+                'code_sha256': code_hashes, 'his_interface': contract if route == 'fhir-r4' else None}
     if not engineering and heldout:
         manifest['heldout_operations'] = bound
     write_private(output / 'manifest.json', manifest)
-    executor = SourceOperationReplay(output, run_id, mapping, diagnoses, credentials_path=credentials_path)
+    executor = SourceOperationReplay(output, run_id, mapping, diagnoses, credentials_path=credentials_path,
+                                     fhir=route == 'fhir-r4')
     for binding in bindings.values():
         proof = read(binding['path']).get('proof', {})
         executor.source_native_ids.update(str(proof[k]) for k in
@@ -405,9 +431,12 @@ def main():
     p.add_argument('--run-id', required=True)
     p.add_argument('--engineering-only', action='store_true')
     p.add_argument('--deployment-dir', type=Path, help='Isolated deployment of the source batch')
+    p.add_argument('--his-interface', choices=('native', 'fhir-r4'), help='Interface override for engineering comparisons')
+    p.add_argument('--credentials', type=Path, help='Dedicated smoke credentials for an engineering replay')
     a = p.parse_args()
     run(a.schedule, a.cohort, a.source_batch, a.output, a.run_id, a.catalog,
-        a.diagnosis_catalog, engineering=a.engineering_only, deployment_dir=a.deployment_dir)
+        a.diagnosis_catalog, engineering=a.engineering_only, deployment_dir=a.deployment_dir,
+        his_interface=a.his_interface, credentials_path=a.credentials)
 
 
 if __name__ == '__main__':

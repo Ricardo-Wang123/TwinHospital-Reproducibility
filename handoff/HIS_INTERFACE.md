@@ -59,4 +59,6 @@ Use a fresh dedicated loopback [OpenHIS instance](../deploy/openhis-experiment/R
 cmp "$WORK/archived-his-replay/aggregate.json" results/archived_his_interface_checks.json
 ~~~
 
+Application III's source-bound operation replay uses the interface frozen in its source batch. With FHIR R4, billing, note revision, order attestation, and repeated payment are submitted through the bridge. The encounter-link probe targets the simulator's queue directly. The replay checks fresh native and gateway state after each probe. A safe native rejection requires an explicit rejection of the tested write and observed absence of a prohibited effect. Requests with an unconfirmed disposition remain unresolved. [Paired operation check](../results/app3_interface_checks.json) · [Replay commands](REPRODUCE.md#replay-paired-operations)
+
 For further model experiments, retain the three application definitions, the 27 crossed configurations, and the five existing operation probes. Freeze the source-disjoint inputs, tool and role models, rule catalogue, interface, and scoring before launch. Record all assigned outcomes. For completed encounters, trace which handoffs reached verification, which prescription candidates were revised before signing, and which accepted notes and payments persisted. Report model-driven outcomes separately from the transport comparison.

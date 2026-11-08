@@ -1,0 +1,36 @@
+{
+  "scope": "paired interface verification on archived APP III request sources",
+  "model_calls": 0,
+  "same_scheduled_requests": 10,
+  "requests_with_fresh_native_and_gateway_observation": 20,
+  "matching_dispositions": 10,
+  "prohibited_effects_observed": 0,
+  "counts_by_interface": {
+    "native": {
+      "gateway_prevention": 4,
+      "control_allowed": 5,
+      "safe_idempotent_replay": 1
+    },
+    "fhir-r4": {
+      "gateway_prevention": 4,
+      "control_allowed": 5,
+      "safe_idempotent_replay": 1
+    }
+  },
+  "target_operation_interface": {
+    "native": {
+      "patient_record_mismatch": "native",
+      "missing_encounter_link": "runtime-gateway",
+      "invalid_note_state": "native",
+      "unauthorized_signing": "native",
+      "duplicate_transaction": "native"
+    },
+    "fhir-r4": {
+      "patient_record_mismatch": "fhir-r4",
+      "missing_encounter_link": "runtime-gateway",
+      "invalid_note_state": "fhir-r4",
+      "unauthorized_signing": "fhir-r4",
+      "duplicate_transaction": "fhir-r4"
+    }
+  }
+}

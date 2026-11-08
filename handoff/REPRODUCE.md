@@ -174,7 +174,7 @@ Pack the new manifest by inheriting the study's native settings. Then configure 
   --bundle "$NEW_BUNDLE" --assets "$STUDY_OPENHIS" \
   --data-policy "$PROCESSING_RECORD" \
   --mode heldout --development-manifest "$DEVELOPMENT_MANIFEST" \
-  --patients-per-disease "$K" --batch heldout_01 --workers 1 \
+  --patients-per-disease "$K" --batch heldout_01 --workers 1 --his-interface fhir-r4 \
   --output "$WORK/heldout_run"
 RUN="$WORK/heldout_run/run.local.json"
 .venv/bin/python -m handoff.run --config "$RUN" check
@@ -216,4 +216,6 @@ For a new paired replay, prepare an authorized cohort manifest and a frozen sche
   --run-id paired_replay_01 --output "$WORK/paired_replay_01"
 ~~~
 
-The output contains unit-level read-back in `outcomes.jsonl` and grouped counts in `summary.json`. The schedule keeps unresolved source or execution cases in the denominator. Use the summary corresponding to this schedule when rendering new paper tables. [Result renderer](../results/README.md#regenerate-the-manuscript-tables)
+The replay inherits the source batch's interface. Its output contains unit-level read-back in `outcomes.jsonl` and grouped counts in `summary.json`. The schedule keeps unresolved source or execution cases in the denominator. Use the summary corresponding to this schedule when rendering new paper tables. [Result renderer](../results/README.md#regenerate-the-manuscript-tables)
+
+To compare the two interfaces on the same authorized, closed engineering source batch, run the command once with `--his-interface native` and once with `--his-interface fhir-r4`, using fresh output and run IDs. A dedicated smoke instance provisioned with the matching fixtures can use `--credentials "$SMOKE_CREDENTIALS"` in place of `--deployment-dir`. Set the smoke project and loopback port in the environment. The published check compares outcomes for the same ten scheduled requests and the fresh state observed after them. [Paired operation check](../results/app3_interface_checks.json)

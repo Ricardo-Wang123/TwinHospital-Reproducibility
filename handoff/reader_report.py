@@ -75,7 +75,9 @@ def comparison_data(batch, audit_path, manifest, clinical_catalogue, operation_p
             raise ValueError('The operation replay belongs to a different batch.')
         if heldout:
             frozen = specification.get('heldout_operations')
-            if not frozen or replay.get('heldout_operations') != frozen or replay['planned_units'] != frozen['planned_units']:
+            if (not frozen or replay.get('heldout_operations') != frozen
+                    or replay['planned_units'] != frozen['planned_units']
+                    or replay.get('his_interface') != specification.get('his_interface')):
                 raise ValueError('The operation replay does not match the held-out schedule.')
         probe_results(replay)  # Check that all scheduled requests are represented.
         if heldout:

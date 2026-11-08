@@ -16,6 +16,11 @@ from .order_encoding import encode_items, preflight as preflight_encoding, Order
 class NativeError(RuntimeError): pass
 class NativeBlocked(NativeError): pass
 
+class NativeRejected(NativeError):
+    def __init__(self, path, message):
+        super().__init__(message)
+        self.path = path
+
 # OpenHIS creates a user-scoped login-session row during context selection.
 _AUTH_CONTEXT_LOCK = threading.Lock()
 
@@ -64,7 +69,10 @@ class OpenHISClient:
         if not isinstance(body,dict) or body.get('success') is not True:
             code=body.get('errorCode','UNKNOWN') if isinstance(body,dict) else 'INVALID_RESPONSE'
             msg=str(body.get('message',''))[:240] if isinstance(body,dict) else ''
-            raise NativeError(path+' rejected '+str(code)+': '+msg)
+            error=path+' rejected '+str(code)+': '+msg
+            if isinstance(body,dict) and body.get('success') is False:
+                raise NativeRejected(path,error)
+            raise NativeError(error)
         return body.get('data')
     def login(self,username,password,*,tenant='1',hospital='322663105141149696',organization=None):
         with _AUTH_CONTEXT_LOCK:

@@ -1192,13 +1192,9 @@ def main():
         'formal_experiment': args.formal_experiment,
         'conditions': [item.to_dict() for item in paper_conditions(args.matrix_task,config['tool_models'])] if args.mode == 'matrix' else []}
     if args.his_interface == 'fhir-r4':
-        from . import fhir_his
+        from .fhir_his import interface_contract
 
-        specification['his_interface'] = {
-            'version': fhir_his.VERSION, 'fhir_version': '4.0.1',
-            'operation_definitions_sha256': digest(fhir_his.operation_definitions()),
-            'bridge_sha256': file_sha256(fhir_his.__file__),
-        }
+        specification['his_interface'] = interface_contract()
     if acceptance is not None:
         specification['linked_acceptance'] = acceptance
         if args.independent_crossed:
