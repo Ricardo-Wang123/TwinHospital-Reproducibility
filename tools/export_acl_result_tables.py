@@ -21,13 +21,22 @@ RX_METRICS = ('pass_rate', 'severe_miss_rate', 'fpr', 'recall', 'precision', 'f1
 SAFE_LOCAL = {'gateway_prevention', 'native_rejection_no_effect_observed', 'safe_idempotent_replay'}
 
 
-def numeric_metric(row, name, missing):
+def format_metric(row, name, decimals, *, as_percent, undefined):
     estimate, denominator = row['estimate'], row['denominator']
-    if (type(estimate) not in (float, int) or not math.isfinite(estimate) or estimate < 0
+    status = row['status']
+    if estimate is None and (
+        (status == 'undefined_zero_denominator' and type(denominator) in (float, int) and denominator == 0)
+        or (status == 'undefined_precision_or_recall' and name.endswith('/f1') and denominator is None)
+    ):
+        undefined.append({'cell': name, 'status': status, 'denominator': denominator})
+        return r'\textemdash'
+    if (status != 'estimated' or type(estimate) not in (float, int)
+            or not math.isfinite(estimate) or estimate < 0
+            or ((as_percent or name.endswith('/f1')) and estimate > 1)
             or type(denominator) not in (float, int) or not math.isfinite(denominator) or denominator <= 0):
-        missing.append(f"{name} ({row['status']}, denominator={denominator})")
-        return None
-    return estimate
+        raise ValueError(f'Invalid table metric {name} ({status}, denominator={denominator})')
+    value = estimate * 100 if as_percent else estimate
+    return f'{value:.{decimals}f}'
 
 
 def workflow_counts(summary, replay):
@@ -58,13 +67,14 @@ def workflow_counts(summary, replay):
     if actual != expected or dict(outcomes) != replay['outcomes']:
         raise ValueError('Local replay does not preserve the declared 100/400 allocation')
     return {'complete': completion['true'], 'unsafe': unsafe['true'], 'unresolved': completion['unknown'],
+            'safety_unknown': unsafe['unknown'],
             'known_incomplete': completion['false'], 'local_safe': safe, 'local_allowed': allowed}
 
 
-def fill_tables(template, specification, stage, workflow):
+def fill_tables(template, specification, stage, workflow, *, undefined_cells=None):
     conditions = {(c['task'], c['workflow']): c['config_id'] for c in specification['conditions']}
     tables = {}
-    missing = []
+    undefined = [] if undefined_cells is None else undefined_cells
     layout = {
         'THPreconsultRows': ('preconsult', [('nurse_only', 'Nurse agent'), ('ai_only', 'AI only'),
                                             ('ai_nurse_review', 'AI + nurse')]),
@@ -76,24 +86,26 @@ def fill_tables(template, specification, stage, workflow):
         for name, label in rows:
             cid = conditions[task, name]
             metrics = stage['pooled']['configurations'][cid]
-            delivery = numeric_metric(metrics['delivery_rate'], cid+'/delivery_rate', missing)
-            effort = numeric_metric(metrics['staff_minutes_per_delivered_task'], cid+'/staff_minutes', missing)
-            if delivery is not None and effort is not None:
-                tables[macro].append(f'{label} & {delivery*100:.1f} & {effort:.2f}')
+            delivery = format_metric(metrics['delivery_rate'], cid+'/delivery_rate', 1,
+                                     as_percent=True, undefined=undefined)
+            effort = format_metric(metrics['staff_minutes_per_delivered_task'], cid+'/staff_minutes', 2,
+                                   as_percent=False, undefined=undefined)
+            tables[macro].append(f'{label} & {delivery} & {effort}')
     tables['THPrescriptionRows'] = []
     for name, label in [('pprs_baseline', 'Rule baseline'), ('sequential', 'Sequential'), ('parallel', 'Parallel')]:
         cid = conditions['prescription', name]
         metrics = stage['prescription_scope']['pooled']['configurations'][cid]['metrics']
-        values = [numeric_metric(metrics[m], cid+'/'+m, missing) for m in RX_METRICS]
-        if any(value is None for value in values):
-            continue
-        columns = [f'{v*100:.1f}\\%' for v in values[:-1]] + [f'{values[-1]:.3f}']
+        columns = []
+        for metric in RX_METRICS:
+            as_percent = metric != 'f1'
+            value = format_metric(metrics[metric], cid+'/'+metric, 1 if as_percent else 3,
+                                  as_percent=as_percent, undefined=undefined)
+            columns.append(value + r'\%' if as_percent and value != r'\textemdash' else value)
         tables['THPrescriptionRows'].append(' & '.join([label, *columns]))
-    if missing:
-        raise ValueError('Table cells lack estimable values: ' + ', '.join(missing))
     tables['THWorkflowRows'] = [f'{label} & {planned:,} & {workflow[key]:,}' for key, label, planned in (
-        ('complete', 'Complete paid workflow', 1000), ('unsafe', 'Workflow with unsafe effect', 1000),
-        ('unresolved', 'Unresolved completion status', 1000), ('local_safe', 'Local errors handled safely', 100),
+        ('complete', 'Complete paid workflow', 1000), ('known_incomplete', 'Known incomplete workflow', 1000),
+        ('unresolved', 'Completion status unknown', 1000), ('unsafe', 'Workflow with unsafe effect', 1000),
+        ('safety_unknown', 'Safety status unknown', 1000), ('local_safe', 'Local errors handled safely', 100),
         ('local_allowed', 'Local controls allowed', 400))]
     for name, rows in tables.items():
         pattern = re.compile(r'(\\newcommand\{\\' + name + r'\}\{%\n).*?^\}', re.MULTILINE | re.DOTALL)
@@ -141,7 +153,8 @@ def export(batch, stage_path, audit_path, replay_path, template, output):
             or not {binding['cohort_sha256'], binding['operation_schedule_sha256']} <= set(replay_inputs.values())):
         raise ValueError('Local replay must come from the same frozen formal cohort and schedule')
     counts = workflow_counts(audit['summary'], replay)
-    tex = fill_tables(template.read_text(), spec, stage, counts)
+    undefined_cells = []
+    tex = fill_tables(template.read_text(), spec, stage, counts, undefined_cells=undefined_cells)
     if any(sha(p) != h for p, h in fingerprints.items()):
         raise ValueError('A result source changed during export')
     output.parent.mkdir(parents=True, exist_ok=True)
@@ -150,6 +163,7 @@ def export(batch, stage_path, audit_path, replay_path, template, output):
         (staging/'acl_results.tex').write_text(tex)
         private_json(staging/'result_table_receipt.json', {'source_sha256': fingerprints,
             'formal_batch': spec['batch'], 'workflow_counts': counts, 'analysis_plan_sha256': stage['analysis_plan_sha256'],
+            'undefined_cells': undefined_cells,
             'runtime_and_discussion_prose_retained': True, 'tex_sha256': sha(staging/'acl_results.tex')})
         staging.rename(output)
     return counts

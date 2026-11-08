@@ -20,7 +20,8 @@ class ResultTableTests(unittest.TestCase):
             else:
                 self.stage['pooled']['configurations'][cid] = {
                     'delivery_rate': dict(metric), 'staff_minutes_per_delivered_task': dict(metric)}
-        self.workflow = {'complete': 990, 'unsafe': 1, 'unresolved': 2, 'local_safe': 99, 'local_allowed': 396}
+        self.workflow = {'complete': 990, 'known_incomplete': 8, 'unsafe': 1, 'unresolved': 2,
+                         'safety_unknown': 2, 'local_safe': 99, 'local_allowed': 396}
         self.template = '\\newcommand{\\THResultOverview}{Preserve prose}\n' + ''.join(
             '\\newcommand{\\' + macro + '}{%\nPLACEHOLDER\\\\\n}\n'
             for macro in ('THPreconsultRows', 'THDocumentationRows', 'THPrescriptionRows', 'THWorkflowRows'))
@@ -32,11 +33,23 @@ class ResultTableTests(unittest.TestCase):
         self.assertIn('Nurse agent & 50.0 & 0.50', text)
         self.assertIn(r'Rule baseline & 50.0\%', text)
         self.assertIn('Complete paid workflow & 1,000 & 990', text)
+        self.assertIn('Known incomplete workflow & 1,000 & 8', text)
+        self.assertIn('Safety status unknown & 1,000 & 2', text)
 
-    def test_zero_denominator_cannot_be_exported_as_zero_percent(self):
+    def test_genuinely_undefined_cells_keep_the_row_and_record_the_reason(self):
         rows = self.stage['prescription_scope']['pooled']['configurations']
-        rows['prescription:pprs_baseline']['metrics']['recall'] = {
-            'estimate': None, 'denominator': 0, 'status': 'undefined_zero_denominator'}
+        metrics = rows['prescription:pprs_baseline']['metrics']
+        metrics['recall'] = {'estimate': None, 'denominator': 0, 'status': 'undefined_zero_denominator'}
+        metrics['f1'] = {'estimate': None, 'denominator': None, 'status': 'undefined_precision_or_recall'}
+        undefined = []
+        text = fill_tables(self.template, self.spec, self.stage, self.workflow, undefined_cells=undefined)
+        self.assertIn(r'Rule baseline & 50.0\% & 50.0\% & 50.0\% & \textemdash & 50.0\% & \textemdash', text)
+        self.assertEqual([cell['status'] for cell in undefined],
+                         ['undefined_zero_denominator', 'undefined_precision_or_recall'])
+
+    def test_estimate_with_zero_denominator_fails_validation(self):
+        rows = self.stage['prescription_scope']['pooled']['configurations']
+        rows['prescription:pprs_baseline']['metrics']['recall']['denominator'] = 0
         with self.assertRaisesRegex(ValueError, r'pprs_baseline/recall.*denominator=0'):
             fill_tables(self.template, self.spec, self.stage, self.workflow)
 
