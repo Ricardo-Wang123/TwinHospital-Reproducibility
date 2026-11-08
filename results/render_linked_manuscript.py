@@ -27,11 +27,16 @@ CONFIGURATIONS = {
                       ('realtime', 'During consultation'), ('postvisit', 'Post-consultation')),
 }
 OPERATIONS = (
-    ('patient_record_mismatch', 'Patient identity'),
-    ('missing_encounter_link', 'Encounter linkage'),
-    ('invalid_note_state', 'Note lifecycle'),
-    ('unauthorized_signing', 'Signing authority'),
-    ('duplicate_transaction', 'Transaction uniqueness'),
+    ('patient_record_mismatch', 'Patient identity',
+     'Bill ID from another patient', 'Bill ID bound to the encounter'),
+    ('missing_encounter_link', 'Encounter linkage',
+     'Queue request omits encounter ID', 'Queue request includes the bound encounter ID'),
+    ('invalid_note_state', 'Note lifecycle',
+     'Revision of a locked note', 'Revision of an editable draft'),
+    ('unauthorized_signing', 'Signing authority',
+     'Unauthorized signatory ID', 'Authenticated physician signatory ID'),
+    ('duplicate_transaction', 'Transaction uniqueness',
+     'Committed payment repeated with the same payload and key', 'Fresh payment on a valid bill'),
 )
 SAFE_FAULT_OUTCOMES = {
     'gateway_prevention', 'native_rejection_no_effect_observed', 'safe_idempotent_replay',
@@ -132,7 +137,7 @@ def human_review_statement(review, paid):
 
 def probe_results(probes):
     by_operation = {key: {'single_fault': Counter(), 'compliant_control': Counter()}
-                    for key, _ in OPERATIONS}
+                    for key, *_ in OPERATIONS}
     observed = Counter()
     for cell in probes['by_cell']:
         counts = cell['counts']
@@ -146,7 +151,7 @@ def probe_results(probes):
         raise ValueError('The probe summary does not bind the complete recorded replay')
     rows = []
     fault_total = control_total = safe_total = allowed_total = 0
-    for key, label in OPERATIONS:
+    for key, label, fault_request, control_request in OPERATIONS:
         faults = by_operation[key]['single_fault']
         controls = by_operation[key]['compliant_control']
         f, c = sum(faults.values()), sum(controls.values())
@@ -156,7 +161,8 @@ def probe_results(probes):
         control_total += c
         safe_total += safe
         allowed_total += allowed
-        rows.append((label, faults['gateway_prevention'], faults['safe_idempotent_replay'],
+        rows.append((label, fault_request, control_request, faults['gateway_prevention'],
+                     faults['native_rejection_no_effect_observed'], faults['safe_idempotent_replay'],
                      ratio(safe, f), ratio(allowed, c)))
     statement = (f'In separate operation replays, {safe_total}/{fault_total} fault-bearing requests '
                  f'had a verified safe disposition and {allowed_total}/{control_total} valid controls executed.')
@@ -263,17 +269,18 @@ def render(metrics, audit, review, probes):
                           ratio(row['first_final_draft_accepted'], row['observed']),
                           number(row['mean_note_turnaround_seconds'], 1)))
 
-    positive_statement = (f'{positives_rejected}/{positives_reviewed} reference-positive orders with a resolved '
-                          'first decision were rejected.' if positives_reviewed
-                          else 'No reference-positive order had a resolved first decision.')
     unresolved = total - labels['scoped_nonviolation'] - labels['violation']
     fpr_statement = (f'False positives among resolved reference negatives numbered '
                      f'{ratio(false_rejects, negatives_reviewed)}.' if negatives_reviewed
                      else 'The false-positive denominator contains resolved reference negatives only.')
     ref_statement = (f'The rule reference labeled {labels["scoped_nonviolation"]} original orders as '
                      f'nonviolations and {labels["violation"]} as violations. The remaining {unresolved} '
-                     'orders had no determinate label within the reference scope. ' + fpr_statement
-                     + ' ' + positive_statement)
+                     'orders had no determinate label within the reference scope. ' + fpr_statement)
+    if positives_reviewed:
+        ref_statement += (f' {positives_rejected}/{positives_reviewed} reference-positive orders with a resolved '
+                          'first decision were rejected.')
+    elif labels['violation']:
+        ref_statement += ' All reference-positive orders were deferred at first review.'
     alert_statement = f'At least one source alerted in {screens["original_alerts"]} of {total} original reviews.'
     if screens['followup_review_rounds']:
         alert_statement += (f' Follow-up reviews alerted in {screens["followup_alerts"]} of '

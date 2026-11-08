@@ -9,7 +9,7 @@
 \newcommand{\THApprovedUnencodable}{14}
 \newcommand{\THInitialApprovals}{141}
 \newcommand{\THInitialNonapprovals}{29}
-\newcommand{\THRxReferenceSummary}{The rule reference labeled 140 original orders as nonviolations and 0 as violations. The remaining 30 orders had no determinate label within the reference scope. False positives among resolved reference negatives numbered 0/124. No reference-positive order had a resolved first decision.}
+\newcommand{\THRxReferenceSummary}{The rule reference labeled 140 original orders as nonviolations and 0 as violations. The remaining 30 orders had no determinate label within the reference scope. False positives among resolved reference negatives numbered 0/124.}
 \newcommand{\THHumanReviewStatement}{After simulation, human reviewers on the study team assessed the clinical appropriateness of the final prescription in 170 of the 170 completed encounters.}
 \newcommand{\THRxAlertSummary}{At least one source alerted in 151 of 170 original reviews. Follow-up reviews alerted in 28 of 44 rounds. In 27 of the 27 follow-up rounds with a rule alert, a rule flag also appeared in the preceding round. The 179 alerting rounds covered 151 encounters. A pharmacist or senior pharmacist reviewed 179 of those rounds.}
 \newcommand{\THRxFinalEvidenceSummary}{For 20 final orders, screening still flagged a rule with indeterminate evidence. A pharmacist or senior pharmacist reviewed 20/20 of these orders, and 20/20 received approval.}
@@ -82,11 +82,11 @@ Queue-to-payment median (min) & 6.44 \\
 Queue-to-payment 95th percentile (min) & 9.00 \\
 }
 \newcommand{\THProbeRows}{%
-Patient identity & 1 & 0 & 1/1 & 1/1 \\
-Encounter linkage & 1 & 0 & 1/1 & 1/1 \\
-Note lifecycle & 1 & 0 & 1/1 & 1/1 \\
-Signing authority & 1 & 0 & 1/1 & 1/1 \\
-Transaction uniqueness & 0 & 1 & 1/1 & 1/1 \\
+Patient identity & Bill ID from another patient & Bill ID bound to the encounter & 1 & 0 & 0 & 1/1 & 1/1 \\
+Encounter linkage & Queue request omits encounter ID & Queue request includes the bound encounter ID & 1 & 0 & 0 & 1/1 & 1/1 \\
+Note lifecycle & Revision of a locked note & Revision of an editable draft & 1 & 0 & 0 & 1/1 & 1/1 \\
+Signing authority & Unauthorized signatory ID & Authenticated physician signatory ID & 1 & 0 & 0 & 1/1 & 1/1 \\
+Transaction uniqueness & Committed payment repeated with the same payload and key & Fresh payment on a valid bill & 0 & 0 & 1 & 1/1 & 1/1 \\
 }
 \newcommand{\THWeightSensitivityRows}{%
 \multicolumn{3}{@{}l}{\textit{Pre-consultation}} \\
