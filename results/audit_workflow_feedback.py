@@ -159,8 +159,7 @@ def encoding_feedback(run, signed, directory, catalogue):
     return checks
 
 
-def audit_feedback(bundle, model_evidence, catalogue_path):
-    bundle, model_evidence = bundle.resolve(), model_evidence.resolve()
+def archived_paid_cohort(bundle):
     receipt = read(bundle / 'bundle.json')
     bound = {}
     for name in ('audit.json', 'batch/specification.json', 'batch/batch_summary.json'):
@@ -174,18 +173,13 @@ def audit_feedback(bundle, model_evidence, catalogue_path):
         raise ValueError('Native audit does not bind the selected experiment specification.')
     cohort = paid_cohort(audit)
     fingerprint = cohort_fingerprint(cohort)
-    if fingerprint != receipt['paid_cohort_sha256']:
+    if fingerprint != receipt['paid_cohort_sha256'] or len(cohort) != receipt['verified_paid']:
         raise ValueError('The native audit does not bind the frozen paid cohort.')
-    catalogue = read(catalogue_path)
-    if (digest(catalogue) != spec['catalog_hash']
-            or sha256(Path(order_encoding.__file__).read_bytes()).hexdigest() != spec['code_hashes']['order_encoding.py']):
-        raise ValueError('Use the frozen OpenHIS catalogue and encoder for this check.')
+    return spec, fingerprint, {row['source_run_file_sha256']: row for row in cohort}
 
-    paid = {row['source_run_file_sha256']: row for row in cohort}
+
+def paid_traces(bundle, paid):
     seen = set()
-    counts = Counter(signed_order_in_final_drafting_request=0, signed_order_in_verified_settlement=0,
-                     first_approved_unencodable=0)
-    revision_checks = Counter(dict.fromkeys(REVISION_CHECKS, 0))
     for case_id, entry in paid_index(bundle / 'batch'):
         payload = contained_file(bundle / 'batch', entry['result_path'], portable=True).read_bytes()
         file_hash = sha256(payload).hexdigest()
@@ -195,18 +189,33 @@ def audit_feedback(bundle, model_evidence, catalogue_path):
         run = json.loads(payload)
         if run['case_id'] != case_id:
             raise ValueError('The encounter trace does not match its case index.')
+        yield run, paid[file_hash]
+    if seen != paid.keys():
+        raise ValueError('The archive is missing a paid trace.')
+
+
+def audit_feedback(bundle, model_evidence, catalogue_path):
+    bundle, model_evidence = bundle.resolve(), model_evidence.resolve()
+    spec, fingerprint, paid = archived_paid_cohort(bundle)
+    catalogue = read(catalogue_path)
+    if (digest(catalogue) != spec['catalog_hash']
+            or sha256(Path(order_encoding.__file__).read_bytes()).hexdigest() != spec['code_hashes']['order_encoding.py']):
+        raise ValueError('Use the frozen OpenHIS catalogue and encoder for this check.')
+
+    counts = Counter(signed_order_in_final_drafting_request=0, signed_order_in_verified_settlement=0,
+                     first_approved_unencodable=0)
+    revision_checks = Counter(dict.fromkeys(REVISION_CHECKS, 0))
+    for run, native_audit in paid_traces(bundle, paid):
         signed = single(business_events(run, 'order.attest'), 'signed order')
         counts['signed_order_in_final_drafting_request'] += note_uses_signed_order(run, signed, model_evidence)
-        counts['signed_order_in_verified_settlement'] += settlement_uses_signed_order(run, signed, paid[file_hash])
+        counts['signed_order_in_verified_settlement'] += settlement_uses_signed_order(run, signed, native_audit)
         first = run['artifacts']['prescription_versions'][0]
         if first['review']['decision'] == 'approve' and first['business_validation']['status'] == 'native_encoding_unavailable':
             counts['first_approved_unencodable'] += 1
             for name, verified in encoding_feedback(run, signed, model_evidence, catalogue).items():
                 revision_checks[name] += int(verified)
-    if seen != paid.keys():
-        raise ValueError('The archive is missing a paid trace.')
     return {'scope': 'archived development cohort workflow links', 'paid_cohort_sha256': fingerprint,
-            'verified_paid': len(seen), **counts, 'encoding_feedback_checks': dict(revision_checks),
+            'verified_paid': len(paid), **counts, 'encoding_feedback_checks': dict(revision_checks),
             'model_calls': 0, 'native_writes': 0}
 
 

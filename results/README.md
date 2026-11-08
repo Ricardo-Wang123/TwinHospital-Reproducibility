@@ -29,6 +29,8 @@ The [paired operation check](app3_interface_checks.json) applies both interfaces
 
 The archived workflow feedback check covers the reported 170 paid encounters. It reproduces the adapter's local encoding findings with the frozen OpenHIS mapping, matches them to the actual physician revision requests, and checks that the signed-order state appears in the final drafting request and supplies the native charges. [Feedback check results](workflow_feedback_checks_170.json)
 
+The [stage input check](stage_input_checks_170.json) verifies actual provider requests against the same paid cohort. It traces intake collection and nurse review to the retrieved handoff, tests the reviewers' inputs and adjudication order, and matches drafting and note-review requests to the dialogue and document versions available at the time of each request.
+
 ## Recompute the encounter metrics
 
 An authorized recipient can verify a received evidence bundle from any directory. This offline computation uses the frozen case bytes, completed traces, native audit, and assessment sidecars. It checks and scores one complete trace at a time, then groups the resulting measurements using the same scoring rules and denominators.
@@ -47,6 +49,15 @@ The original protected model-call archive and native mapping support a separate 
   --bundle "$PAID_EVIDENCE_BUNDLE" --model-evidence "$MODEL_CALL_ARCHIVE" \
   --catalogue "$FROZEN_BUNDLE/catalog.json" > "$WORK/workflow_feedback_checks.json"
 cmp "$WORK/workflow_feedback_checks.json" results/workflow_feedback_checks_170.json
+~~~
+
+The same protected request archive supports a check of the stage inputs. Keep the paid evidence bundle, the model-call archive, and the outputs in the authorized workspace.
+
+~~~sh
+.venv/bin/python -m results.audit_stage_inputs \
+  --bundle "$PAID_EVIDENCE_BUNDLE" --model-evidence "$MODEL_CALL_ARCHIVE" \
+  > "$WORK/stage_input_checks.json"
+cmp "$WORK/stage_input_checks.json" results/stage_input_checks_170.json
 ~~~
 
 To create the evidence bundle in the authorized environment, use the frozen input bundle and the original completed batch and assessment files:

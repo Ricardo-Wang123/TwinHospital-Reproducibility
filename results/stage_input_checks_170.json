@@ -1,0 +1,28 @@
+{
+  "adjudication_rounds": 54,
+  "documentation_requests_by_scope": {
+    "final": 387,
+    "interim": 113
+  },
+  "model_calls": 0,
+  "native_writes": 0,
+  "paid_cohort_sha256": "3663b891be81c52041e7dc6653e6de06f2d51a93e127352558319e61124842b6",
+  "prescription_rounds_by_workflow": {
+    "parallel": 73,
+    "pprs_baseline": 66,
+    "sequential": 75
+  },
+  "scope": "archived intake, prescription review and documentation request inputs",
+  "verified_documentation_by_workflow": {
+    "manual_documentation": 60,
+    "postvisit": 55,
+    "realtime": 55
+  },
+  "verified_handoffs_by_workflow": {
+    "ai_nurse_review": 56,
+    "ai_only": 58,
+    "nurse_only": 56
+  },
+  "verified_paid": 170,
+  "verified_provider_requests": 2237
+}
