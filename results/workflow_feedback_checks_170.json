@@ -1,0 +1,17 @@
+{
+  "scope": "archived development cohort workflow links",
+  "paid_cohort_sha256": "3663b891be81c52041e7dc6653e6de06f2d51a93e127352558319e61124842b6",
+  "verified_paid": 170,
+  "signed_order_in_final_drafting_request": 170,
+  "signed_order_in_verified_settlement": 170,
+  "first_approved_unencodable": 14,
+  "encoding_feedback_checks": {
+    "findings_reproduced": 14,
+    "revision_encodable": 14,
+    "feedback_in_revision_request": 14,
+    "response_binds_revised_candidate": 14,
+    "signed_order_save_binds_final_candidate": 14
+  },
+  "model_calls": 0,
+  "native_writes": 0
+}
