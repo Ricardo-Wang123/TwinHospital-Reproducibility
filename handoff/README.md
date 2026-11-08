@@ -2,7 +2,8 @@
 
 | 要做的事 | 从哪里开始 |
 | --- | --- |
-| 用自己的 API 和模型开新批次 | [自选模型配置和启动命令](REPRODUCE.md#use-your-own-model-endpoint) |
+| 用自己的病例和模型开新批次 | [准备数据并启动](REPRODUCE.md) |
+| 下载 OpenHIS 与五类虚构样例 | [GitHub Release](https://github.com/Ricardo-Wang123/TwinHospital-Reproducibility/releases/tag/openhis-reader-v1) |
 | 看已经得到的结果 | [170 次已核验就诊和复算入口](../results/README.md) |
 | 按论文配置重跑 | [冻结病例包、模型和启动命令](REPRODUCE.md#repeat-the-study-configuration) |
 | 提供自己的病例 | [MIMIC 选取规则与病例 JSON 格式](CASE_FORMAT.md) |
@@ -10,7 +11,7 @@
 
 ## 新电脑启动
 
-按[新机运行指南](REPRODUCE.md)准备 Python 3.12 和 OpenHIS。`handoff.inputs configure` 从病例包生成本机的 `run.local.json`，`provision` 启动隔离的 HIS 并装入字典。用 `set-key` 在本机输入 API key，然后用 `run --execute` 启动批次。
+按运行指南安装 Python 3.12 和 Docker，并解压 GitHub 上的 OpenHIS 读者版。用自己的病例 JSON 或示例数据准备输入包，再由 `handoff.inputs configure` 生成 `run.local.json`。`provision` 启动隔离医院并装入字典，用 `set-key` 在本机输入 API key，再启动批次。[新机运行指南](REPRODUCE.md)
 
 新批次可用自选的兼容接口，角色和工具可以共用一个模型。论文这一批的角色模型为 `deepseek-v4.1-flash-1017`，工具模型为 `glm-5.2`，两者都关闭推理，温度为 0.2。复跑论文配置时使用[同版模型配置](../config/provider.example.json)和自己的数据处理记录。
 

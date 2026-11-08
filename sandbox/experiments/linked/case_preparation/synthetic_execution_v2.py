@@ -37,7 +37,7 @@ POLICY={'version':VERSION,'uses_patient_records':False,'uses_model_outcomes':Fal
     'references':REFERENCES}
 
 
-def build_execution_case(group,index,formulary,*,split='engineering'):
+def build_execution_case(group,index,formulary,*,split='engineering',prior_plans=PRIOR_PLANS):
     case=build_synthetic_case(group,index,split=split)
     base_hash=digest(case)
     case['case_id']='exec2_'+case['case_id'];case['patient_key']='exec2_'+case['patient_key']
@@ -77,8 +77,8 @@ def build_execution_case(group,index,formulary,*,split='engineering'):
         add('current_treatment','这次出现症状后还没有使用抗感染药物，希望医生检查后决定怎么治疗。')
         add('relevant_background','没有被诊断过肾病或免疫系统疾病，近期没有住院或插过导尿管。')
     if h['demographics']['sex']=='F':add('pregnancy_status','目前没有怀孕，也没有哺乳。')
-    if group in {'type2_diabetes','heart_failure','copd'}:
-        med=deepcopy(PRIOR_PLANS[group])
+    if group in prior_plans:
+        med=deepcopy(prior_plans[group])
         product=next((p for p in formulary if p['drug_code']==med['drug_code']),None)
         if product is None:raise ValueError('Declared prior product is absent from the shared hospital formulary')
         h['historical_orders']=[{**deepcopy(med),'record_id':'rx_'+digest(case['case_id'])[:24],

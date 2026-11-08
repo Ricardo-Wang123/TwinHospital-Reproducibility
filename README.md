@@ -4,6 +4,12 @@
 
 TwinHospital simulates outpatient visits in OpenHIS. CAMEL coordinates patient and staff agents through intake, consultation, prescription review, note signing, and simulated payment. Each visit produces a trace linking the agents' dialogue and decisions to records in the hospital system.
 
+## Run TwinHospital with your own data
+
+The repository contains the CAMEL MAS and its OpenHIS adapter. The reader release provides the OpenHIS 2.0.5 runtime, corresponding backend source, and five editable fictional cases. Prepare your cases in the documented format, configure your own model endpoint, and run each encounter through simulated settlement.
+
+[Run guide](handoff/REPRODUCE.md) · [Case format](handoff/CASE_FORMAT.md) · [OpenHIS and example cases](https://github.com/Ricardo-Wang123/TwinHospital-Reproducibility/releases/tag/openhis-reader-v1)
+
 ## Data
 
 The study combines MIMIC-IV v2.2 patient histories with constructed outpatient follow-ups. The reported cohort contains **170 encounters with simulated payment** from **10 development-set histories** across five diagnosis strata.
@@ -37,4 +43,4 @@ The design crosses three configurations at each of three stages. All 27 combinat
 
 The trace captures artifact revisions, staff actions used to model effort, and the resulting state in OpenHIS. Physician agents supplemented or corrected **140 of 170** handoffs. **14 of 141** prescriptions approved at first review needed revision for OpenHIS encoding. Median time from queue entry to simulated payment was **6.44 minutes**. [Study results and paper tables](results/README.md)
 
-To run a visit with your own compatible model or reproduce the study configuration, see the [run guide](handoff/REPRODUCE.md).
+The study's case selection, approved access route, and frozen runtime are documented separately. [Study reproduction](handoff/REPRODUCE.md#repeat-the-study-configuration)

@@ -1,6 +1,53 @@
 # Case construction and input format
 
-One case is one source patient with a single anchor admission and one simulated follow-up visit. Each workflow configuration uses the same starting case and separate encounter objects.
+Each input describes one patient's starting state for one outpatient visit. The MAS generates the dialogue, handoff, consultation, prescription, review, note, and settlement. Reusing a case under another configuration creates separate OpenHIS business objects.
+
+## Runtime case JSON
+
+The schema version is `twinhospital.linked.case/1`. The [reader release](https://github.com/Ricardo-Wang123/TwinHospital-Reproducibility/releases/tag/openhis-reader-v1) supplies editable examples and a manifest. The [generator](prepare_synthetic.py) creates the same files locally.
+
+| Top-level field | Contents |
+| --- | --- |
+| `schema_version` | Literal `twinhospital.linked.case/1` |
+| `case_id`, `patient_key` | Stable, opaque identifiers. Use the same patient key for the same source patient across manifests. A bundle has distinct cases and source patients. |
+| `group`, `split`, `data_kind` | One of the five group IDs below, a declared split such as `engineering` or `test`, and explicit origin (`mimic_derived`, `hospital_derived`, or `synthetic_independent`). |
+| `patient_initial` | Demographics as perceived by the patient, communication profile, and facts from the patient view. Each fact has a unique `fact_id` and status `reported`, `denied`, or `unknown`. Include the current complaint and what the patient can report. |
+| `his_initial` | Authorized demographics, historical encounters and orders, optional administration, lab, microbiology and outpatient history, current observations, current medication-use and allergy records, and timing basis. |
+| `formulary` | Allowed virtual products. Preserve product code, ingredient, strength, formulation, route, and separate dose and dispensed quantity units. Use the corresponding native product dictionary. |
+| `evaluation`, `provenance` | Evaluator-only reference fields and source-versus-constructed annotations. Independent fictional cases declare `uses_patient_records: false` and `source_dataset: null`. |
+
+Use `type2_diabetes`, `heart_failure`, `copd`, `pneumonia`, or `uti` as the group ID. The group identifies a sampling stratum. The clinician agent chooses a diagnosis from the evidence visible during the visit.
+
+Separate current patient-reported facts, historical chart entries, and current simulated observations. Record a historical prescription in `his_initial.historical_orders` and current use in `his_initial.current_use_record`. Preserve allergy and timing uncertainty. The patient agent receives `patient_initial`; other roles query the permitted chart and encounter records. The `evaluation` object is reserved for scoring and is excluded from the runtime case view.
+
+## Dataset manifest
+
+A manifest lists the case files and repeats their identities. Paths are relative to the manifest. Each case and source patient appears once.
+
+~~~json
+{
+  "cases": [
+    {
+      "path": "cases/example_01.json",
+      "case_id": "example_01",
+      "patient_key": "fictional_patient_01",
+      "group": "type2_diabetes",
+      "split": "engineering",
+      "data_kind": "synthetic_independent"
+    }
+  ]
+}
+~~~
+
+When starting from an example, update the identity fields and case content for your dataset. Match the five metadata fields to the case JSON. You can omit the example's `file_sha256`, `case_hash`, and `runtime_input_hash` when authoring a new manifest. The packer computes those values and freezes the input. For a single case you can pack the JSON directly without writing a manifest. [Launch commands](REPRODUCE.md)
+
+For an approved hospital dataset use `hospital_derived`, set `provenance.uses_patient_records` to `true`, and name the source in `provenance.source_dataset`. Supply the endpoint's processing record when configuring the run.
+
+## Product and diagnosis mappings
+
+The default OpenHIS dataset supports the five included diagnosis codes and five simulated products. The sample case files show the product codes and the clinical data structure. The [product mapping](../deploy/openhis-experiment/catalog_mapping.json) and [diagnosis mapping](../deploy/openhis-experiment/diagnosis_mapping.json) link the case-facing codes to native OpenHIS definitions.
+
+To add terms, provide a versioned product or diagnosis map and the SQL fixture that installs its native definitions. Pass `--catalog`, `--diagnosis-catalog`, and `--fixture` to `handoff.inputs pack` as applicable. Each product mapping names the medication definition, permitted route and frequency codes, units, and dispensing location. The fixture registers the definition, virtual stock, and price. Keep source medication records as written when their product or units are unknown. A crossed study batch also uses the frozen clinical rule catalogue and workflow policy. [Fixture example](../deploy/openhis-experiment/experiment-fixtures.sql)
 
 ## MIMIC-IV source selection
 
@@ -48,30 +95,3 @@ To start from selected admissions, create a private JSON array with string keys 
 ~~~
 
 The starter contains the core historical records and labs available at anchor discharge. It excludes and counts malformed prescription intervals and laboratory timestamps. It generates source and role-view scaffolds for explicit selections. The study's supplemental tables and constructed visit use the procedures above. Author the new visit fields and catalogue in the runtime format below, then freeze the case. For the exact study inputs, use the [frozen bundle route](REPRODUCE.md#repeat-the-study-configuration).
-
-## Runtime case JSON
-
-The schema version is `twinhospital.linked.case/1`. The [fictional generator](prepare_synthetic.py) writes a full editable case and its manifest.
-
-| Top-level field | Contents |
-| --- | --- |
-| `schema_version` | Literal `twinhospital.linked.case/1` |
-| `case_id`, `patient_key` | Stable, opaque identifiers. Use the same patient key for the same source patient across manifests. A bundle has distinct cases and source patients. |
-| `group`, `split`, `data_kind` | One declared stratum, a frozen partition, and explicit origin (`mimic_derived`, `hospital_derived`, or `synthetic_independent`). |
-| `patient_initial` | Demographics as perceived by the patient, communication profile, and facts from the patient view. Each fact has a unique `fact_id` and status `reported`, `denied`, or `unknown`. Include the current complaint and what the patient can report. |
-| `his_initial` | Authorized demographics, historical encounters and orders, optional administration, lab, microbiology and outpatient history, current observations, current medication-use and allergy records, and timing basis. |
-| `formulary` | Allowed virtual products. Preserve product code, ingredient, strength, formulation, route, dose and quantity units. The deployment must have matching native product codes. |
-| `evaluation`, `provenance` | Evaluator-only reference fields and source-versus-constructed annotations. Independent fictional cases declare `uses_patient_records: false` and `source_dataset: null`. |
-
-Generate a fictional example, then keep any authored clinical inputs outside the checkout.
-
-~~~sh
-.venv/bin/python -m handoff.prepare_synthetic --output "$WORK/example"
-.venv/bin/python -m handoff.inputs pack \
-  --case "$WORK/example/case.json" --assets "$OPENHIS" \
-  --output "$WORK/my_case_bundle"
-~~~
-
-Pass `--case` more than once to pack multiple case files, or `--manifest` to use a validated existing selection. A crossed batch additionally needs the native and rule catalogues and their fixture SQL in installation order. The packer records the case bytes, runtime projection digests, and release checksums. The launcher creates machine-local paths from the portable manifest. [Launch commands](REPRODUCE.md)
-
-For a different approved hospital dataset, use `hospital_derived`, set `provenance.uses_patient_records` to `true`, and name the source dataset in `provenance.source_dataset`. Supply the corresponding processing record and start with the linked case route. The study's held-out comparison uses disjoint MIMIC-IV cases under the original selection protocol.

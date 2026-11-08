@@ -47,8 +47,13 @@ def provision(fixtures=()):
     mod.ROOT=HERE
     mod.sql_command=lambda: COMPOSE+['exec','-T','postgres','psql','-X','-U','postgres','-d','openhis_205_local','-v','ON_ERROR_STOP=1']
     sys.argv=['provision','--daily']; mod.main()
-    for name in ['90-live-demo.sql','94-realistic-organizations.sql','95-realistic-personas.sql','96-natural-logins.sql','97-record-display-details.sql','98-workbench-display-details.sql','99-catalog-display-details.sql','99-curated-business-scenarios.sql','99-data-integrity.sql','100-hospital-departments.sql']:
-        sql(text=(source/'openhis-seed'/name).read_text())
+    seed=source/'openhis-seed'
+    reader_schedule=seed/'reader-schedule.sql'
+    if reader_schedule.is_file():
+        sql(text=reader_schedule.read_text())
+    else:
+        for name in ['90-live-demo.sql','94-realistic-organizations.sql','95-realistic-personas.sql','96-natural-logins.sql','97-record-display-details.sql','98-workbench-display-details.sql','99-catalog-display-details.sql','99-curated-business-scenarios.sql','99-data-integrity.sql','100-hospital-departments.sql']:
+            sql(text=(seed/name).read_text())
     sql(text=(HERE/'experiment-fixtures.sql').read_text())
     for fixture in fixtures:
         sql(text=fixture.read_text())
