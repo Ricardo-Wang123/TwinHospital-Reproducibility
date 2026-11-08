@@ -1,0 +1,35 @@
+{
+  "scope": "original workbench read-back of one independently fictional FHIR encounter",
+  "openhis_release": "2.0.5",
+  "workbench_index_sha256": "3efea1fc5bb2bf477bfc328fc4b377a430301e5451672285c2369d440f225aa5",
+  "backend_jar_sha256": "8be46599a360c45471d2ff6eb2f91f4f18031c3184aca6db1413e9298e82f3da",
+  "fictional_encounters": 1,
+  "model_calls": 0,
+  "workbench_checks": {
+    "same_encounter": {
+      "verified": true,
+      "application_read_api": "/doctorStationEncounterManage/pageOutpatientInfoForDoctorStation"
+    },
+    "same_primary_diagnosis": {
+      "verified": true,
+      "application_read_api": "/doctorStationDiagnosis/getEncounterDiagnosis"
+    },
+    "same_completed_order": {
+      "verified": true,
+      "application_read_api": "/doctorStationAdvice/listDoctorStationAdvice"
+    },
+    "same_read_only_note_content": {
+      "verified": true,
+      "application_read_api": "/document/getContent"
+    },
+    "same_settled_medication_amount": {
+      "verified": true,
+      "application_read_api": "/outpatientCharge/loadPendingChargeItems"
+    }
+  },
+  "browser_requests_to_declared_business_write_endpoints": 0,
+  "post_browser_native_state_matches_settlement": true,
+  "openhis_encounter_status": "IN_PROGRESS",
+  "medication_charge_status": "SETTLED",
+  "simulated_medication_amount_cny": "14.00"
+}

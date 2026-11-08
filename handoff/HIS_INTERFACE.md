@@ -6,6 +6,8 @@ Each source case can initialize independent encounter replicas. All configuratio
 
 The queue, imported chart, dialogue, handoff, and review decisions live in TwinHospital. The native encounter, diagnoses, encodable orders, locked notes, and cash records live in OpenHIS. Frontend-only form checks and interaction behavior require a separate browser evaluation. The experiment uses local simulated cash and the declared operational constraints.
 
+We also opened a fictional FHIR-driven encounter in the unmodified OpenHIS 2.0.5 workbench. The physician view showed the same encounter, primary diagnosis, completed order, and read-only note. The cashier view showed the corresponding settled medication charge. The audited clinical and financial records were identical before and after this browser check. The workbench displayed the native encounter as in progress and the medication charge as settled. TwinHospital's terminal condition is verified medication settlement. [Workbench read-back](../results/openhis_workbench_readback.json)
+
 Figure 1 shows the role-scoped request to OpenHIS and the verified state read back into TwinHospital as separate arrows. [Vector figure source](../docs/figures/draw_linked_overview.py)
 
 ## FHIR R4 workflow operations
@@ -35,6 +37,8 @@ cmp "$WORK/his-interface-check/aggregate.json" results/his_interface_checks.json
 ~~~
 
 The check uses five fixed fictional case scripts on each path. Each assignment gets its own patient, encounter, and payment identifiers. Independent read-back checks the saved handoff, native diagnosis, signed order, locked note, and linked medication payment. It also checks native state after a rejected unsigned charge, an attempted revision of a locked note, and a duplicate cash request. The [aggregate](../results/his_interface_checks.json) records five matching pairs and ten completed encounters. The detailed `summary.json` and checkpoint files stay in the local output directory. This is a transport check on the same OpenHIS implementation, separate from model-driven outcomes.
+
+To repeat the browser read-back, mount the original release's `release/dist` and serve its workbench proxy on the same dedicated loopback instance as the fixture. Route the workbench's `/api/` requests to the application service and preserve the fixture runner's `/api/app/` route. Use the fixture's native encounter binding to find the visit in the physician station and the settled charge in the cashier station. Compare the two displays with the native read-back. [Verified browser read paths](../results/openhis_workbench_readback.json)
 
 To check the FHIR messages exchanged by those scripts, pass `--fhir-schema` with the official HL7 R4 JSON Schema archive. The verifier checks discovery metadata, requests, successful receipts, and error responses. It also checks the input and output parameter names, types, and cardinalities against the definitions returned by the bridge. The aggregate covers all eleven advertised operations across 70 requests and their responses. [HL7 R4 schema and validation scope](https://hl7.org/fhir/R4/validation.html) · [Aggregate](../results/fhir_r4_wire_checks.json)
 
