@@ -1,0 +1,60 @@
+{
+  "catalog_hash": "742480a3a5f44b485295c97738a93a907fac853590153f15d6e5ee75299b1d97",
+  "diagnosis_catalog_hash": "5bd8c91d86e17603d0ad2e71898030452bf0a3385b0e5cd1e909603d713c6cf4",
+  "generation": {
+    "deepseek-v4.1-flash-1017": {
+      "max_completion_tokens": 16384,
+      "temperature": 0.2,
+      "thinking": false,
+      "truncation_retry": {
+        "max_completion_tokens": 32768,
+        "max_retries": 1
+      }
+    },
+    "glm-5.2": {
+      "max_completion_tokens": 16384,
+      "temperature": 0.2,
+      "thinking": false,
+      "truncation_retry": {
+        "max_completion_tokens": 32768,
+        "max_retries": 1
+      }
+    }
+  },
+  "linked_code_sha256": {
+    "actors.py": "ad92a93c4566dedf8e9f19824acf9dfdae908d978405ec95e30df4054743eed4",
+    "batch_observation.py": "ea13f2e0ac34da2c80ff080c34fa1a3f439e165c35cada394cb8a3e389e62681",
+    "camel_provider.py": "f08639050b0c6706611e0dad1a316617313304c94c193f934335ca77bfb32067",
+    "campaign.py": "7c2613b1e4e565263df0f35c4b9d61a71e66ab3c5eb657c00dee40807f78c4a3",
+    "chart.py": "e281a27c23f7daf97941e2bb1fdcd2d66632e1ee75cf848e5daa324bf441a9ee",
+    "chart_projection.py": "b5da7871262314dcfc826d531b4a29307e9ad14d2d857650bb352c4c595465be",
+    "clinical.py": "c87a78c7d18d61a56e75ee61510919ae54e3d2fc67216fc33af6bcdd6ca2ac7b",
+    "clinical_faults.py": "fbaece8487cdc62de18912b47cc968c467c2956e96f569aee58d43194d247bc8",
+    "contracts.py": "0d235ae9f4873cba0a25f77fdd208b975eefbc215513fc4a05c286b248ae94d9",
+    "documented_pprs.py": "ee303db5dc08d3ab170a6320946121edd17eee5681b46324997907712e0a65ee",
+    "evidence_bindings.py": "16ddbee1e9bb7beffa446e9f349d70d43418a33973f864e8f8f799767672d191",
+    "exact_product_route_reference_v1.json": "66706d8a01c33656472d15a1320ab0cabf02509a734fde8aa304e06172577bbd",
+    "json_boundary.py": "1dfea957ac9ac9f995fc3112e5a32b8b1d4837b63f3da6760e046ae126627971",
+    "linked_acceptance.py": "8ed717ede1472a9a15d028104ec735b0e8dc6deb73c2a22a85ca5d12f64f96c5",
+    "native_his.py": "1d43129a9565f3b55bb43a273e36fbd7bfc27d3575514e1dcaef296c7ab449d7",
+    "native_observation.py": "1f79cc263f541b65e74d15987afacb597082128cd80a71ba68dc27a1cb7f88a2",
+    "native_observation_analysis.py": "6535c4be4d27847f8af9ee8c70d55f5a4518c64745e79329ff3f21bac691547f",
+    "network_route.py": "7fc5328ece8ac9fb1e2ee95ba75476c7dbb03556b1a97893ca6a4027fea5fc0a",
+    "order_encoding.py": "ffc9c731164f454a8778f1a06ca8daaf83d93c407aa20c9b5f7c64b39cea93a8",
+    "prescription_variants.py": "6091161e2dd6063338f042e55df58b4c6da6c67f37f3fc4b8594ace54a4d1af8",
+    "protocol_his.py": "8aadada08c5cc60cf2ec969a1f5d2e47fb9346724ae8d67a8b52a294f8d7318d",
+    "provider.py": "dc4de136fb672e753a185f68511e011db24f4e8e7530875c65ab69d79ceb907c",
+    "provider_profile.py": "63670eec4f55f248e416f5d01ff78515b75c0b0e9cd5b560e1fc3bae454ce30f",
+    "regimen.py": "e45771b5f6517a11ee4d7c6ed1635c35e38b619151bafb64f68e38aa9253e0a8",
+    "response_contracts.py": "15edd106c341eab6778e8c9e78a1788d29fd08a21c6c827863b095bd19132c9f",
+    "rules.py": "627be631f52d04c4767df0ee961aebd2d1f14cd36cc6b34a3ec672a41b24f4ee",
+    "run_batch.py": "93666d36568235117e7194727b5a1f37885345937ba02f60992b0fcd8ecc2999",
+    "safe_context_adapter.py": "f9456f7b34cb4d29488f22d6d6d04845bcfd7218c227c896f7cd16e619dabf0a",
+    "trace_evidence.py": "f60a49406f6ea169a9f5c895d7093190dec127bd3965057dd46cfd55d567105a",
+    "workflow_analysis.py": "76bad1d0fd20dc24b1d7de7df3f80f98f3cd54ee521dcd3ed54e6ed4884db884"
+  },
+  "max_model_calls_per_run": 150,
+  "max_transport_attempts": 5,
+  "runtime_tag": "cohort-170-runtime",
+  "scope": "runtime source and generation profile bound by the analyzed cohort"
+}

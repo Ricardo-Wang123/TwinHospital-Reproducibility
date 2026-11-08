@@ -2,7 +2,7 @@
 
 同一个病例从挂号、预问诊、接诊开方、审方修订、病历签署，到 **OpenHIS 模拟药费缴费并读回**。角色用 `deepseek-v4.1-flash-1017`，AI 工具用 `glm-5.2`；两条路由都关闭推理。支付只在隔离 OpenHIS 记账。
 
-当前结果在 [results](../results/README.md)：170 条已缴费，原定 270 条中还有 100 条可续跑。论文中的描述性结果来自这 170 条。代码快照来自 `ab7c5fb`；产生这批结果的原始运行版本为 `654dd39`。
+论文当前的 170 次就诊汇总和复算命令见 [results](../results/README.md)。`cohort-170-runtime` 标签固定产生这批结果的运行源文件。后续运行使用主分支及相应的冻结配置。
 
 ## 在原实验机换 key 续跑
 
@@ -16,7 +16,7 @@ python3.12 -m venv .venv
 .venv/bin/python -m handoff.run --config private/recover.local.json run --execute
 ```
 
-`check` 不调用模型、不写 HIS；原批次应报告 `retained_paid: 170`、`unpaid_to_dispatch: 100`。`set-key` 不回显，保存到本机 `0600` 文件。`run --execute` 先分别用无临床内容请求检查两条模型路由，均成功才启动病例。旧账本保留过往成本；确认服务恢复后才解除供应商停发。用相同端点、模型和临床配置，已缴费 170 条不会重派。不要并行运行另一份恢复调度器。
+`check` 仅读取配置和审计记录。以它返回的 `retained_paid` 和 `unpaid_to_dispatch` 确认本次恢复范围。`set-key` 将密钥保存到本机 `0600` 文件。`run --execute` 先以无临床内容的请求核对两条模型路由，再调度病例。恢复沿用原账本、端点、模型和临床配置，已核验的缴费记录保留。每个批次使用一个恢复调度器。
 
 如果原冻结调度窗口过期，用 [工作窗口模板](../config/workflow.template.json) 冻结新窗口，将 `workflow_policy` 改为新文件。病例、模型、规则、字典及原生观测文件仍需通过原哈希核对：
 

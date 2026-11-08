@@ -2,23 +2,30 @@
 
 **Evaluating Clinical Language Agents through Linked Hospital Workflows**
 
-TwinHospital links language-agent decisions to an outpatient encounter in an isolated OpenHIS instance. Pre-consultation, prescription review, and clinical documentation share the same encounter. The runtime records handoffs and revisions and verifies the signed order, locked note, and simulated medication payment from persisted HIS state.
+TwinHospital evaluates clinical language agents in a linked outpatient encounter. It follows the handoff, prescription, and note from generation and review to the signed order, locked note, and simulated medication payment in OpenHIS.
 
-The framework varies the assistance and review configuration at each stage while holding the role and tool models fixed. It records artifact delivery, modeled staff effort through verification and revision, and native-state outcomes.
+![TwinHospital workflow from registration through simulated payment, showing the three evaluation applications](docs/workflow.png)
 
-## Evidence
+## Study snapshot
 
-The repository contains aggregate results for **170 verified paid encounters** derived from ten MIMIC-IV histories. The analysis describes these completed encounters, including initial prescription-review decisions, delivered artifacts, and modeled effort. [Result definitions and recomputation](results/README.md)
+The current analysis covers **170 verified paid encounters** derived from ten MIMIC-IV histories. The study varies pre-consultation, prescription-review, and documentation configurations while holding the role and assistance models fixed. The operation replays use separate fault and control denominators.
 
-## Reproduction
+- [Encounter aggregates](results/verified_paid_results_170.json)
+- [Operation replay aggregates](results/operation_replay_10.json)
+- [LaTeX results used in the manuscript](results/acl_results_170.tex)
+- [Frozen execution settings and source checksums](results/cohort_170_execution.json)
+- [Metric definitions and result regeneration](results/README.md)
 
-Start with the independent fictional case and the isolated OpenHIS deployment. The native smoke check verifies the workflow through payment without model calls. Running the agent workflow requires the authorized OpenHIS assets and working credentials for the configured role and tool routes. [运行与扩跑指南](handoff/README.md)
+## Run TwinHospital
 
-| Task | Entry point |
+| Purpose | Entry point |
 | --- | --- |
-| Check a new linked run | [Independent case configuration](config/run.synthetic.example.json) |
-| Resume the audited batch | [Recovery configuration](config/run.recover.example.json) |
-| Run a new crossed batch | [Factorial configuration](config/run.factorial.example.json) |
-| Verify results and export tables | [Audit and export tools](tools/) |
+| Start from a fictional case | [Setup and smoke check](handoff/README.md#在新电脑启动) · [Run configuration](config/run.synthetic.example.json) |
+| Configure the role and tool models | [Provider template](config/provider.example.json) |
+| Start a crossed batch | [Factorial configuration](config/run.factorial.example.json) |
+| Resume a verified batch | [Recovery configuration](config/run.recover.example.json) |
+| Audit the traces and regenerate tables | [Results and commands](results/README.md) |
 
-The recovery entry point binds the original manifests and audit evidence, preserves verified payments, and schedules only unresolved assignments. Larger studies use a separately frozen cohort and analysis plan. Protected histories, run archives, and credentials stay in the authorized environment. [PhysioNet data-use guidance](https://physionet.org/news/post/llm-responsible-use/)
+The [run guide](handoff/README.md) covers setup, credential entry, and batch recovery. The native smoke check uses an isolated OpenHIS installation and independent fictional inputs. The model-backed run uses local credentials. The tag `cohort-170-runtime` preserves the source files bound by the analyzed cohort's execution specification.
+
+Full clinical-cohort reproduction requires authorized MIMIC access, the protected case and trace archive, and the authorized OpenHIS distribution. The repository contains code, configuration templates, fictional inputs, and aggregates. [PhysioNet data-use guidance](https://physionet.org/news/post/llm-responsible-use/)

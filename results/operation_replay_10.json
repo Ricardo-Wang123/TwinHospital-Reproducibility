@@ -1,0 +1,83 @@
+{
+  "planned_units": 10,
+  "recorded_units": 10,
+  "model_calls": 0,
+  "source_inputs_unchanged": true,
+  "outcomes": {
+    "gateway_prevention": 4,
+    "control_allowed": 5,
+    "safe_idempotent_replay": 1
+  },
+  "by_cell": [
+    {
+      "operation": "duplicate_transaction",
+      "condition": "compliant_control",
+      "counts": {
+        "control_allowed": 1
+      }
+    },
+    {
+      "operation": "duplicate_transaction",
+      "condition": "single_fault",
+      "counts": {
+        "safe_idempotent_replay": 1
+      }
+    },
+    {
+      "operation": "invalid_note_state",
+      "condition": "compliant_control",
+      "counts": {
+        "control_allowed": 1
+      }
+    },
+    {
+      "operation": "invalid_note_state",
+      "condition": "single_fault",
+      "counts": {
+        "gateway_prevention": 1
+      }
+    },
+    {
+      "operation": "missing_encounter_link",
+      "condition": "compliant_control",
+      "counts": {
+        "control_allowed": 1
+      }
+    },
+    {
+      "operation": "missing_encounter_link",
+      "condition": "single_fault",
+      "counts": {
+        "gateway_prevention": 1
+      }
+    },
+    {
+      "operation": "patient_record_mismatch",
+      "condition": "compliant_control",
+      "counts": {
+        "control_allowed": 1
+      }
+    },
+    {
+      "operation": "patient_record_mismatch",
+      "condition": "single_fault",
+      "counts": {
+        "gateway_prevention": 1
+      }
+    },
+    {
+      "operation": "unauthorized_signing",
+      "condition": "compliant_control",
+      "counts": {
+        "control_allowed": 1
+      }
+    },
+    {
+      "operation": "unauthorized_signing",
+      "condition": "single_fault",
+      "counts": {
+        "gateway_prevention": 1
+      }
+    }
+  ]
+}

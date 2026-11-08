@@ -1,13 +1,63 @@
 {
   "scope": "descriptive analysis of verified paid linked encounters only",
+  "paid_cohort_sha256": "3663b891be81c52041e7dc6653e6de06f2d51a93e127352558319e61124842b6",
   "source_cases": 10,
   "verified_paid": 170,
+  "source_cases_by_group": {
+    "copd": 2,
+    "type2_diabetes": 2,
+    "heart_failure": 2,
+    "pneumonia": 2,
+    "uti": 2
+  },
   "groups": {
     "copd": 35,
     "type2_diabetes": 35,
     "heart_failure": 33,
     "pneumonia": 33,
     "uti": 34
+  },
+  "linked_progression": {
+    "configuration_cells": 27,
+    "encounters_per_cell_min": 5,
+    "encounters_per_cell_max": 7,
+    "first_candidate_signed": 127,
+    "first_review_nonapproval": 29,
+    "approved_but_unencodable": 14
+  },
+  "matched_stage_effort": {
+    "preconsult": {
+      "ai_nurse_review": {
+        "matched_blocks": 26,
+        "source_histories": 9,
+        "mean_difference_minutes": 0.04078483245149915,
+        "min_history_difference_minutes": -1.3333333333333333,
+        "max_history_difference_minutes": 2.3333333333333335
+      },
+      "ai_only": {
+        "matched_blocks": 35,
+        "source_histories": 10,
+        "mean_difference_minutes": -2.2159722222222222,
+        "min_history_difference_minutes": -3.027777777777778,
+        "max_history_difference_minutes": -0.5833333333333334
+      }
+    },
+    "documentation": {
+      "postvisit": {
+        "matched_blocks": 41,
+        "source_histories": 10,
+        "mean_difference_minutes": -0.9355555555555556,
+        "min_history_difference_minutes": -1.8,
+        "max_history_difference_minutes": 0.3333333333333333
+      },
+      "realtime": {
+        "matched_blocks": 44,
+        "source_histories": 10,
+        "mean_difference_minutes": -0.28208333333333335,
+        "min_history_difference_minutes": -1.4833333333333334,
+        "max_history_difference_minutes": 0.6944444444444445
+      }
+    }
   },
   "effort_scope": "task-specific staff activities; encounter-wide effort retained separately",
   "task": {
@@ -24,6 +74,11 @@
           "nurse": 2.1785714285714284,
           "doctor": 1.2232142857142858
         },
+        "effort_components_seconds": {
+          "collection_and_drafting": 5640,
+          "verification_and_rework": 5270,
+          "other": 520
+        },
         "physician_supplementation_actions": 69,
         "physician_correction_actions": 0,
         "first_pass_delivered": 10
@@ -38,6 +93,11 @@
         "mean_modeled_minutes": 1.1896551724137931,
         "modeled_minutes_by_role_per_delivered": {
           "doctor": 1.1896551724137931
+        },
+        "effort_components_seconds": {
+          "collection_and_drafting": 0,
+          "verification_and_rework": 3600,
+          "other": 540
         },
         "physician_supplementation_actions": 65,
         "physician_correction_actions": 1,
@@ -54,6 +114,11 @@
         "modeled_minutes_by_role_per_delivered": {
           "nurse": 2.4464285714285716,
           "doctor": 1.125
+        },
+        "effort_components_seconds": {
+          "collection_and_drafting": 8220,
+          "verification_and_rework": 3560,
+          "other": 220
         },
         "physician_supplementation_actions": 64,
         "physician_correction_actions": 0,
@@ -72,9 +137,15 @@
         "modeled_minutes_by_role_per_delivered": {
           "doctor": 2.0388888888888888
         },
+        "effort_components_seconds": {
+          "collection_and_drafting": 3600,
+          "verification_and_rework": 3140,
+          "other": 600
+        },
         "mean_note_turnaround_seconds": 131.61189316947227,
         "note_rework_seconds": 585,
         "first_final_draft_accepted": 52,
+        "interim_notes_before_close": 0,
         "saved_note_versions": 73,
         "saved_physician_revisions": 13
       },
@@ -89,9 +160,15 @@
         "modeled_minutes_by_role_per_delivered": {
           "doctor": 1.0893939393939394
         },
+        "effort_components_seconds": {
+          "collection_and_drafting": 0,
+          "verification_and_rework": 3045,
+          "other": 550
+        },
         "mean_note_turnaround_seconds": 136.8000394992382,
         "note_rework_seconds": 630,
         "first_final_draft_accepted": 45,
+        "interim_notes_before_close": 0,
         "saved_note_versions": 69,
         "saved_physician_revisions": 14
       },
@@ -106,9 +183,15 @@
         "modeled_minutes_by_role_per_delivered": {
           "doctor": 1.731818181818182
         },
+        "effort_components_seconds": {
+          "collection_and_drafting": 0,
+          "verification_and_rework": 5165,
+          "other": 550
+        },
         "mean_note_turnaround_seconds": 132.94813737804495,
         "note_rework_seconds": 720,
         "first_final_draft_accepted": 49,
+        "interim_notes_before_close": 55,
         "saved_note_versions": 127,
         "saved_physician_revisions": 16
       }
@@ -120,9 +203,29 @@
           "approve": 49,
           "defer": 9
         },
+        "screening": {
+          "original_rule_alerts": 48,
+          "original_ai_alerts": 8,
+          "original_pharmacist_alerts": 8,
+          "original_alerts": 52,
+          "original_alerts_reviewed": 52,
+          "followup_review_rounds": 15,
+          "followup_rule_alerts": 10,
+          "followup_ai_alerts": 1,
+          "followup_pharmacist_alerts": 1,
+          "followup_alerts": 11,
+          "followup_alerts_reviewed": 11,
+          "followup_rule_rounds_with_repeated_flag": 10,
+          "encounters_with_alerts": 52,
+          "alerting_review_rounds": 63,
+          "alerting_rounds_reviewed": 63,
+          "final_rule_evidence_alerts": 7,
+          "final_evidence_alerts_reviewed": 7,
+          "final_evidence_alerts_approved": 7
+        },
         "rule_reference_counts": {
-          "indeterminate": 19,
-          "scoped_nonviolation": 39
+          "scoped_nonviolation": 49,
+          "indeterminate": 9
         },
         "confirmed_high_risk": 0,
         "rule_scoped_metrics": {
@@ -141,7 +244,7 @@
           "fpr": {
             "estimate": 0.0,
             "numerator": 0,
-            "denominator": 36,
+            "denominator": 42,
             "status": "estimated"
           },
           "recall": {
@@ -171,9 +274,29 @@
           "defer": 7,
           "reject": 1
         },
+        "screening": {
+          "original_rule_alerts": 44,
+          "original_ai_alerts": 0,
+          "original_pharmacist_alerts": 8,
+          "original_alerts": 44,
+          "original_alerts_reviewed": 44,
+          "followup_review_rounds": 10,
+          "followup_rule_alerts": 8,
+          "followup_ai_alerts": 0,
+          "followup_pharmacist_alerts": 0,
+          "followup_alerts": 8,
+          "followup_alerts_reviewed": 8,
+          "followup_rule_rounds_with_repeated_flag": 8,
+          "encounters_with_alerts": 44,
+          "alerting_review_rounds": 52,
+          "alerting_rounds_reviewed": 52,
+          "final_rule_evidence_alerts": 7,
+          "final_evidence_alerts_reviewed": 7,
+          "final_evidence_alerts_approved": 7
+        },
         "rule_reference_counts": {
-          "indeterminate": 21,
-          "scoped_nonviolation": 35
+          "scoped_nonviolation": 47,
+          "indeterminate": 9
         },
         "confirmed_high_risk": 0,
         "rule_scoped_metrics": {
@@ -192,7 +315,7 @@
           "fpr": {
             "estimate": 0.0,
             "numerator": 0,
-            "denominator": 32,
+            "denominator": 44,
             "status": "estimated"
           },
           "recall": {
@@ -221,9 +344,29 @@
           "approve": 44,
           "defer": 12
         },
+        "screening": {
+          "original_rule_alerts": 49,
+          "original_ai_alerts": 12,
+          "original_pharmacist_alerts": 12,
+          "original_alerts": 55,
+          "original_alerts_reviewed": 55,
+          "followup_review_rounds": 19,
+          "followup_rule_alerts": 9,
+          "followup_ai_alerts": 0,
+          "followup_pharmacist_alerts": 0,
+          "followup_alerts": 9,
+          "followup_alerts_reviewed": 9,
+          "followup_rule_rounds_with_repeated_flag": 9,
+          "encounters_with_alerts": 55,
+          "alerting_review_rounds": 64,
+          "alerting_rounds_reviewed": 64,
+          "final_rule_evidence_alerts": 6,
+          "final_evidence_alerts_reviewed": 6,
+          "final_evidence_alerts_approved": 6
+        },
         "rule_reference_counts": {
-          "indeterminate": 19,
-          "scoped_nonviolation": 37
+          "indeterminate": 12,
+          "scoped_nonviolation": 44
         },
         "confirmed_high_risk": 0,
         "rule_scoped_metrics": {
@@ -242,7 +385,7 @@
           "fpr": {
             "estimate": 0.0,
             "numerator": 0,
-            "denominator": 37,
+            "denominator": 38,
             "status": "estimated"
           },
           "recall": {

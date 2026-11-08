@@ -1,0 +1,106 @@
+% Generated from linked-encounter metrics and native audit.
+\newcommand{\THPaidCount}{170}
+\newcommand{\THSourceCount}{10}
+\newcommand{\THConditionCount}{27}
+\newcommand{\THObservedConditionCount}{27}
+\newcommand{\THMinConditionEncounters}{5}
+\newcommand{\THMaxConditionEncounters}{7}
+\newcommand{\THObservationWindowMinutes}{120}
+\newcommand{\THApprovedUnencodable}{14}
+\newcommand{\THInitialApprovals}{141}
+\newcommand{\THInitialNonapprovals}{29}
+\newcommand{\THRxReferenceSummary}{The rule reference labeled 140 original orders as nonviolations and 0 as violations. The remaining 30 orders had no determinate label within the reference scope. False positives among resolved reference negatives numbered 0/124. No reference-positive order had a resolved first decision.}
+\newcommand{\THHumanReviewStatement}{After simulation, human reviewers on the study team assessed the clinical appropriateness of the final prescription in 170 of the 170 completed encounters.}
+\newcommand{\THRxAlertSummary}{At least one source alerted in 151 of 170 original reviews. Follow-up reviews alerted in 28 of 44 rounds. In 27 of the 27 follow-up rounds with a rule alert, a rule flag also appeared in the preceding round. The 179 alerting rounds covered 151 encounters. A pharmacist or senior pharmacist reviewed 179 of those rounds.}
+\newcommand{\THRxFinalEvidenceSummary}{For 20 final orders, screening still flagged a rule with indeterminate evidence. A pharmacist or senior pharmacist reviewed 20/20 of these orders, and 20/20 received approval.}
+\newcommand{\THNurseDelivered}{56/56}
+\newcommand{\THAIDelivered}{58/58}
+\newcommand{\THReviewedDelivered}{56/56}
+\newcommand{\THHandoffsNeedingFollowup}{140/170}
+\newcommand{\THNotesDelivered}{170/170}
+\newcommand{\THInterimAvailability}{55/55}
+\newcommand{\THRealtimeVersions}{127}
+\newcommand{\THRealtimeNotes}{55}
+\newcommand{\THPostvisitVersions}{69}
+\newcommand{\THPostvisitNotes}{55}
+\newcommand{\THNurseHandoffMinutes}{3.57}
+\newcommand{\THAIHandoffMinutes}{1.19}
+\newcommand{\THReviewedHandoffMinutes}{3.40}
+\newcommand{\THHandoffSupplementActions}{198}
+\newcommand{\THHandoffCorrectionActions}{1}
+\newcommand{\THManualMinutes}{2.04}
+\newcommand{\THRealtimeMinutes}{1.73}
+\newcommand{\THPostvisitMinutes}{1.09}
+\newcommand{\THMeanSettlementMinutes}{6.55}
+\newcommand{\THMedianSettlementMinutes}{6.44}
+\newcommand{\THTailSettlementMinutes}{9.00}
+\newcommand{\THProbeSummary}{In separate operation replays, 5/5 fault-bearing requests had a verified safe disposition and 5/5 valid controls executed.}
+\newcommand{\THWeightSensitivitySummary}{Across these weights, 2 of 4 comparisons with defined estimates ranged from reduced to increased modeled effort.}
+\newcommand{\THMatchedHandoffSummary}{The matched contrast for AI with nurse review relative to nurse-agent intake was \(+0.04\) minutes across 26 blocks from 9 histories.}
+
+\newcommand{\THCohortRows}{%
+Type 2 diabetes & Endocrine & 2 & 35 \\
+Heart failure & Circulatory & 2 & 33 \\
+COPD & Respiratory & 2 & 35 \\
+Pneumonia & Respiratory & 2 & 33 \\
+Urinary tract infection & Genitourinary & 2 & 34 \\
+\textbf{Total} &  & 10 & 170 \\
+}
+\newcommand{\THPrescriptionRows}{%
+Rule baseline & 56 & 48 & 7 & 1 & 48/49 & 0/44 \\
+Sequential & 56 & 44 & 12 & 0 & 44/44 & 0/38 \\
+Parallel & 58 & 49 & 9 & 0 & 49/49 & 0/42 \\
+}
+\newcommand{\THAlertRows}{%
+Rule baseline & 56 & 44 & \textemdash{} & 8 & 44 & 44/44 \\
+Sequential & 56 & 49 & 12 & 12 & 55 & 55/55 \\
+Parallel & 58 & 48 & 8 & 8 & 52 & 52/52 \\
+\textbf{Total} & 170 & 141 & 20 & 28 & 151 & 151/151 \\
+}
+\newcommand{\THFollowupAlertRows}{%
+Rule baseline & 10 & 8 & \textemdash{} & 0 & 8 & 8/8 \\
+Sequential & 19 & 9 & 0 & 0 & 9 & 9/9 \\
+Parallel & 15 & 10 & 1 & 1 & 11 & 11/11 \\
+\textbf{Total} & 44 & 27 & 1 & 1 & 28 & 28/28 \\
+}
+\newcommand{\THPreconsultRows}{%
+Nurse agent & 56/56 & 2.45 & 1.12 & 3.57 & 11/56 & 64 \\
+AI only & 58/58 & 0.00 & 1.19 & 1.19 & 9/58 & 65 \\
+AI + nurse & 56/56 & 2.18 & 1.22 & 3.40 & 10/56 & 69 \\
+}
+\newcommand{\THDocumentationRows}{%
+Physician agent & 60/60 & 2.04 & 13 & 9.8 & 52/60 & 131.6 \\
+During consultation & 55/55 & 1.73 & 16 & 13.1 & 49/55 & 132.9 \\
+Post-consultation & 55/55 & 1.09 & 14 & 11.5 & 45/55 & 136.8 \\
+}
+\newcommand{\THWorkflowRows}{%
+First candidate proceeded to signing & 127/170 \\
+First review deferred or rejected & 29/170 \\
+Approved at review, blocked at encoding & 14/170 \\
+Queue-to-payment mean (min) & 6.55 \\
+Queue-to-payment median (min) & 6.44 \\
+Queue-to-payment 95th percentile (min) & 9.00 \\
+}
+\newcommand{\THProbeRows}{%
+Patient identity & 1 & 0 & 1/1 & 1/1 \\
+Encounter linkage & 1 & 0 & 1/1 & 1/1 \\
+Note lifecycle & 1 & 0 & 1/1 & 1/1 \\
+Signing authority & 1 & 0 & 1/1 & 1/1 \\
+Transaction uniqueness & 0 & 1 & 1/1 & 1/1 \\
+}
+\newcommand{\THWeightSensitivityRows}{%
+\multicolumn{3}{@{}l}{\textit{Pre-consultation}} \\
+AI only & \(-2.38\) & \([-4.85, -1.15]\) \\
+AI + nurse & \(-0.17\) & \([-1.19, +0.72]\) \\
+\multicolumn{3}{@{}l}{\textit{Documentation}} \\
+During consultation & \(-0.31\) & \([-1.65, +0.89]\) \\
+Post-consultation & \(-0.95\) & \([-1.97, -0.40]\) \\
+}
+\newcommand{\THMatchedEffortRows}{%
+\multicolumn{5}{@{}l}{\textit{Pre-consultation}} \\
+AI only & 35 & 10 & \(-2.22\) & \([-3.03, -0.58]\) \\
+AI + nurse & 26 & 9 & \(+0.04\) & \([-1.33, +2.33]\) \\
+\multicolumn{5}{@{}l}{\textit{Documentation}} \\
+During consultation & 44 & 10 & \(-0.28\) & \([-1.48, +0.69]\) \\
+Post-consultation & 41 & 10 & \(-0.94\) & \([-1.80, +0.33]\) \\
+}
