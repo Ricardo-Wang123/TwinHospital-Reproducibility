@@ -23,7 +23,7 @@ import re
 from .cases import GROUPS, load_case
 from .batch_observation import deployment_metadata
 from .contracts import runtime_case
-from .native_his import NativeBlocked, NativeOpenHISPort, digest, write_private
+from .native_his import NativeBlocked, NativeOpenHISPort, digest, isolated_port, write_private
 from .protocol_his import PaperProtocolPort
 from .run_batch import validate_anchor_evidence
 from .safety_native import append
@@ -210,7 +210,8 @@ class SourceOperationReplay(PaperLocalSafety):
         cid = test['test_id'] + suffix
         native = NativeOpenHISPort(self.output / 'units' / cid, catalog_mapping=self.mapping,
                                   diagnosis_mapping=self.diagnosis_mapping, clients=self.clients,
-                                  credentials_path=self.credentials_path)
+                                  credentials_path=self.credentials_path,
+                                  base_url=f'http://127.0.0.1:{isolated_port()}/api/app')
         if self.clients is None:
             self.clients = {r: native._client(r) for r in ('doctor', 'nurse', 'cashier')}
             native.clients = self.clients

@@ -2,6 +2,8 @@
 
 Use the MAS in this repository, the OpenHIS reader release, and your own cases in the [TwinHospital case format](CASE_FORMAT.md). Each case enters the same outpatient workflow and writes its own encounter, prescription, document, and simulated settlement.
 
+The paper comparison crosses the three choices at each clinical stage on the same input cases. It also produces an Application I–III report and supports five paired operation probes. If you received the transferable experiment kit, start with its `START-HERE.md` and use the included runtime and cases.
+
 ## 1. Install the runtime
 
 Use Python 3.12 on macOS or Linux, Docker with Compose v2, and an OpenAI-compatible Chat Completions endpoint. The [reader release](https://github.com/Ricardo-Wang123/TwinHospital-Reproducibility/releases/tag/openhis-reader-v1) provides the OpenHIS 2.0.5 backend, its source, and an independently constructed sample dataset.
@@ -69,24 +71,53 @@ cp -n config/provider.custom.example.json "$PROVIDER"
 
 The runner reads assistant JSON, the model identifier, completion status, and token counts from the Chat Completions response. For restricted datasets, supply the endpoint-specific local processing record using `--data-policy`. [Processing record template](../config/data_policy.example.json)
 
-## 4. Run and inspect the encounters
+## 4. Run a paper comparison
+
+Start with `--quick` for a pilot. It schedules three fresh encounters per source case and exercises every choice at least once.
+
+| Intake | Prescription review | Documentation |
+| --- | --- | --- |
+| Nurse | Rules with pharmacist routing | Physician |
+| AI alone | Sequential | During consultation |
+| AI with nurse review | Parallel | After consultation |
+
+Remove `--quick` to assign every case to all 27 combinations. The full crossing supports matched contrasts that hold the other two stages fixed. Each assignment has its own agent context, encounter, and native records.
 
 ~~~sh
 .venv/bin/python -m handoff.inputs configure \
   --bundle "$WORK/inputs" --assets "$OPENHIS" --provider "$PROVIDER" \
-  --batch my_cohort_01 --output "$WORK/my_cohort_01"
+  --mode comparison --quick --batch my_cohort_01 --output "$WORK/my_cohort_01"
 
 RUN="$WORK/my_cohort_01/run.local.json"
 .venv/bin/python -m handoff.run --config "$RUN" provision
 .venv/bin/python -m handoff.run --config "$RUN" set-key
+.venv/bin/python -m handoff.run --config "$RUN" check
 .venv/bin/python -m handoff.run --config "$RUN" run --execute
 .venv/bin/python -m handoff.run --config "$RUN" status
 .venv/bin/python -m handoff.run --config "$RUN" audit --observe-native
+.venv/bin/python -m handoff.run --config "$RUN" operations
+.venv/bin/python -m handoff.run --config "$RUN" report
 ~~~
 
-Enter the API key in the hidden prompt. The baseline executes registration, intake, consultation, prescription review, note signing, and simulated payment once per case. The batch directory contains `batch_summary.json` and an index to each encounter's `run.json`. The audit reads back OpenHIS orders, locked notes, and payment. Keep the isolated OpenHIS instance running until the audit is collected.
+Enter the API key in the hidden prompt. For a loopback endpoint that accepts requests without authentication, enter a local placeholder. Use a fresh batch name and output directory for each comparison. Keep the isolated OpenHIS instance running through the audit and operation checks.
 
-For the paper configuration and 27-condition comparison, use the study sections below. [Study results](../results/README.md)
+| Paper application | What to inspect in `reader_results/REPORT.md` and `summary.json` |
+| --- | --- |
+| I · Clinical artifacts | Handoff and note delivery, original prescription decisions, original and follow-up alerts, and the false-positive rate among resolved rule-reference negatives. |
+| II · Modeled staff effort | Staff minutes per delivered artifact, supplementation and rework, and elapsed note turnaround. Matched contrasts use cells with the same case and other stage configurations. |
+| III · Workflow integrity | Native signed order, locked note, and simulated payment, with planned and verified counts for each combination. The paired operation schedule reports fault and control dispositions separately. |
+
+Configuration selects the first manifest case for the paired operation checks. The replay uses that case's completed baseline artifacts to create fresh OpenHIS objects, with one fault and one valid control for each of five operations. If the baseline is unavailable, the planned requests retain unresolved outcomes. Choose the first manifest row before running if you want a different source.
+
+The run reports every planned assignment. The artifact and effort tables apply the paper's verified-paid observation window. A rule with no covered product or sufficient evidence remains indeterminate. Rates with no eligible denominator appear as a dash. The JSON includes the counts and the exact model identifiers. The case files, traces, and detailed audit stay in the local workspace.
+
+### Run a single baseline visit
+
+Use `--mode linked` for one baseline visit per case. Run `provision`, `set-key`, `run --execute`, `status`, and `audit --observe-native` as above. The batch directory includes `batch_summary.json` and an index to each encounter's `run.json`.
+
+### Compare to the study snapshot
+
+The independent dataset route uses the same workflow configurations. Use the study sections below for the exact historical inputs and model profile. [Study results](../results/README.md)
 
 ## Repeat the study configuration
 

@@ -258,7 +258,7 @@ def matched_stage_effort(runs, task, baseline):
     return result
 
 
-def summarize(batch, audit_path, case_manifest=None, clinical_catalogue=None):
+def summarize(batch, audit_path, case_manifest=None, clinical_catalogue=None, *, allow_unverified=False):
     batch = batch.resolve()
     summary = read(batch / 'batch_summary.json')
     specification_bytes = (batch / 'specification.json').read_bytes()
@@ -284,12 +284,16 @@ def summarize(batch, audit_path, case_manifest=None, clinical_catalogue=None):
                 raise ValueError('Run archive path is outside the specified batch.')
             raw = path.read_bytes()
             run_hash = sha256(raw).hexdigest()
+            if allow_unverified and run_hash not in expected_hashes:
+                continue
             if run_hash in hashes or run_hash not in expected_hashes:
                 raise ValueError('Paid run index does not match the archived native audit.')
             hashes.add(run_hash)
             runs.append(json.loads(raw))
-    if not runs or hashes != expected_hashes:
+    if hashes != expected_hashes or (not runs and not allow_unverified):
         raise ValueError('Paid run index does not match the archived native audit.')
+    if not runs:
+        return None
     if len({r['run_id'] for r in runs}) != len(runs):
         raise ValueError('Duplicate run identity.')
     if any(r['evaluation_unit'] != 'complete_encounter' for r in runs):

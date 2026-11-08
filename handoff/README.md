@@ -2,7 +2,8 @@
 
 | 要做的事 | 从哪里开始 |
 | --- | --- |
-| 用自己的病例和模型开新批次 | [准备数据并启动](REPRODUCE.md) |
+| 按论文配置用自己的病例和模型跑实验 | [准备数据并启动](REPRODUCE.md) |
+| 把实验环境发给他人 | [可转发实验包](https://github.com/Ricardo-Wang123/TwinHospital-Reproducibility/releases/tag/reader-experiments-v1) |
 | 下载 OpenHIS 与五类虚构样例 | [GitHub Release](https://github.com/Ricardo-Wang123/TwinHospital-Reproducibility/releases/tag/openhis-reader-v1) |
 | 看已经得到的结果 | [170 次已核验就诊和复算入口](../results/README.md) |
 | 按论文配置重跑 | [冻结病例包、模型和启动命令](REPRODUCE.md#repeat-the-study-configuration) |
@@ -14,6 +15,8 @@
 按运行指南安装 Python 3.12 和 Docker，并解压 GitHub 上的 OpenHIS 读者版。用自己的病例 JSON 或示例数据准备输入包，再由 `handoff.inputs configure` 生成 `run.local.json`。`provision` 启动隔离医院并装入字典，用 `set-key` 在本机输入 API key，再启动批次。[新机运行指南](REPRODUCE.md)
 
 新批次可用自选的兼容接口，角色和工具可以共用一个模型。论文这一批的角色模型为 `deepseek-v4.1-flash-1017`，工具模型为 `glm-5.2`，两者都关闭推理，温度为 0.2。复跑论文配置时使用[同版模型配置](../config/provider.example.json)和自己的数据处理记录。
+
+用 `--mode comparison --quick` 先跑三个整链配置。去掉 `--quick` 后，同一病例进入完整 27 种组合。批次结束后用 `audit`、`operations` 和 `report` 生成按三项应用组织的结果。[论文对照运行步骤](REPRODUCE.md#4-run-a-paper-comparison)
 
 ## 在原实验机换 key 续跑
 

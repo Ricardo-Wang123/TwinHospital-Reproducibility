@@ -18,6 +18,7 @@ from .run import ROOT, RunConfig, read
 
 BUNDLE_VERSION = 'twinhospital.inputs/1'
 CASE_KEYS = ('case_id', 'patient_key', 'group', 'split', 'data_kind')
+CROSSED_MODES = {'comparison', 'factorial', 'heldout'}
 RELEASE_REQUIRED = ('release/health-app.jar', 'openhis-seed/openhis_300_seed.dump',
                     'openhis-seed/20-restore-openhis-seed.sh', 'openhis-seed/run-upgrades.sh',
                     'tools/runtime/provision.py')
@@ -148,6 +149,8 @@ def configure(args):
         raise ValueError('The held-out run needs a development manifest in the same identity namespace.')
     if args.development_manifest and args.mode != 'heldout':
         raise ValueError('Development exclusions apply to held-out runs.')
+    if args.quick and args.mode != 'comparison':
+        raise ValueError('--quick applies to reader comparisons.')
 
     provider = read(args.provider)
     provider.pop('key_file', None)
@@ -169,13 +172,17 @@ def configure(args):
         fields['frozen_runtime'] = str(args.frozen_runtime.resolve())
     if args.development_manifest:
         fields['development_manifest'] = str(args.development_manifest.resolve())
+    if args.quick:
+        fields['quick'] = True
     for field, name in CATALOGUES.items():
         if name in receipt['files']:
             fields[field] = str(bundle / name)
+        elif args.mode == 'comparison' and field == 'clinical_catalogue':
+            fields[field] = str(ROOT / 'deploy/openhis-experiment/catalogue_metadata_v2.json')
         elif args.mode in {'factorial', 'heldout'}:
             raise ValueError(f'The crossed design requires {name}.')
     window = None
-    if args.mode in {'factorial', 'heldout'}:
+    if args.mode in CROSSED_MODES:
         template = bundle / 'workflow_template.json'
         window = read(template if template.name in receipt['files'] else ROOT / 'config/workflow.template.json')
         now = datetime.now(timezone.utc)
@@ -191,6 +198,16 @@ def configure(args):
     write(target / 'provider.local.json', provider)
     if window is not None:
         write(target / 'workflow.local.json', window)
+    if args.mode == 'comparison':
+        from sandbox.experiments.linked.source_operation_replay import CATEGORIES
+
+        fields['operation_schedule'] = 'operation_schedule.json'
+        source = manifest['cases'][0]
+        write(target / fields['operation_schedule'], {'cases': [
+            {**source, 'local_test_id': f'{category}-{condition}',
+             'operation_category': category, 'request_condition': condition}
+            for category in CATEGORIES for condition in ('single_fault', 'compliant_control')
+        ]})
     config = target / 'run.local.json'
     write(config, fields)
     RunConfig(config)
@@ -215,7 +232,8 @@ def main():
     setup = actions.add_parser('configure', help='Verify a bundle and generate a machine-local configuration.')
     setup.add_argument('--bundle', required=True, type=Path)
     setup.add_argument('--batch', required=True)
-    setup.add_argument('--mode', choices=('linked', 'factorial', 'heldout'), default='linked')
+    setup.add_argument('--mode', choices=('linked', 'comparison', 'factorial', 'heldout'), default='linked')
+    setup.add_argument('--quick', action='store_true', help='Run three predefined whole-visit configurations.')
     setup.add_argument('--provider', type=Path, default=ROOT / 'config/provider.example.json')
     setup.add_argument('--data-policy', type=Path)
     setup.add_argument('--frozen-runtime', type=Path)

@@ -13,6 +13,12 @@ MAX_ENGINEERING_ATTEMPTS = 3
 SCHEDULE_POLICY = 'first_two_baseline_regressions_then_remaining_profiles_stop_on_first_failure'
 PARALLEL_SCHEDULE_POLICY = 'first_two_baseline_regressions_then_parallel_independent_patients'
 ASSIGNMENT_SCHEDULE_POLICY = 'first_two_baseline_regressions_then_parallel_independent_assignments'
+READER_DESIGN_VERSION = 'linked_reader_comparison_v1'
+QUICK_WORKFLOWS = {
+    ('nurse_only', 'pprs_baseline', 'manual_documentation'),
+    ('ai_only', 'sequential', 'realtime'),
+    ('ai_nurse_review', 'parallel', 'postvisit'),
+}
 
 
 def linked_profiles(tool_models, *, factorial=False):
@@ -39,11 +45,15 @@ def linked_profiles(tool_models, *, factorial=False):
 
 
 def freeze_design(cases, tool_models, *, patients_per_group=PATIENTS_PER_GROUP, workers=1,
-                  max_attempts=None, factorial=False, independent=False):
+                  max_attempts=None, factorial=False, independent=False, reader=False, quick=False):
     """Keep the declared distinct source patients in each disease denominator."""
+    if quick and not reader:
+        raise ValueError('A quick comparison requires the reader design')
+    if reader and (independent or not factorial or max_attempts != 1):
+        raise ValueError('A reader comparison requires fresh crossed assignments and one attempt per assignment')
     if independent and (not factorial or patients_per_group < 1 or max_attempts != 1):
         raise ValueError('An independent crossed batch requires every configuration and one attempt per assignment')
-    if not independent and patients_per_group not in SUPPORTED_PATIENTS_PER_GROUP:
+    if not (independent or reader) and patients_per_group not in SUPPORTED_PATIENTS_PER_GROUP:
         raise ValueError('Unsupported linked acceptance patient target')
     if patients_per_group == 2 and not factorial:
         raise ValueError('Two patients per disease is reserved for ten-patient factorial coverage')
@@ -53,23 +63,33 @@ def freeze_design(cases, tool_models, *, patients_per_group=PATIENTS_PER_GROUP, 
         raise ValueError('Unsupported linked acceptance attempt limit')
     counts = Counter(case['group'] for case in cases)
     patients = {case.get('patient_key') for case in cases}
-    if (counts != Counter({g: patients_per_group for g in GROUPS})
+    if (not counts or set(counts) - set(GROUPS)
             or None in patients or '' in patients or len(patients) != len(cases)
             or len({case['case_id'] for case in cases}) != len(cases)):
+        raise ValueError('The design requires distinct cases and source patients in declared groups')
+    if not reader and counts != Counter({g: patients_per_group for g in GROUPS}):
         raise ValueError(f'linked acceptance requires {patients_per_group} distinct source patients per disease')
     split = 'test' if independent else 'development'
-    if any(case.get('data_kind') != 'mimic_derived' or case.get('split') != split
-           for case in cases):
+    if not reader and any(case.get('data_kind') != 'mimic_derived' or case.get('split') != split
+                          for case in cases):
         raise ValueError(f'This crossed design requires MIMIC-derived cases in the {split} partition')
     profiles, cells = linked_profiles(tool_models, factorial=factorial)
+    if quick:
+        profiles = {label: conditions for label, conditions in profiles.items()
+                    if tuple(conditions[task].workflow for task in
+                             ('preconsult', 'prescription', 'documentation')) in QUICK_WORKFLOWS}
+        if len(profiles) != len(QUICK_WORKFLOWS):
+            raise ValueError('The selected conditions do not cover the declared quick design')
+        cells = {}
     return {
-        'version': 'linked_acceptance_v1',
+        'version': READER_DESIGN_VERSION if reader else 'linked_acceptance_v1',
         'schedule_policy': (ASSIGNMENT_SCHEDULE_POLICY if factorial and workers > len(cases)
                             else PARALLEL_SCHEDULE_POLICY if workers > 1 else SCHEDULE_POLICY),
         'factorial': factorial,
-        'first_baseline_regressions': [] if independent else [case['case_id'] for case in cases[:2]],
+        'first_baseline_regressions': [] if independent or reader else [case['case_id'] for case in cases[:2]],
         **({'independent_crossed': True, 'evaluation_partition': split} if independent else {}),
-        'target_per_disease_and_condition': patients_per_group,
+        **({'planned_patients_by_group': dict(counts), 'quick': quick} if reader
+           else {'target_per_disease_and_condition': patients_per_group}),
         'planned_unique_encounters': len(cases) * len(profiles),
         'max_attempts_per_unit': max_attempts,
         'profiles': [
@@ -178,20 +198,21 @@ def execution_checks(run, profile, models):
 
 def summarize_gate(design, rows):
     """Every planned source patient stays in the denominator of every cell."""
-    target = design['target_per_disease_and_condition']
+    targets = (design['planned_patients_by_group'] if design['version'] == READER_DESIGN_VERSION
+               else {group: design['target_per_disease_and_condition'] for group in GROUPS})
     counts = Counter((row['group'], row['profile']) for row in rows if row.get('verified_paid') is True)
     cells = [
         {'group': group, 'condition': condition, 'profile': label,
          'planned_patients': target, 'verified_paid_patients': counts[group, label]}
-        for group in GROUPS for condition, label in design['task_condition_profiles'].items()
+        for group, target in targets.items() for condition, label in design['task_condition_profiles'].items()
     ]
     profile_cells = [{'group': group, 'profile': profile['label'],
                       'planned_patients': target, 'verified_paid_patients': counts[group, profile['label']]}
-                     for group in GROUPS for profile in design['profiles']]
+                     for group, target in targets.items() for profile in design['profiles']]
     result = {
         'passed': (len(rows) == design['planned_unique_encounters']
                    and len({(row['study_id'], row['profile']) for row in rows}) == len(rows)
-                   and all(cell['verified_paid_patients'] == target for cell in profile_cells)),
+                   and all(cell['verified_paid_patients'] == cell['planned_patients'] for cell in profile_cells)),
         'planned_unique_encounters': design['planned_unique_encounters'],
         'verified_unique_encounters': sum(row.get('verified_paid') is True for row in rows),
         'cells': cells,

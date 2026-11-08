@@ -35,6 +35,41 @@ def policy():
 
 
 class CampaignTests(unittest.TestCase):
+    def test_reader_crossing_and_audit_preserve_an_unbalanced_independent_dataset(self):
+        from tools.audit_linked_workflows import audit_batch
+
+        cases = [{'case_id': f'reader-{i}', 'patient_key': f'patient-{i}', 'group': group,
+                  'split': 'engineering', 'data_kind': 'synthetic_independent'}
+                 for i, group in enumerate((GROUPS[0], GROUPS[0], GROUPS[1]))]
+        models = {'tool_a': 'tool'}
+        full = freeze_design(cases, models, factorial=True, max_attempts=1, reader=True)
+        pilot = freeze_design(cases, models, factorial=True, max_attempts=1, reader=True, quick=True)
+        self.assertEqual(full['planned_unique_encounters'], 81)
+        self.assertEqual(pilot['planned_unique_encounters'], 9)
+        for task in ('preconsult', 'prescription', 'documentation'):
+            self.assertEqual(len({p['conditions'][task]['workflow'] for p in pilot['profiles']}), 3)
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            batch = root/'batch'
+            batch.mkdir()
+            (batch/'batch.lock').touch()
+            spec = {'batch': 'reader', 'mode': 'linked-acceptance', 'formal_experiment': False,
+                    'models': {'role_model': 'role', 'tool_models': models},
+                    'execution_policy': {'workers': 1}, 'linked_acceptance': full,
+                    'cases': [{k: v for k, v in case.items() if k != 'patient_key'} for case in cases],
+                    'acceptance_source_patient_hashes': [digest(case['patient_key']) for case in cases]}
+            (batch/'specification.json').write_text(json.dumps(spec))
+            (batch/'batch_summary.json').write_text(json.dumps({'batch': 'reader'}))
+            private = root/'audit.json'
+            audit_batch(batch, root/'public', private)
+            audit = json.loads(private.read_text())['audit']
+        self.assertEqual(len(audit['runs']), 81)
+        self.assertFalse(any(row['verified_paid'] for row in audit['runs']))
+        cells = audit['linked_acceptance_gate']['profile_cells']
+        self.assertEqual({cell['group']: cell['planned_patients'] for cell in cells},
+                         {GROUPS[0]: 2, GROUPS[1]: 1})
+
     def test_factorial_coverage_requires_every_combination_and_contains_one_control(self):
         cases = [{'case_id': f'{g}-{i}', 'patient_key': f'{g}-{i}', 'group': g,
                   'split': 'development', 'data_kind': 'mimic_derived'}

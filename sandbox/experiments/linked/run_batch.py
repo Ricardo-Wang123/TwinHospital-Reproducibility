@@ -766,9 +766,11 @@ def bind_verified_acceptance_recovery(path, specification):
 
 def execute_acceptance_schedule(cases, acceptance, *, args, config, mapping, ledger,
                                 batch_root, stop_event, specification, session_log, session_id):
+    from .linked_acceptance import READER_DESIGN_VERSION
     profiles = {profile['label']: profile for profile in acceptance['profiles']}
     by_assignment = acceptance['schedule_policy'] == ASSIGNMENT_SCHEDULE_POLICY
-    stop_on_failure = not acceptance.get('independent_crossed', False)
+    stop_on_failure = (acceptance['version'] != READER_DESIGN_VERSION
+                       and not acceptance.get('independent_crossed', False))
     failure_event = 'regression_gate_stopped' if stop_on_failure else 'assignment_failed'
     indices = {ref['case_id']: {'case_id': ref['case_id'], 'attempts': {}} for ref in cases}
     index_locks = {ref['case_id']: Lock() for ref in cases} if by_assignment else {}
@@ -950,6 +952,10 @@ def main():
                         default=PATIENTS_PER_GROUP, help='Declared engineering target per disease and workflow')
     parser.add_argument('--independent-crossed', action='store_true',
                         help='Run every configuration on a separate test partition without clinical retries.')
+    parser.add_argument('--reader-comparison', action='store_true',
+                        help='Cross the paper workflows on the supplied independent dataset.')
+    parser.add_argument('--reader-quick', action='store_true',
+                        help='Select the three predefined whole-visit reader configurations.')
     parser.add_argument('--exclude-development-manifest', type=Path,
                         help='Private manifest with development patient keys in the same identity namespace.')
     parser.add_argument('--acceptance-attempts', type=int, choices=(1, MAX_ENGINEERING_ATTEMPTS),
@@ -992,6 +998,14 @@ def main():
                      'every configuration, and one attempt per assignment.')
     if args.exclude_development_manifest and not args.independent_crossed:
         parser.error('--exclude-development-manifest applies only to independent crossed runs')
+    if args.reader_comparison and not (
+        args.mode == 'linked-acceptance' and args.acceptance_factorial
+        and args.acceptance_attempts == 1 and args.workflow_policy
+        and not (args.independent_crossed or args.acceptance_recovery_plan)
+    ):
+        parser.error('Reader comparisons require a frozen window and one attempt per crossed assignment.')
+    if args.reader_quick and not args.reader_comparison:
+        parser.error('--reader-quick requires --reader-comparison')
     if not args.independent_crossed and args.acceptance_patients_per_disease not in SUPPORTED_PATIENTS_PER_GROUP:
         parser.error('Unsupported linked acceptance patient target')
     if not re.fullmatch(r'[A-Za-z0-9_-]{1,90}', args.batch):
@@ -1034,7 +1048,8 @@ def main():
     acceptance = (freeze_design(cases, config['tool_models'],
                                 patients_per_group=args.acceptance_patients_per_disease,
                                 workers=args.workers, max_attempts=args.acceptance_attempts,
-                                factorial=args.acceptance_factorial, independent=args.independent_crossed)
+                                factorial=args.acceptance_factorial, independent=args.independent_crossed,
+                                reader=args.reader_comparison, quick=args.reader_quick)
                   if args.mode == 'linked-acceptance' else None)
     if args.workers>5 and config.get('minimum_request_interval_seconds',0)<1.0:
         parser.error('more than five workers require explicit shared API pacing of at least one second')

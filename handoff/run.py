@@ -31,7 +31,7 @@ class RunConfig:
         self.base = path.resolve().parent
         self.fields = read(path)
         self.mode = self.fields['mode']
-        if self.mode not in {'linked', 'factorial', 'heldout', 'formal', 'recover'}:
+        if self.mode not in {'linked', 'comparison', 'factorial', 'heldout', 'formal', 'recover'}:
             raise ValueError('Unsupported run mode.')
         self.name = self.fields['batch']
         if not re.fullmatch('[A-Za-z0-9_-]{1,90}', self.name):
@@ -76,7 +76,7 @@ class RunConfig:
                    '--workers', str(self.fields.get('workers', 1)), '--close-prescription-loop']
         if self.fields.get('uncapped') is True:
             command += ['--uncapped-budget']
-        if self.mode in {'factorial', 'heldout', 'recover', 'formal'}:
+        if self.mode in {'comparison', 'factorial', 'heldout', 'recover', 'formal'}:
             command += ['--capture-native', '--observation-deploy', self.deploy,
                         '--workflow-policy', self.path('workflow_policy'),
                         '--rule-engine', 'documented-candidate',
@@ -86,6 +86,11 @@ class RunConfig:
         if self.mode in {'factorial', 'recover'}:
             command += ['--mode', 'linked-acceptance', '--engineering-only', '--acceptance-attempts',
                         str(self.fields.get('acceptance_attempts', 3))]
+        elif self.mode == 'comparison':
+            command += ['--mode', 'linked-acceptance', '--engineering-only',
+                        '--reader-comparison', '--acceptance-attempts', '1']
+            if self.fields.get('quick'):
+                command += ['--reader-quick']
         elif self.mode == 'heldout':
             command += ['--mode', 'linked-acceptance', '--engineering-only',
                         '--independent-crossed', '--acceptance-attempts', '1',
@@ -199,6 +204,12 @@ def provision_his(config):
     for fixture in fixtures:
         command.extend(('--fixture', fixture))
     subprocess.run(command, check=True)
+    if config.mode in {'comparison', 'factorial', 'heldout', 'formal'}:
+        from sandbox.experiments.linked.native_observation import IsolatedObservationDB
+
+        database = IsolatedObservationDB(config.deploy)
+        if database.sql("SELECT to_regclass('th_observation_v1.control') IS NOT NULL;") == 'f':
+            database.install()
     verify_his(config)
 
 
@@ -235,18 +246,38 @@ def verify_routes(config, provider, provider_file, receipt, *, recover=True):
                                 evidence={'probe_receipt_sha256': sha256(path.read_bytes()).hexdigest()}, config=provider)
 
 
+def audit_directory(config):
+    return config.path('audit_output', config.path('batches') / (config.name + '_audit'))
+
+
 def audit(config, observe):
-    output = config.path('audit_output', config.path('batches') / (config.name + '_audit'))
+    output = audit_directory(config)
     output.mkdir(mode=0o700, parents=True, exist_ok=False)
     command = [sys.executable, 'tools/audit_linked_workflows.py', '--batch-dir', str(config.batch),
                '--public-dir', str(output / 'content_minimized'), '--private-path', str(output / 'audit.private.json'),
-               '--deployment-dir', str(config.deploy)]
+               '--deployment-dir', str(config.deploy), '--catalog',
+               str(config.path('catalog', config.deploy / 'catalog_mapping.json'))]
     if observe:
         verify_his(config)
         command += ['--observe-native']
     with (output/'audit.log').open('x') as log:
         subprocess.run(command, cwd=ROOT, stdout=log, stderr=subprocess.STDOUT, check=True)
     print(f'Audit stored locally: {output}')
+
+
+def operation_replay(config):
+    from sandbox.experiments.linked.source_operation_replay import run
+
+    if config.mode != 'comparison':
+        raise ValueError('The prepared paired schedule belongs to a reader comparison.')
+    verify_his(config)
+    replay_id = config.name[:50] + '-ops-' + sha256(config.name.encode()).hexdigest()[:10]
+    output = config.base / 'operation_replay'
+    run(config.path('operation_schedule'), config.path('manifest'), config.batch, output, replay_id,
+        config.path('catalog', config.deploy / 'catalog_mapping.json'),
+        config.path('diagnosis_catalog', config.deploy / 'diagnosis_mapping.json'),
+        engineering=True, deployment_dir=config.deploy)
+    print(f'Paired operation results: {output / "summary.json"}')
 
 
 def status(config):
@@ -277,6 +308,9 @@ def main():
     launch.add_argument('--execute', action='store_true')
     audit_parser = actions.add_parser('audit', help='Analyze the closed batch; output stays local.')
     audit_parser.add_argument('--observe-native', action='store_true')
+    actions.add_parser('operations', help='Run the five paired operation checks on the preselected source.')
+    report_parser = actions.add_parser('report', help='Summarize reader results by paper application.')
+    report_parser.add_argument('--output', type=Path)
     args = parser.parse_args()
     cfg = RunConfig(args.config)
     if 'openhis_assets' in cfg.fields:
@@ -289,6 +323,16 @@ def main():
         return audit(cfg, args.observe_native)
     if args.action == 'status':
         return status(cfg)
+    if args.action == 'operations':
+        return operation_replay(cfg)
+    if args.action == 'report':
+        from .reader_report import write_report
+
+        if cfg.mode != 'comparison':
+            raise ValueError('Use a reader comparison for this report.')
+        return write_report(cfg.batch, audit_directory(cfg) / 'audit.private.json', cfg.path('manifest'),
+                            cfg.path('clinical_catalogue'), cfg.base / 'operation_replay' / 'summary.json',
+                            args.output or cfg.base / 'reader_results')
     live = args.action == 'run' and args.execute
     state = cfg.path('launcher_state', cfg.path('ledger').parent / 'handoff_runs')
     stamp = datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S%fZ')
@@ -313,7 +357,7 @@ def main():
         preflight(cfg, command, session/'preflight.log')
         require_private_file(cfg.path('key_file'))
         verify_his(cfg)
-        if cfg.mode in {'recover','factorial','heldout','formal'}:
+        if cfg.mode in {'comparison','recover','factorial','heldout','formal'}:
             from sandbox.experiments.linked.campaign import admission_status
             from sandbox.experiments.linked.native_observation import IsolatedObservationDB
 

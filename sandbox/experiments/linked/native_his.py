@@ -16,6 +16,9 @@ from .order_encoding import encode_items, preflight as preflight_encoding, Order
 class NativeError(RuntimeError): pass
 class NativeBlocked(NativeError): pass
 
+# OpenHIS creates a user-scoped login-session row during context selection.
+_AUTH_CONTEXT_LOCK = threading.Lock()
+
 def isolated_port():
     port = int(os.environ.get('TH_OPENHIS_PORT', '28081'))
     project = os.environ.get('TH_OPENHIS_PROJECT', 'twinhospital-exp')
@@ -64,11 +67,12 @@ class OpenHISClient:
             raise NativeError(path+' rejected '+str(code)+': '+msg)
         return body.get('data')
     def login(self,username,password,*,tenant='1',hospital='322663105141149696',organization=None):
-        data=self.post('/auth/login',{'userName':username,'password':password})
-        self.token=data['accessToken']; self.identity=data.get('user',{})
-        self.post('/auth/selectTenant',{'tenantId':str(tenant)})
-        self.post('/auth/selectHospital',{'hospitalId':str(hospital)})
-        if organization:self.post('/auth/selectOrganizationUnit',{'organizationUnitId':str(organization)})
+        with _AUTH_CONTEXT_LOCK:
+            data=self.post('/auth/login',{'userName':username,'password':password})
+            self.token=data['accessToken']; self.identity=data.get('user',{})
+            self.post('/auth/selectTenant',{'tenantId':str(tenant)})
+            self.post('/auth/selectHospital',{'hospitalId':str(hospital)})
+            if organization:self.post('/auth/selectOrganizationUnit',{'organizationUnitId':str(organization)})
         return {'authenticated':True,'user_id':str(self.identity.get('id')),'practitioner_id':str(self.identity.get('practitionerId') or '')}
 
 ROLE_SETTINGS={

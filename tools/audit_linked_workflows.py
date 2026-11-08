@@ -23,8 +23,10 @@ from sandbox.experiments.linked.workflow_analysis import (VERSION, audit_run, di
     missing_run, summarize, WINDOW_POLICY_TEMPLATE, READBACK_REQUIREMENTS)
 from sandbox.experiments.linked.cases import GROUPS
 from sandbox.experiments.linked.contracts import linked_config_id, paper_conditions
-from sandbox.experiments.linked.linked_acceptance import (MAX_ENGINEERING_ATTEMPTS, SUPPORTED_PATIENTS_PER_GROUP,
-    attempt_label, documented_unpaid_stop, execution_checks, linked_profiles, summarize_gate)
+from sandbox.experiments.linked.linked_acceptance import (
+    MAX_ENGINEERING_ATTEMPTS, READER_DESIGN_VERSION, SUPPORTED_PATIENTS_PER_GROUP, attempt_label,
+    documented_unpaid_stop, execution_checks, freeze_design, linked_profiles, summarize_gate,
+)
 
 
 def read(path):
@@ -139,7 +141,8 @@ def _html(report):
     return '<!doctype html><html lang="zh-CN"><meta charset="utf-8"><title>TwinHospital 独立流程审计</title><style>body{font:15px/1.7 system-ui;max-width:1200px;margin:35px auto;padding:0 16px;color:#203047}table{border-collapse:collapse;width:100%}td,th{border:1px solid #ddd;padding:7px}th{background:#edf3f8}.warn{padding:14px;background:#fff2d4}code{overflow-wrap:anywhere}</style><h1>TwinHospital 独立流程审计</h1><p class="warn">'+esc(report['experiment_status'])+'。核心业务读回不等于正式整链正确完成。未预设窗口的旧运行不追认 timeout；没有全过程原生变更覆盖时，不推定没有违规。药费核验与注册费分开。临床质量未在本工具评分。</p><p>完整流程计划单位 '+str(report['summary']['planned_full_workflow_units'])+'；固定输入阶段任务 '+str(report['summary']['fixed_input_task_units'])+'。所有缺失和失败保留在各自分母。</p><table><tr><th>研究编号</th><th>条件</th><th>实际运行状态</th><th>已观察核心完整性</th><th>正式正确完成</th><th>观察到违规</th><th>正式超时</th></tr>'+rows+'</table><p><a href="workflow_audit.json">逐项核验与证据哈希 JSON</a> · <a href="future_observation_contract.json">未来窗口与读回要求</a></p></html>'
 
 
-def audit_batch(batch_dir, public_dir, private_path, *, observe_native=False, observer=None, deployment_dir=None):
+def audit_batch(batch_dir, public_dir, private_path, *, observe_native=False, observer=None,
+                deployment_dir=None, catalog_path=None):
     batch, public, private = map(lambda p: Path(p).resolve(), (batch_dir, public_dir, private_path))
     if public.exists() or private.exists():
         raise ValueError('Use new audit outputs; previous observations are retained')
@@ -151,10 +154,10 @@ def audit_batch(batch_dir, public_dir, private_path, *, observe_native=False, ob
     with lock_path.open('r') as lock:
         fcntl.flock(lock, fcntl.LOCK_SH | fcntl.LOCK_NB)
         return _audit_locked(batch, public, private, observe_native, observer,
-                            Path(deployment_dir or ROOT/'deploy/openhis-experiment').resolve())
+                            Path(deployment_dir or ROOT/'deploy/openhis-experiment').resolve(), catalog_path)
 
 
-def _audit_locked(batch, public, private, observe_native, observer, deployment_dir):
+def _audit_locked(batch, public, private, observe_native, observer, deployment_dir, catalog_path):
     originals = {}
     source_paths=(Path(__file__), ROOT/'sandbox/experiments/linked/workflow_analysis.py',
         ROOT/'sandbox/experiments/linked/trace_evidence.py', ROOT/'sandbox/experiments/linked/native_observation_analysis.py',
@@ -187,23 +190,45 @@ def _audit_locked(batch, public, private, observe_native, observer, deployment_d
     design = spec.get('linked_acceptance') if spec['mode'] == 'linked-acceptance' else None
     profiles = {}
     if spec['mode'] == 'linked-acceptance':
-        expected_profiles, cells = linked_profiles(spec['models']['tool_models'],
-                                                   factorial=(design or {}).get('factorial', False))
-        expected = [{'label': label, 'config_id': linked_config_id(conditions),
-                     'conditions': {k: c.to_dict() for k, c in conditions.items()}}
-                    for label, conditions in expected_profiles.items()]
+        if not design:
+            raise ValueError('Missing frozen linked design')
         frozen_cases = spec.get('cases', [])
-        target = (design or {}).get('target_per_disease_and_condition')
-        count = len(GROUPS) * target if target in SUPPORTED_PATIENTS_PER_GROUP else None
-        maximum = (design or {}).get('max_attempts_per_unit', 1)
-        if (not design or design.get('version') != 'linked_acceptance_v1'
-                or spec.get('formal_experiment') is not False or spec.get('anchor_reuse')
+        target = design.get('target_per_disease_and_condition')
+        maximum = design.get('max_attempts_per_unit', 1)
+        reader = design.get('version') == READER_DESIGN_VERSION
+        independent = design.get('independent_crossed', False)
+        if reader or independent:
+            # The public specification keeps hashes of patient keys, not their values.
+            keys = spec.get('acceptance_source_patient_hashes', [])
+            cases = [{**case, 'patient_key': case['case_id']} for case in frozen_cases]
+            reconstructed = freeze_design(
+                cases, spec['models']['tool_models'], patients_per_group=target or 1,
+                workers=spec['execution_policy']['workers'], max_attempts=maximum,
+                factorial=design.get('factorial', False), independent=independent,
+                reader=reader, quick=design.get('quick', False),
+            )
+            expected, cells = reconstructed['profiles'], reconstructed['task_condition_profiles']
+            count = len(cases)
+            valid_cohort = (reconstructed == design and len(keys) == len(set(keys)) == count
+                            and all(re.fullmatch(r'[0-9a-f]{64}', key) for key in keys)
+                            and (not independent or bool(spec.get('development_exclusion_sha256'))))
+        else:
+            expected_profiles, cells = linked_profiles(spec['models']['tool_models'],
+                                                       factorial=design.get('factorial', False))
+            expected = [{'label': label, 'config_id': linked_config_id(conditions),
+                         'conditions': {k: c.to_dict() for k, c in conditions.items()}}
+                        for label, conditions in expected_profiles.items()]
+            count = len(GROUPS) * target if target in SUPPORTED_PATIENTS_PER_GROUP else None
+            valid_cohort = (
+                design.get('version') == 'linked_acceptance_v1'
+                and count is not None and maximum in (1, MAX_ENGINEERING_ATTEMPTS)
+                and (target != 2 or design.get('factorial', False))
+                and len(frozen_cases) == count == len({case['case_id'] for case in frozen_cases})
+                and all(sum(c.get('group') == group for c in frozen_cases) == target for group in GROUPS)
+                and all(c.get('data_kind') == 'mimic_derived' and c.get('split') == 'development' for c in frozen_cases)
+            )
+        if (not valid_cohort or spec.get('formal_experiment') is not False or spec.get('anchor_reuse')
                 or design.get('counts_as_formal_experiment') is not False
-                or count is None or maximum not in (1, MAX_ENGINEERING_ATTEMPTS)
-                or (target == 2 and not design.get('factorial', False))
-                or len(frozen_cases) != count or len({case['case_id'] for case in frozen_cases}) != count
-                or any(sum(c.get('group') == group for c in frozen_cases) != target for group in GROUPS)
-                or any(c.get('data_kind') != 'mimic_derived' or c.get('split') != 'development' for c in frozen_cases)
                 or design.get('profiles') != expected or design.get('task_condition_profiles') != cells
                 or design.get('planned_unique_encounters') != count * len(expected)
                 or batch_summary.get('batch') != spec.get('batch')):
@@ -218,12 +243,17 @@ def _audit_locked(batch, public, private, observe_native, observer, deployment_d
             if label not in valid_conditions:
                 raise ValueError('Unknown frozen condition')
             planned.append((label.replace(':', '__'), 'fixed_input_task'))
-    mapping = None
-    for p in sorted(deployment_dir.glob('catalog_mapping*.json')):
-        candidate = read(p)
-        if digest(candidate) == spec.get('catalog_hash'):
-            mapping = candidate
-            break
+    if catalog_path is not None:
+        mapping = read(catalog_path)
+        if digest(mapping) != spec.get('catalog_hash'):
+            raise ValueError('Audit catalogue differs from the frozen run.')
+    else:
+        mapping = None
+        for p in sorted(deployment_dir.glob('catalog_mapping*.json')):
+            candidate = read(p)
+            if digest(candidate) == spec.get('catalog_hash'):
+                mapping = candidate
+                break
     if observe_native and observer is None:
         observer = ReadOnlyObserver(deployment_dir=deployment_dir)
     rows, crosswalk, observations = [], [], {}
@@ -377,6 +407,7 @@ if __name__ == '__main__':
     p.add_argument('--private-path', type=Path, required=True)
     p.add_argument('--observe-native', action='store_true', help='Fresh isolated read-only API/SQL; login sessions only')
     p.add_argument('--deployment-dir', type=Path, help='Existing isolated deployment used by the source batch')
+    p.add_argument('--catalog', type=Path, help='Exact native product mapping used by the batch.')
     a = p.parse_args()
     print(json.dumps(audit_batch(a.batch_dir, a.public_dir, a.private_path, observe_native=a.observe_native,
-                                deployment_dir=a.deployment_dir), ensure_ascii=False, indent=2))
+                                deployment_dir=a.deployment_dir, catalog_path=a.catalog), ensure_ascii=False, indent=2))

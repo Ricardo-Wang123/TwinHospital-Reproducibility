@@ -4,11 +4,11 @@
 
 TwinHospital simulates outpatient visits in OpenHIS. CAMEL coordinates patient and staff agents through intake, consultation, prescription review, note signing, and simulated payment. Each visit produces a trace linking the agents' dialogue and decisions to records in the hospital system.
 
-## Run TwinHospital with your own data
+## Run the paper experiments with your data
 
-The repository contains the CAMEL MAS and its OpenHIS adapter. The reader release provides the OpenHIS 2.0.5 runtime, corresponding backend source, and five editable fictional cases. Prepare your cases in the documented format, configure your own model endpoint, and run each encounter through simulated settlement.
+The experiment kit includes the CAMEL MAS, OpenHIS 2.0.5, and five editable fictional cases. Start with one case across three whole-visit configurations, then run the full 27-combination design on your dataset. The report follows Applications I–III and includes artifact checks, modeled staff effort, and workflow integrity with paired fault and control requests.
 
-[Run guide](handoff/REPRODUCE.md) · [Case format](handoff/CASE_FORMAT.md) · [OpenHIS and example cases](https://github.com/Ricardo-Wang123/TwinHospital-Reproducibility/releases/tag/openhis-reader-v1)
+[Experiment kit](https://github.com/Ricardo-Wang123/TwinHospital-Reproducibility/releases/tag/reader-experiments-v1) · [Experiment guide](handoff/REPRODUCE.md#4-run-a-paper-comparison) · [Case format](handoff/CASE_FORMAT.md) · [OpenHIS assets](https://github.com/Ricardo-Wang123/TwinHospital-Reproducibility/releases/tag/openhis-reader-v1)
 
 ## Data
 
