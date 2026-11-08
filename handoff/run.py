@@ -4,7 +4,7 @@ import argparse
 from collections import Counter
 from datetime import datetime, timezone
 import fcntl
-from getpass import getpass
+from getpass import GetPassWarning, getpass
 from hashlib import sha256
 import json
 import os
@@ -13,6 +13,7 @@ import re
 import subprocess
 import sys
 import tempfile
+import warnings
 from urllib.parse import urlsplit
 from urllib.request import ProxyHandler, build_opener
 
@@ -100,11 +101,20 @@ class RunConfig:
 
 
 def save_key(path):
-    key = getpass('API key（输入不会显示）: ').strip()
+    if path.is_relative_to(ROOT):
+        ignored = subprocess.run(['git', '-C', ROOT, 'check-ignore', '--quiet', '--', path])
+        if ignored.returncode != 0:
+            raise ValueError('Store the API key outside the checkout or in a Git-ignored path.')
+    with warnings.catch_warnings():
+        warnings.simplefilter('error', GetPassWarning)
+        try:
+            key = getpass('API key（输入不会显示）: ').strip()
+        except GetPassWarning:
+            raise ValueError('Use an interactive terminal for hidden API key entry.') from None
     if not key or any(c.isspace() for c in key):
         raise ValueError('Enter a single nonempty API key.')
     path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
-    with tempfile.NamedTemporaryFile(dir=path.parent, prefix='.key-', delete=False, mode='w') as stream:
+    with tempfile.NamedTemporaryFile(dir=path.parent, prefix='.key-', suffix='.key', delete=False, mode='w') as stream:
         tmp = Path(stream.name)
         stream.write(key + '\n')
     os.replace(tmp, path)
@@ -218,7 +228,7 @@ def verify_routes(config, provider, provider_file, receipt, *, recover=True):
     if output.returncode or len(rows) != len(models) or any(row['status'] != 'completed' for row in rows):
         if any(row.get('http_status') == 401 for row in rows):
             raise ValueError('The provider rejected the API credential (HTTP 401). Dispatch is blocked.')
-        raise ValueError('The configured role/tool routes are not both available. No cases were dispatched.')
+        raise ValueError('At least one configured model route failed. No cases were dispatched.')
     if recover and ledger.summary()['provider_unavailable']:
         ledger.recover_provider(recovery_id=receipt.parent.name, config_sha256=sha256(provider_file.read_bytes()).hexdigest(),
                                 probes_by_model={row['model']: row['request_id'] for row in rows},

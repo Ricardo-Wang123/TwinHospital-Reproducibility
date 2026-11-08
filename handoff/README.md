@@ -2,6 +2,7 @@
 
 | 要做的事 | 从哪里开始 |
 | --- | --- |
+| 用自己的 API 和模型开新批次 | [自选模型配置和启动命令](REPRODUCE.md#use-your-own-model-endpoint) |
 | 看已经得到的结果 | [170 次已核验就诊和复算入口](../results/README.md) |
 | 按论文配置重跑 | [冻结病例包、模型和启动命令](REPRODUCE.md#repeat-the-study-configuration) |
 | 提供自己的病例 | [MIMIC 选取规则与病例 JSON 格式](CASE_FORMAT.md) |
@@ -9,9 +10,9 @@
 
 ## 新电脑启动
 
-按[新机运行指南](REPRODUCE.md)安装 Python 3.12 依赖并准备同版 OpenHIS。`handoff.inputs configure` 校验病例包、字典和 OpenHIS 文件，生成本机的 `run.local.json`。`provision` 建立隔离 HIS 并按顺序应用对应字典。接手者随后录入自己的 API key，`run --execute` 在发送病例前分别探测两个模型。
+按[新机运行指南](REPRODUCE.md)安装 Python 3.12 依赖并准备同版 OpenHIS。`handoff.inputs configure` 校验病例包、字典和 OpenHIS 文件，生成本机的 `run.local.json`。`provision` 建立隔离 HIS 并按顺序应用对应字典。接手者用 `set-key` 在本机隐藏输入自己的 API key，`run --execute` 在发送病例前检查每个配置的模型 ID。
 
-患者、护士、医生和药师角色使用 `deepseek-v4.1-flash-1017`，AI 工具使用 `glm-5.2`。两者都关闭推理，温度为 0.2。复跑历史配置时使用仓库中的[同版模型配置](../config/provider.example.json)加上接手者的私有数据处理记录。输入、运行记录、密钥和 OpenHIS 发布包在获准环境中管理。
+新批次可用自选的兼容接口。角色和工具可以用同一个模型，病例格式、流程、权限和缴费验收照常生效。论文这一批的角色模型为 `deepseek-v4.1-flash-1017`，工具模型为 `glm-5.2`，两者都关闭推理，温度为 0.2。复跑这批历史配置时使用[同版模型配置](../config/provider.example.json)及接手者的私有数据处理记录。输入、运行记录、密钥和 OpenHIS 发布包在获准环境中管理。
 
 ## 在原实验机换 key 续跑
 

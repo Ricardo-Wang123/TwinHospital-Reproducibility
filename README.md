@@ -22,6 +22,7 @@ The current snapshot contains **170 verified paid encounters** from **10 MIMIC-I
 
 | Goal | Entry point |
 | --- | --- |
+| Run TwinHospital with your own API and model | [Configure your model endpoint](handoff/REPRODUCE.md#use-your-own-model-endpoint) |
 | Check the installation with a fictional encounter | [Quick start](handoff/REPRODUCE.md#fictional-encounter) |
 | Run the paper's configurations with the frozen case bundle | [Repeat the study configuration](handoff/REPRODUCE.md#repeat-the-study-configuration) |
 | Recompute the reported results from a received evidence bundle | [Offline recomputation](results/README.md#recompute-the-encounter-metrics) |
@@ -31,6 +32,8 @@ The current snapshot contains **170 verified paid encounters** from **10 MIMIC-I
 
 ## Models and requirements
 
-Use Python 3.12, Docker Compose v2, and the authorized OpenHIS release. The [provider configuration](config/provider.example.json) uses `deepseek-v4.1-flash-1017` for patient and staff roles and `glm-5.2` for intake assistance, prescription screening, and drafting. Both use temperature 0.2 with reasoning disabled. The launcher tests access to both exact model IDs before sending a case.
+Use Python 3.12, Docker Compose v2, and the authorized OpenHIS release. The launcher accepts an OpenAI-compatible Chat Completions endpoint and model IDs of your choice for a new run. A single model can serve both the patient/staff agents and the AI tools. Case validation, role permissions, OpenHIS transaction checks, and the definition of a verified paid encounter apply to every model configuration. [Custom provider template](config/provider.custom.example.json)
+
+The [paper cohort's provider configuration](config/provider.example.json) records `deepseek-v4.1-flash-1017` for patient and staff roles and `glm-5.2` for intake assistance, prescription screening, and drafting. Both use temperature 0.2 with reasoning disabled. Use the frozen configuration when repeating that execution profile and the evidence bundle when recomputing its published values.
 
 The repository ships source, a fictional case generator, configuration templates, and verified aggregates. The study configuration also needs the separately authorized case and dictionary bundle, the matching OpenHIS release, and a model account approved for the data. Each researcher obtains access to MIMIC-IV under its data-use terms. [MIMIC-IV v2.2](https://physionet.org/content/mimiciv/2.2/) · [PhysioNet guidance on model endpoints](https://physionet.org/news/post/llm-responsible-use/)
