@@ -16,6 +16,13 @@ from .order_encoding import encode_items, preflight as preflight_encoding, Order
 class NativeError(RuntimeError): pass
 class NativeBlocked(NativeError): pass
 
+def isolated_port():
+    port = int(os.environ.get('TH_OPENHIS_PORT', '28081'))
+    project = os.environ.get('TH_OPENHIS_PROJECT', 'twinhospital-exp')
+    if port != 28081 and not (28082 <= port <= 28199 and project.startswith('twinhospital-exp-smoke-')):
+        raise NativeBlocked('An alternate loopback port requires a dedicated isolated smoke project.')
+    return port
+
 def digest(value):
     return hashlib.sha256(json.dumps(value,ensure_ascii=False,sort_keys=True,separators=(',',':')).encode()).hexdigest()
 def write_private(path,value):
@@ -39,8 +46,8 @@ ALLOWED={
 class OpenHISClient:
     def __init__(self,base_url='http://127.0.0.1:28081/api/app',*,timeout=45,session=None):
         u=urlsplit(base_url)
-        if u.scheme!='http' or u.hostname not in ('127.0.0.1','localhost','::1') or u.port!=28081 or u.path.rstrip('/')!='/api/app' or u.query or u.fragment or u.username:
-            raise NativeBlocked('Native adapter accepts only isolated loopback port 28081 /api/app')
+        if u.scheme!='http' or u.hostname not in ('127.0.0.1','localhost','::1') or u.port!=isolated_port() or u.path.rstrip('/')!='/api/app' or u.query or u.fragment or u.username:
+            raise NativeBlocked('Native adapter accepts only the isolated loopback /api/app endpoint')
         self.base=base_url.rstrip('/'); self.timeout=timeout; self.session=session or requests.Session(); self.session.trust_env=False; self.token=None; self.identity={}
     def post(self,path,payload=None):
         if path not in ALLOWED:raise NativeBlocked('Operation not allowlisted: '+path)

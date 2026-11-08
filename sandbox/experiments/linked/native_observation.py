@@ -80,9 +80,10 @@ class IsolatedObservationDB:
         spec=importlib.util.spec_from_file_location('th_observation_manage',self.deployment_dir/'manage.py')
         self.manage=importlib.util.module_from_spec(spec);spec.loader.exec_module(self.manage)
         command=self.manage.COMPOSE
-        if (command[:4] != ['docker','compose','-p','twinhospital-exp']
+        if (command[:3] != ['docker','compose','-p']
+            or (command[3] != 'twinhospital-exp' and not command[3].startswith('twinhospital-exp-smoke-'))
             or command[-2:] != ['-f',str(self.deployment_dir/'compose.yaml')]):
-            raise ObservationUnknown('Observation requires the explicit isolated twinhospital-exp deployment')
+            raise ObservationUnknown('Observation requires an isolated twinhospital-exp or smoke deployment')
     def sql(self,text):return self.manage.sql(['-At'],text=text).stdout.strip()
     def value(self,query):return json.loads(self.sql('BEGIN READ ONLY; '+query+'; COMMIT;'))
     def install(self):

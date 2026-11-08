@@ -768,6 +768,8 @@ def execute_acceptance_schedule(cases, acceptance, *, args, config, mapping, led
                                 batch_root, stop_event, specification, session_log, session_id):
     profiles = {profile['label']: profile for profile in acceptance['profiles']}
     by_assignment = acceptance['schedule_policy'] == ASSIGNMENT_SCHEDULE_POLICY
+    stop_on_failure = not acceptance.get('independent_crossed', False)
+    failure_event = 'regression_gate_stopped' if stop_on_failure else 'assignment_failed'
     indices = {ref['case_id']: {'case_id': ref['case_id'], 'attempts': {}} for ref in cases}
     index_locks = {ref['case_id']: Lock() for ref in cases} if by_assignment else {}
     stopped = None
@@ -847,7 +849,7 @@ def execute_acceptance_schedule(cases, acceptance, *, args, config, mapping, led
                     record['progression_error_type'] = type(exc).__name__
                     failure = {'case_id': case_id, 'profile': label, 'status': record['status'],
                                'error_type': type(exc).__name__}
-                if failure:
+                if failure and stop_on_failure:
                     mark_stop(failure)
                 record['attempt_number'] = number
                 index['attempts'].pop(trial, None)
@@ -855,13 +857,13 @@ def execute_acceptance_schedule(cases, acceptance, *, args, config, mapping, led
                 record_batch_event(session_log, 'case_worker_returned', session_id=session_id,
                     case_id=case_id, acceptance_profile=label, attempt_number=number,
                     status='retrying_documented_unpaid_stop' if retry else
-                    ('regression_gate_stopped' if failure else 'index_returned'))
+                    (failure_event if failure else 'index_returned'))
                 if not retry:
                     break
                 index.setdefault('prior_attempts', {}).setdefault(label, []).append(deepcopy(record))
                 persist(index, case_id, label)
             if failure:
-                print(json.dumps({'event': 'regression_gate_stopped', **failure}), flush=True)
+                print(json.dumps({'event': failure_event, **failure}), flush=True)
         index['attempts'][label] = record
         persist(index, case_id, label)
         return index
@@ -944,8 +946,12 @@ def main():
         help='Enforce the approved 1000-patient, all-condition protocol; does not assert successful outcomes')
     parser.add_argument('--acceptance-batch', type=Path, help='Closed same-version engineering acceptance batch')
     parser.add_argument('--acceptance-audit', type=Path, help='Private native audit for the engineering acceptance batch')
-    parser.add_argument('--acceptance-patients-per-disease', type=int, choices=SUPPORTED_PATIENTS_PER_GROUP,
+    parser.add_argument('--acceptance-patients-per-disease', type=int,
                         default=PATIENTS_PER_GROUP, help='Declared engineering target per disease and workflow')
+    parser.add_argument('--independent-crossed', action='store_true',
+                        help='Run every configuration on a separate test partition without clinical retries.')
+    parser.add_argument('--exclude-development-manifest', type=Path,
+                        help='Private manifest with development patient keys in the same identity namespace.')
     parser.add_argument('--acceptance-attempts', type=int, choices=(1, MAX_ENGINEERING_ATTEMPTS),
                         help='Maximum independent attempts per engineering assignment')
     parser.add_argument('--acceptance-factorial', action='store_true',
@@ -977,6 +983,17 @@ def main():
         parser.error('--acceptance-attempts applies to linked acceptance')
     if args.acceptance_recovery_plan and args.mode != 'linked-acceptance':
         parser.error('Recovery requires linked engineering acceptance with native capture')
+    if args.independent_crossed and not (
+        args.mode == 'linked-acceptance' and args.acceptance_factorial
+        and args.acceptance_attempts == 1 and args.exclude_development_manifest
+        and not args.acceptance_recovery_plan
+    ):
+        parser.error('Independent crossed runs require a test cohort, a development exclusion manifest, '
+                     'every configuration, and one attempt per assignment.')
+    if args.exclude_development_manifest and not args.independent_crossed:
+        parser.error('--exclude-development-manifest applies only to independent crossed runs')
+    if not args.independent_crossed and args.acceptance_patients_per_disease not in SUPPORTED_PATIENTS_PER_GROUP:
+        parser.error('Unsupported linked acceptance patient target')
     if not re.fullmatch(r'[A-Za-z0-9_-]{1,90}', args.batch):
         parser.error('batch must be a safe directory name')
     if not 1 <= args.workers <= 32 or (args.limit is not None and args.limit <= 0):
@@ -1002,6 +1019,13 @@ def main():
     args.observation_metadata = deployment_metadata(args.observation_deploy,args.workflow_policy_data) if args.capture_native else None
     formal_inputs = bind_formal_inputs(args.manifest) if args.formal_experiment else None
     cases = select_cases(_read(args.manifest), args.limit)
+    if args.independent_crossed:
+        exclusion = args.exclude_development_manifest.read_bytes()
+        development = json.loads(exclusion)['cases']
+        if not development or any(row['split'] != 'development' or not row['patient_key'] for row in development):
+            raise ValueError('A nonempty development-partition manifest is required.')
+        if {row['patient_key'] for row in development} & {case['patient_key'] for case in cases}:
+            raise ValueError('A source patient occurs in both partitions.')
     if formal_inputs and bind_formal_inputs(args.manifest) != formal_inputs:
         raise ValueError('formal input files changed during case preflight')
     config, mapping = _read(args.provider_config), _read(args.catalog)
@@ -1010,7 +1034,7 @@ def main():
     acceptance = (freeze_design(cases, config['tool_models'],
                                 patients_per_group=args.acceptance_patients_per_disease,
                                 workers=args.workers, max_attempts=args.acceptance_attempts,
-                                factorial=args.acceptance_factorial)
+                                factorial=args.acceptance_factorial, independent=args.independent_crossed)
                   if args.mode == 'linked-acceptance' else None)
     if args.workers>5 and config.get('minimum_request_interval_seconds',0)<1.0:
         parser.error('more than five workers require explicit shared API pacing of at least one second')
@@ -1032,7 +1056,7 @@ def main():
     generation_policy = validate_generation_policy(config)
     policy_provenance = [
         check_data_policy(kind, config.get('data_policy', {}), config['endpoint'].rstrip('/'),
-                          formal=args.formal_experiment)
+                          formal=args.formal_experiment or args.independent_crossed)
         for kind in sorted({case['data_kind'] for case in cases})
     ]
     args.anchor_reuse = prepare_anchor_reuse(args.anchor_batch, cases, config,
@@ -1116,6 +1140,8 @@ def main():
         'conditions': [item.to_dict() for item in paper_conditions(args.matrix_task,config['tool_models'])] if args.mode == 'matrix' else []}
     if acceptance is not None:
         specification['linked_acceptance'] = acceptance
+        if args.independent_crossed:
+            specification['development_exclusion_sha256'] = hashlib.sha256(exclusion).hexdigest()
         specification['acceptance_source_patient_hashes'] = sorted(digest(r['patient_key']) for r in cases)
         specification['execution_policy']['dispatch_unit'] = (
             'one_isolated_encounter_per_assignment' if acceptance['schedule_policy'] == ASSIGNMENT_SCHEDULE_POLICY

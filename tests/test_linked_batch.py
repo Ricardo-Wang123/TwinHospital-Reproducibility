@@ -62,6 +62,40 @@ class LinkedBatchTests(unittest.TestCase):
         self.assertTrue(all(r['model_requests_sent'] is False and r['native_effects_started'] is False
                             for r in unstarted))
 
+    def test_heldout_crossed_records_failure_without_dropping_assignments(self):
+        models = {'tool_a': 'glm-test'}
+        refs = [{'case_id': group, 'patient_key': group, 'group': group,
+                 'data_kind': 'mimic_derived', 'split': 'test'} for group in GROUPS]
+        design = freeze_design(refs, models, patients_per_group=1, factorial=True,
+                               max_attempts=1, independent=True)
+        self.args.workflow_policy_data = None
+        self.assertEqual(design['evaluation_partition'], 'test')
+        self.assertEqual(design['planned_unique_encounters'], 135)
+        self.assertEqual(design['first_baseline_regressions'], [])
+
+        def complete(ref, *, acceptance_profile, **_):
+            path = self.root / ref['case_id'] / 'attempts.json'
+            index = json.loads(path.read_text()) if path.exists() else {
+                'case_id': ref['case_id'], 'attempts': {}}
+            index['attempts'][acceptance_profile] = {
+                'status': 'completed', 'result_path': '/saved/run.json'}
+            return index
+
+        with patch.object(run_batch, 'execute_case_reference', side_effect=complete) as execute, \
+                patch.object(run_batch, '_acceptance_progression_checks',
+                             side_effect=[{'paid': False}] + [{'paid': True}] * 134), \
+                redirect_stdout(io.StringIO()):
+            rows, stop = run_batch.execute_acceptance_schedule(refs, design, args=self.args,
+                config={'tool_models': models}, mapping={}, ledger=self.ledger,
+                batch_root=self.root, stop_event=Event(), specification={},
+                session_log=self.root/'events.jsonl', session_id='independent')
+        self.assertIsNone(stop)
+        self.assertEqual(execute.call_count, 135)
+        attempts = [attempt for row in rows for attempt in row['attempts'].values()]
+        self.assertEqual(len(attempts), 135)
+        self.assertEqual(sum(a['progression_checks']['paid'] for a in attempts), 134)
+        self.assertEqual({attempt['attempt_number'] for attempt in attempts}, {1})
+
     def test_dispatch_journal_appends_across_sessions_and_stays_private(self):
         path = self.root/'batch_sessions.jsonl'
         path.write_text('{"event":"earlier_session"}\n')

@@ -2,30 +2,34 @@
 
 **Evaluating Clinical Language Agents through Linked Hospital Workflows**
 
-TwinHospital evaluates clinical language agents in a linked outpatient encounter. It follows the handoff, prescription, and note from generation and review to the signed order, locked note, and simulated medication payment in OpenHIS.
+TwinHospital runs a single outpatient encounter through intake, consultation, prescription review, note attestation, and simulated medication payment in OpenHIS. CAMEL coordinates the patient and staff agents. The encounter trace links language artifacts to the business operations that consume them.
 
-![TwinHospital workflow from registration through simulated payment, showing the three evaluation applications](docs/workflow.png)
+![TwinHospital workflow from registration through simulated payment](docs/workflow.png)
 
-## Study snapshot
+## Published results
 
-The current analysis covers **170 verified paid encounters** derived from ten MIMIC-IV histories. The study varies pre-consultation, prescription-review, and documentation configurations while holding the role and assistance models fixed. The operation replays use separate fault and control denominators.
+The current snapshot contains **170 verified paid encounters** from **10 MIMIC-IV v2.2 development-partition histories**, two per diagnosis stratum. All 27 combinations of intake, prescription review, and documentation are represented. The separate operation replay contains five fault requests and five compliant controls.
 
-- [Encounter aggregates](results/verified_paid_results_170.json)
-- [Operation replay aggregates](results/operation_replay_10.json)
-- [LaTeX results used in the manuscript](results/acl_results_170.tex)
-- [Frozen execution settings and source checksums](results/cohort_170_execution.json)
-- [Metric definitions and result regeneration](results/README.md)
-
-## Run TwinHospital
-
-| Purpose | Entry point |
+| Artifact | Contents |
 | --- | --- |
-| Start from a fictional case | [Setup and smoke check](handoff/README.md#在新电脑启动) · [Run configuration](config/run.synthetic.example.json) |
-| Configure the role and tool models | [Provider template](config/provider.example.json) |
-| Start a crossed batch | [Factorial configuration](config/run.factorial.example.json) |
-| Resume a verified batch | [Recovery configuration](config/run.recover.example.json) |
-| Audit the traces and regenerate tables | [Results and commands](results/README.md) |
+| [Encounter results](results/verified_paid_results_170.json) | Delivery, prescription review and revision, staff effort, and audited settlement |
+| [Operation replay results](results/operation_replay_10.json) | Fault and control outcomes for five business constraints |
+| [Paper tables](results/acl_results_170.tex) | Generated LaTeX for the current results |
+| [Execution profile](results/cohort_170_execution.json) | Model assignment, generation settings, dictionaries, and source digests |
+| [Result definitions and commands](results/README.md) | Denominators and commands for recomputing and updating tables |
 
-The [run guide](handoff/README.md) covers setup, credential entry, and batch recovery. The native smoke check uses an isolated OpenHIS installation and independent fictional inputs. The model-backed run uses local credentials. The tag `cohort-170-runtime` preserves the source files bound by the analyzed cohort's execution specification.
+## Start here
 
-Full clinical-cohort reproduction requires authorized MIMIC access, the protected case and trace archive, and the authorized OpenHIS distribution. The repository contains code, configuration templates, fictional inputs, and aggregates. [PhysioNet data-use guidance](https://physionet.org/news/post/llm-responsible-use/)
+| Goal | Entry point |
+| --- | --- |
+| Check the installation with a fictional encounter | [Quick start](handoff/REPRODUCE.md#fictional-encounter) |
+| Run the paper's configurations with the frozen case bundle | [Repeat the study configuration](handoff/REPRODUCE.md#repeat-the-study-configuration) |
+| Build your own case or extract historical material from MIMIC-IV | [Case format and data selection](handoff/CASE_FORMAT.md) |
+| Evaluate a new, disjoint cohort | [Run a held-out cohort](handoff/REPRODUCE.md#run-a-held-out-cohort) |
+| Resume an existing run | [Run and recovery guide](handoff/README.md) |
+
+## Models and requirements
+
+Use Python 3.12, Docker Compose v2, and the authorized OpenHIS release. The [provider configuration](config/provider.example.json) uses `deepseek-v4.1-flash-1017` for patient and staff roles and `glm-5.2` for intake assistance, prescription screening, and drafting. Both use temperature 0.2 with reasoning disabled. The launcher tests access to both exact model IDs before sending a case.
+
+The repository ships source, a fictional case generator, configuration templates, and verified aggregates. The study configuration also needs the separately authorized case and dictionary bundle, the matching OpenHIS release, and a model account approved for the data. Each researcher obtains access to MIMIC-IV under its data-use terms. [MIMIC-IV v2.2](https://physionet.org/content/mimiciv/2.2/) · [PhysioNet guidance on model endpoints](https://physionet.org/news/post/llm-responsible-use/)

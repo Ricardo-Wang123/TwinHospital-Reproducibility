@@ -1,5 +1,6 @@
 {
   "catalog_hash": "742480a3a5f44b485295c97738a93a907fac853590153f15d6e5ee75299b1d97",
+  "clinical_catalogue_file_sha256": "5f7c3f30f1565bf49b904101593a8a7a030efe20d37e813e5cc0cc7c09498231",
   "diagnosis_catalog_hash": "5bd8c91d86e17603d0ad2e71898030452bf0a3385b0e5cd1e909603d713c6cf4",
   "generation": {
     "deepseek-v4.1-flash-1017": {
@@ -20,6 +21,108 @@
         "max_retries": 1
       }
     }
+  },
+  "generation_policy": {
+    "models": {
+      "deepseek-v4.1-flash-1017": {
+        "completion_limit_field": "max_tokens",
+        "completion_limit_includes_reasoning": true,
+        "context_window_tokens": 120000,
+        "max_completion_tokens": 16384,
+        "request_parameters": {
+          "response_format": {
+            "type": "json_object"
+          },
+          "thinking": {
+            "type": "disabled"
+          }
+        },
+        "temperature": 0.2,
+        "thinking": false,
+        "truncation_retry": {
+          "max_completion_tokens": 32768,
+          "max_retries": 1,
+          "same_messages": true,
+          "shares_max_http_attempts": true
+        }
+      },
+      "glm-5.2": {
+        "completion_limit_field": "max_tokens",
+        "completion_limit_includes_reasoning": true,
+        "context_window_tokens": 120000,
+        "max_completion_tokens": 16384,
+        "request_parameters": {
+          "response_format": {
+            "type": "json_object"
+          },
+          "thinking": {
+            "type": "disabled"
+          }
+        },
+        "temperature": 0.2,
+        "thinking": false,
+        "truncation_retry": {
+          "max_completion_tokens": 32768,
+          "max_retries": 1,
+          "same_messages": true,
+          "shares_max_http_attempts": true
+        }
+      }
+    },
+    "provider_content_boundary": {
+      "edit_final_content": false,
+      "final_shape": "whole_json_object_or_whole_json_fence",
+      "infer_missing_final_content": false,
+      "model_family": "glm",
+      "required_finish_reason": "stop",
+      "required_separator_count": 1,
+      "retry_model": false,
+      "separator": "</think>",
+      "version": "glm_explicit_final_boundary_v1"
+    },
+    "response_parsing": {
+      "allowed_operations": [
+        "append_missing_terminal_closers",
+        "remove_extra_terminal_closers",
+        "escape_literal_string_whitespace"
+      ],
+      "decoded_string_characters_changed": false,
+      "edit_keys_values_strings_commas": false,
+      "max_terminal_delimiters": 2,
+      "reject_duplicate_keys": true,
+      "reject_nonfinite_constants": true,
+      "required_finish_reason": "stop",
+      "retry_model": false,
+      "string_whitespace_encoding_only": [
+        "LF",
+        "CR",
+        "TAB"
+      ],
+      "top_level": "single_object",
+      "version": "terminal_json_delimiters_and_string_whitespace_v2"
+    },
+    "version": "explicit-chat-completions-v1"
+  },
+  "input_bundle": {
+    "access": "credentialed data handling under the source terms",
+    "case_count": 10,
+    "case_schema": "twinhospital.linked.case/1",
+    "cases_per_stratum": {
+      "copd": 2,
+      "heart_failure": 2,
+      "pneumonia": 2,
+      "type2_diabetes": 2,
+      "uti": 2
+    },
+    "native_mappings": {
+      "diagnoses": "v3",
+      "products": "v6",
+      "rule_catalogue": "v5"
+    },
+    "partition": "development",
+    "scope": "retrospective history with constructed follow-up visit",
+    "source": "MIMIC-IV v2.2 hospital module",
+    "version": "twinhospital.inputs/1"
   },
   "linked_code_sha256": {
     "actors.py": "ad92a93c4566dedf8e9f19824acf9dfdae908d978405ec95e30df4054743eed4",
@@ -55,6 +158,30 @@
   },
   "max_model_calls_per_run": 150,
   "max_transport_attempts": 5,
+  "model_assignment": {
+    "role_model": "deepseek-v4.1-flash-1017",
+    "tool_models": {
+      "tool_a": "glm-5.2"
+    }
+  },
+  "ordered_case_files_sha256": "60462d7468f8d1e1b1e6ccb94e5b55853afa8503ba9f93ebcf9b71f154c0db00",
+  "runtime_commit": "c8b6fcb754450064e52fb769bbfcd2f8b753c6d4",
   "runtime_tag": "cohort-170-runtime",
-  "scope": "runtime source and generation profile bound by the analyzed cohort"
+  "scope": "runtime source and generation profile bound by the analyzed cohort",
+  "transport_settings": {
+    "connect_timeout_seconds": 30,
+    "follow_redirects": false,
+    "minimum_request_interval_seconds": 1,
+    "read_timeout_seconds": 900,
+    "response_transport": "sse",
+    "stream_max_duration_seconds": 900,
+    "tls_verification": true
+  },
+  "workflow_settings": {
+    "clock": "per_run_monotonic_seconds",
+    "end_boundary": "target_payment_readback",
+    "start_boundary": "queue_entry_persisted",
+    "window_seconds": 7200,
+    "workers": 20
+  }
 }

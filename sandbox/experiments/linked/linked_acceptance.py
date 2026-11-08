@@ -39,9 +39,11 @@ def linked_profiles(tool_models, *, factorial=False):
 
 
 def freeze_design(cases, tool_models, *, patients_per_group=PATIENTS_PER_GROUP, workers=1,
-                  max_attempts=None, factorial=False):
+                  max_attempts=None, factorial=False, independent=False):
     """Keep the declared distinct source patients in each disease denominator."""
-    if patients_per_group not in SUPPORTED_PATIENTS_PER_GROUP:
+    if independent and (not factorial or patients_per_group < 1 or max_attempts != 1):
+        raise ValueError('An independent crossed batch requires every configuration and one attempt per assignment')
+    if not independent and patients_per_group not in SUPPORTED_PATIENTS_PER_GROUP:
         raise ValueError('Unsupported linked acceptance patient target')
     if patients_per_group == 2 and not factorial:
         raise ValueError('Two patients per disease is reserved for ten-patient factorial coverage')
@@ -55,16 +57,18 @@ def freeze_design(cases, tool_models, *, patients_per_group=PATIENTS_PER_GROUP, 
             or None in patients or '' in patients or len(patients) != len(cases)
             or len({case['case_id'] for case in cases}) != len(cases)):
         raise ValueError(f'linked acceptance requires {patients_per_group} distinct source patients per disease')
-    if any(case.get('data_kind') != 'mimic_derived' or case.get('split') != 'development'
+    split = 'test' if independent else 'development'
+    if any(case.get('data_kind') != 'mimic_derived' or case.get('split') != split
            for case in cases):
-        raise ValueError('linked acceptance is restricted to the MIMIC-derived engineering cohort')
+        raise ValueError(f'This crossed design requires MIMIC-derived cases in the {split} partition')
     profiles, cells = linked_profiles(tool_models, factorial=factorial)
     return {
         'version': 'linked_acceptance_v1',
         'schedule_policy': (ASSIGNMENT_SCHEDULE_POLICY if factorial and workers > len(cases)
                             else PARALLEL_SCHEDULE_POLICY if workers > 1 else SCHEDULE_POLICY),
         'factorial': factorial,
-        'first_baseline_regressions': [case['case_id'] for case in cases[:2]],
+        'first_baseline_regressions': [] if independent else [case['case_id'] for case in cases[:2]],
+        **({'independent_crossed': True, 'evaluation_partition': split} if independent else {}),
         'target_per_disease_and_condition': patients_per_group,
         'planned_unique_encounters': len(cases) * len(profiles),
         'max_attempts_per_unit': max_attempts,

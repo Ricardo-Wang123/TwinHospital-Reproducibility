@@ -199,7 +199,7 @@ def _bump(coverage, table, key):
     item[key] = item.get(key, 0) + 1
 
 
-def extract_seeds(path, selections, include_labs=False) -> list[dict]:
+def extract_seeds(path, selections, include_labs=False, *, skip_invalid_history=False) -> list[dict]:
     """Extract only explicitly selected patients as post-discharge historical seeds.
 
     Historical admissions must finish no later than the anchor discharge and
@@ -211,6 +211,8 @@ def extract_seeds(path, selections, include_labs=False) -> list[dict]:
     matches are preserved as lists. A selected anchor recording an in-hospital
     death is rejected. Missing/invalid required times and patient/admission
     ownership conflicts raise MimicSourceError without printing identifiers.
+    With skip_invalid_history, malformed order and laboratory intervals are
+    excluded and counted while patient/admission validation remains strict.
     """
     selections = validate_selections(selections)
     selected = {item["subject_id"]: item for item in selections}
@@ -342,11 +344,17 @@ def extract_seeds(path, selections, include_labs=False) -> list[dict]:
             if not eligible(row, "prescriptions", number):
                 continue
             subject = row["subject_id"]
-            start = _timestamp(row["starttime"], "prescriptions", "starttime", number)
-            stop = _timestamp(row["stoptime"], "prescriptions", "stoptime", number) if row.get("stoptime") else None
-            if stop is not None and stop < start:
-                raise MimicSourceError(f"prescriptions row {number}: stop precedes start")
             coverage = by_subject[subject]["coverage"]
+            try:
+                start = _timestamp(row["starttime"], "prescriptions", "starttime", number)
+                stop = _timestamp(row["stoptime"], "prescriptions", "stoptime", number) if row.get("stoptime") else None
+                if stop is not None and stop < start:
+                    raise MimicSourceError(f"prescriptions row {number}: stop precedes start")
+            except MimicSourceError:
+                if not skip_invalid_history:
+                    raise
+                _bump(coverage, "prescriptions", "excluded_invalid_interval")
+                continue
             if start > cutoffs[subject]:
                 _bump(coverage, "prescriptions", "excluded_start_after_cutoff")
                 continue
@@ -364,10 +372,16 @@ def extract_seeds(path, selections, include_labs=False) -> list[dict]:
                 if not row["storetime"]:
                     _bump(coverage, "labevents", "excluded_missing_storetime")
                     continue
-                stored = _timestamp(row["storetime"], "labevents", "storetime", number)
-                charted = _timestamp(row["charttime"], "labevents", "charttime", number)
-                if stored < charted:
-                    raise MimicSourceError(f"labevents row {number}: storetime precedes charttime")
+                try:
+                    stored = _timestamp(row["storetime"], "labevents", "storetime", number)
+                    charted = _timestamp(row["charttime"], "labevents", "charttime", number)
+                    if stored < charted:
+                        raise MimicSourceError(f"labevents row {number}: storetime precedes charttime")
+                except MimicSourceError:
+                    if not skip_invalid_history:
+                        raise
+                    _bump(coverage, "labevents", "excluded_invalid_interval")
+                    continue
                 if stored > cutoffs[subject]:
                     _bump(coverage, "labevents", "excluded_storetime_after_cutoff")
                     continue

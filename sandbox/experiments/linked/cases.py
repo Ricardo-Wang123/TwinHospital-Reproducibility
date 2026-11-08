@@ -156,7 +156,7 @@ def validate_case(case):
         raise ValueError("case identity is required")
     if case.get("group") not in GROUPS:
         raise ValueError("undeclared disease group")
-    if case.get("data_kind") not in {"synthetic_independent", "mimic_derived"}:
+    if case.get("data_kind") not in {"synthetic_independent", "mimic_derived", "hospital_derived"}:
         raise ValueError("data origin must be explicit")
     for field in ("patient_initial", "his_initial"):
         if not isinstance(case.get(field), dict):
@@ -171,6 +171,10 @@ def validate_case(case):
         prov = case.get("provenance", {})
         if prov.get("uses_patient_records") is not False or prov.get("source_dataset") is not None:
             raise ValueError("independent synthetic provenance is required; renamed patient data is not independent")
+    if case["data_kind"] == "hospital_derived":
+        prov = case.get("provenance", {})
+        if prov.get("uses_patient_records") is not True or not prov.get("source_dataset"):
+            raise ValueError("hospital-derived cases require a declared source dataset")
     return True
 
 

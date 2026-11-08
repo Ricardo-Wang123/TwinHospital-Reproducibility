@@ -40,7 +40,7 @@ def ensure_secrets():
 def sql(args=None, text=None):
     check_project_ownership()
     return subprocess.run(COMPOSE+['exec','-T','postgres','psql','-X','-q','-U','postgres','-d','openhis_205_local','-v','ON_ERROR_STOP=1']+(args or []), input=text,text=True,capture_output=True,check=True)
-def provision():
+def provision(fixtures=()):
     source=assets()
     sys.path.insert(0,str(source/'tools/runtime'))
     sp=importlib.util.spec_from_file_location('isolated_provision',source/'tools/runtime/provision.py'); mod=importlib.util.module_from_spec(sp); sp.loader.exec_module(mod)
@@ -50,13 +50,20 @@ def provision():
     for name in ['90-live-demo.sql','94-realistic-organizations.sql','95-realistic-personas.sql','96-natural-logins.sql','97-record-display-details.sql','98-workbench-display-details.sql','99-catalog-display-details.sql','99-curated-business-scenarios.sql','99-data-integrity.sql','100-hospital-departments.sql']:
         sql(text=(source/'openhis-seed'/name).read_text())
     sql(text=(HERE/'experiment-fixtures.sql').read_text())
+    for fixture in fixtures:
+        sql(text=fixture.read_text())
     print('Isolated role identities and daily synthetic schedule ready; existing desktop runtime untouched.')
 def main():
-    p=argparse.ArgumentParser(); p.add_argument('action',choices=['up','status','provision','catalog-v2','stop']); a=p.parse_args()
+    p=argparse.ArgumentParser()
+    p.add_argument('action',choices=['up','status','provision','catalog-v2','stop'])
+    p.add_argument('--fixture',action='append',type=Path,default=[])
+    a=p.parse_args()
+    if a.fixture and (a.action!='provision' or any(not path.is_file() for path in a.fixture)):
+        p.error('--fixture requires provision and an existing SQL file')
     assets(); check_project_ownership(); ensure_secrets()
     if a.action=='up':subprocess.run(COMPOSE+['up','-d','--wait','postgres','backend','gateway'],check=True)
     elif a.action=='status':subprocess.run(COMPOSE+['ps'],check=True)
-    elif a.action=='provision':provision()
+    elif a.action=='provision':provision(a.fixture)
     elif a.action=='catalog-v2':
         sql(text=(HERE/'experiment-fixtures-v2.sql').read_text())
         print('Versioned SIM catalogue v2 added only to twinhospital-exp; v1 rows unchanged.')

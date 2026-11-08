@@ -121,8 +121,8 @@ def human_review_statement(review, paid):
     ratio(reviewed, total)
     if reviewed == 0:
         return ''
-    statement = ('After simulation, human reviewers on the study team assessed the clinical appropriateness '
-                 f'of the final prescription in {reviewed} of the {total} completed encounters.')
+    statement = ('After simulation, the study team assessed final prescriptions for clinical appropriateness '
+                 f'in {reviewed} of the {total} completed encounters.')
     outcomes = review.get('outcomes')
     if outcomes is not None:
         fields = ('appropriate', 'inappropriate', 'indeterminate')

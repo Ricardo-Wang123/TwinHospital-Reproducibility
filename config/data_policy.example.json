@@ -1,0 +1,11 @@
+{
+  "mode": "independently_verified",
+  "endpoint": "https://apius.shubiaobiao.cn/v1",
+  "verified_at": "",
+  "evidence": "",
+  "authorized_data_access": false,
+  "verified_no_retention": false,
+  "no_training": false,
+  "no_human_review": false,
+  "cache_policy_verified": false
+}

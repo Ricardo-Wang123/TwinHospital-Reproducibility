@@ -16,6 +16,8 @@ import tempfile
 from urllib.parse import urlsplit
 from urllib.request import ProxyHandler, build_opener
 
+from sandbox.experiments.linked.native_his import isolated_port
+
 ROOT = Path(__file__).resolve().parents[1]
 
 
@@ -28,16 +30,17 @@ class RunConfig:
         self.base = path.resolve().parent
         self.fields = read(path)
         self.mode = self.fields['mode']
-        if self.mode not in {'linked', 'factorial', 'formal', 'recover'}:
+        if self.mode not in {'linked', 'factorial', 'heldout', 'formal', 'recover'}:
             raise ValueError('Unsupported run mode.')
         self.name = self.fields['batch']
         if not re.fullmatch('[A-Za-z0-9_-]{1,90}', self.name):
             raise ValueError('Invalid batch name.')
-        self.his_url = self.fields.get('his_url', 'http://127.0.0.1:28081/api/app')
+        port = isolated_port()
+        self.his_url = self.fields.get('his_url', f'http://127.0.0.1:{port}/api/app')
         his = urlsplit(self.his_url)
         if (his.scheme != 'http' or his.hostname != '127.0.0.1' or his.path != '/api/app'
-                or his.username or his.query or his.fragment or his.port != 28081):
-            raise ValueError('The HIS URL must be http://127.0.0.1:28081/api/app.')
+                or his.username or his.query or his.fragment or his.port != port):
+            raise ValueError(f'The HIS URL must be http://127.0.0.1:{port}/api/app.')
 
     def path(self, key, default=None):
         value = self.fields.get(key, default)
@@ -54,6 +57,10 @@ class RunConfig:
         return self.path('deploy', ROOT / 'deploy/openhis-experiment')
 
     @property
+    def runtime(self):
+        return self.path('frozen_runtime', ROOT)
+
+    @property
     def credentials(self):
         return self.path('his_credentials', self.deploy / 'runtime/accounts/credentials.json')
 
@@ -68,7 +75,7 @@ class RunConfig:
                    '--workers', str(self.fields.get('workers', 1)), '--close-prescription-loop']
         if self.fields.get('uncapped') is True:
             command += ['--uncapped-budget']
-        if self.mode in {'factorial', 'recover', 'formal'}:
+        if self.mode in {'factorial', 'heldout', 'recover', 'formal'}:
             command += ['--capture-native', '--observation-deploy', self.deploy,
                         '--workflow-policy', self.path('workflow_policy'),
                         '--rule-engine', 'documented-candidate',
@@ -78,6 +85,10 @@ class RunConfig:
         if self.mode in {'factorial', 'recover'}:
             command += ['--mode', 'linked-acceptance', '--engineering-only', '--acceptance-attempts',
                         str(self.fields.get('acceptance_attempts', 3))]
+        elif self.mode == 'heldout':
+            command += ['--mode', 'linked-acceptance', '--engineering-only',
+                        '--independent-crossed', '--acceptance-attempts', '1',
+                        '--exclude-development-manifest', self.path('development_manifest')]
         elif self.mode == 'formal':
             command += ['--mode', 'matrix', '--formal-experiment', '--analysis-plan', self.path('analysis_plan'),
                         '--acceptance-batch', self.path('acceptance_batch'), '--acceptance-audit', self.path('acceptance_audit')]
@@ -106,12 +117,43 @@ def require_private_file(path):
 
 
 def preflight(config, command, log_path):
-    output = subprocess.run([*command, '--dry-run'], cwd=ROOT, text=True, capture_output=True)
+    pinned = None
+    if 'frozen_runtime' in config.fields:
+        pinned = read(ROOT / 'results/cohort_170_execution.json')
+        revision = subprocess.check_output(
+            ['git', '-C', str(config.runtime), 'rev-parse', 'HEAD'], text=True).strip()
+        dirty = subprocess.check_output(
+            ['git', '-C', str(config.runtime), 'status', '--porcelain'], text=True)
+        if revision != pinned['runtime_commit'] or dirty:
+            raise ValueError('Check out a clean cohort-170-runtime worktree.')
+    output = subprocess.run([*command, '--dry-run'], cwd=config.runtime, text=True, capture_output=True)
     if output.returncode:
         log_path.write_text(output.stderr, encoding='utf-8')
         raise ValueError(f'Runner preflight failed; see private log {log_path}.')
     receipt = json.loads(output.stdout)
     spec = receipt['specification']
+    if pinned:
+        case_digest = sha256('\n'.join(row['file_sha256'] for row in spec['cases']).encode()).hexdigest()
+        for observed, expected in (
+            (case_digest, pinned['ordered_case_files_sha256']),
+            (spec['code_hashes'], pinned['linked_code_sha256']),
+            (spec['catalog_hash'], pinned['catalog_hash']),
+            (spec['diagnosis_catalog_hash'], pinned['diagnosis_catalog_hash']),
+            (spec['rules']['source_catalogue_file_sha256'], pinned['clinical_catalogue_file_sha256']),
+        ):
+            if observed != expected:
+                raise ValueError('The selected case files, runtime or dictionaries differ from the frozen cohort.')
+        assignment = {key: spec['models'][key] for key in pinned['model_assignment']}
+        generation = spec['generation']
+        if (spec['generation_policy'] != pinned['generation_policy']
+                or assignment != pinned['model_assignment']
+                or generation['max_attempts'] != pinned['max_transport_attempts']
+                or generation['max_calls_per_run'] != pinned['max_model_calls_per_run']):
+            raise ValueError('The model assignment or wire settings differ from the frozen cohort.')
+        transport = {key: spec['transport_policy'][key] for key in pinned['transport_settings']}
+        workflow = {key: spec['workflow_observation_policy'][key] for key in pinned['workflow_settings']}
+        if transport != pinned['transport_settings'] or workflow != pinned['workflow_settings']:
+            raise ValueError('The transport or observation settings differ from the frozen cohort.')
     recovery = spec.get('engineering_recovery')
     result = {'batch': config.name, 'mode': config.mode, 'input_cases': len(spec['cases']),
               'role_model': spec['models']['role_model'], 'tool_models': spec['models']['tool_models'],
@@ -119,6 +161,8 @@ def preflight(config, command, log_path):
     if recovery:
         result['retained_paid'] = recovery['retained_verified_paid']
         result['unpaid_to_dispatch'] = recovery['new_assignment_count']
+    if spec.get('linked_acceptance'):
+        result['planned_encounters'] = spec['linked_acceptance']['planned_unique_encounters']
     print(json.dumps(result, ensure_ascii=False), flush=True)
     return spec
 
@@ -135,6 +179,19 @@ def verify_his(config):
         raise ValueError('The isolated OpenHIS health check did not return UP.')
 
 
+def provision_his(config):
+    manage = config.deploy / 'manage.py'
+    fixtures = [config.base / path for path in config.fields.get('native_fixtures', [])]
+    if any(not path.is_file() for path in fixtures):
+        raise ValueError('A configured native fixture is missing.')
+    subprocess.run([sys.executable, manage, 'up'], check=True)
+    command = [sys.executable, manage, 'provision']
+    for fixture in fixtures:
+        command.extend(('--fixture', fixture))
+    subprocess.run(command, check=True)
+    verify_his(config)
+
+
 def verify_routes(config, provider, provider_file, receipt):
     from sandbox.experiments.linked.provider import BudgetLedger
 
@@ -149,7 +206,7 @@ def verify_routes(config, provider, provider_file, receipt):
         command += ['--uncapped-budget']
     for model in models:
         command += ['--model', model]
-    output = subprocess.run(command, cwd=ROOT, capture_output=True, text=True)
+    output = subprocess.run(command, cwd=config.runtime, capture_output=True, text=True)
     path = receipt / 'summary.json'
     if not path.is_file():
         (receipt.parent / 'probe-error.log').write_text(output.stderr, encoding='utf-8')
@@ -201,6 +258,7 @@ def main():
     actions = parser.add_subparsers(dest='action', required=True)
     actions.add_parser('check', help='Validate inputs and recoverable assignments without case dispatch.')
     actions.add_parser('set-key', help='Save a key in the local configured 0600 file.')
+    actions.add_parser('provision', help='Start isolated OpenHIS and apply this input bundle’s fixtures.')
     actions.add_parser('status', help='Show closed-batch counts without printing case data.')
     launch = actions.add_parser('run', help='Preflight by default; use --execute to launch.')
     launch.add_argument('--execute', action='store_true')
@@ -208,6 +266,10 @@ def main():
     audit_parser.add_argument('--observe-native', action='store_true')
     args = parser.parse_args()
     cfg = RunConfig(args.config)
+    if 'openhis_assets' in cfg.fields:
+        os.environ['TH_OPENHIS_ASSETS'] = str(cfg.path('openhis_assets'))
+    if args.action == 'provision':
+        return provision_his(cfg)
     if args.action == 'set-key':
         return save_key(cfg.path('key_file'))
     if args.action == 'audit':
@@ -235,7 +297,7 @@ def main():
         preflight(cfg, command, session/'preflight.log')
         require_private_file(cfg.path('key_file'))
         verify_his(cfg)
-        if cfg.mode in {'recover','factorial','formal'}:
+        if cfg.mode in {'recover','factorial','heldout','formal'}:
             from sandbox.experiments.linked.campaign import admission_status
             from sandbox.experiments.linked.native_observation import IsolatedObservationDB
 
@@ -249,7 +311,7 @@ def main():
         verify_routes(cfg, provider, provider_file, session/'probe')
         print(f'Running the frozen batch. Private log: {session / "execution.log"}', flush=True)
         with (session / 'execution.log').open('x') as log:
-            subprocess.run(command, cwd=ROOT, stdout=log, stderr=subprocess.STDOUT, check=True)
+            subprocess.run(command, cwd=cfg.runtime, stdout=log, stderr=subprocess.STDOUT, check=True)
         if not (cfg.batch/'batch_summary.json').is_file():
             raise ValueError('Batch closed without a summary; inspect its private log.')
         print(f'Batch summary: {cfg.batch / "batch_summary.json"}', flush=True)
