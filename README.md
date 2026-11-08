@@ -26,9 +26,11 @@ The current snapshot contains **170 verified paid encounters** from **10 MIMIC-I
 | Check the installation with a fictional encounter | [Quick start](handoff/REPRODUCE.md#fictional-encounter) |
 | Run the paper's configurations with the frozen case bundle | [Repeat the study configuration](handoff/REPRODUCE.md#repeat-the-study-configuration) |
 | Recompute the reported results from a received evidence bundle | [Offline recomputation](results/README.md#recompute-the-encounter-metrics) |
+| Repeat the paired operation checks on verified source encounters | [Run the operation replays](handoff/REPRODUCE.md#replay-paired-operations) |
 | Build your own case or extract historical material from MIMIC-IV | [Case format and data selection](handoff/CASE_FORMAT.md) |
 | Evaluate a new, disjoint cohort | [Run a held-out cohort](handoff/REPRODUCE.md#run-a-held-out-cohort) |
 | Resume an existing run | [Run and recovery guide](handoff/README.md) |
+| Check the repository installation and workflow contracts | [Offline regression checks](handoff/REPRODUCE.md#offline-regression-checks) |
 
 ## Models and requirements
 

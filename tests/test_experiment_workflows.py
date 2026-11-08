@@ -218,7 +218,7 @@ class ExperimentWorkflows(unittest.TestCase):
         self.assertEqual(result["status"], "completed")
         self.assertIn(("doctor", "redundant_inquiry", None), gate.activities)
         self.assertEqual(result["interaction_count"], 2)
-        self.assertEqual(result["final_output"], {"facts": []})
+        self.assertEqual(result["final_output"], {"facts": [], "risk_flags": []})
         self.assertEqual(result["final_output"], result["first_handoff_output"])
         self.assertEqual(result["post_consultation_output"]["facts"][0]["value"], "DEMO")
         self.assertIsNone(result["first_pass_correct"])

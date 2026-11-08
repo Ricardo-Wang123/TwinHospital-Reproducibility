@@ -13,6 +13,18 @@ python3.12 -m venv .venv
 
 The release contains `release/health-app.jar`, `openhis-seed/`, and `tools/runtime/`. The bundle records release checksums. The default deployment uses `127.0.0.1:28081`, an isolated PostgreSQL volume, and local simulated cash payments.
 
+## Offline regression checks
+
+The two suites cover the workflow contracts, case preparation, result processing, and compatibility with the legacy runner. The legacy smoke tests also use Jinja2.
+
+~~~sh
+.venv/bin/python -m pip install Jinja2==3.1.6
+PYTHONPATH=tests:tests/linked .venv/bin/python -m unittest discover -s tests
+PYTHONPATH=tests:tests/linked .venv/bin/python -m unittest discover -s tests/linked
+~~~
+
+These checks use local fixtures and test doubles. The fictional encounter below separately checks an isolated OpenHIS instance.
+
 ## Fictional encounter
 
 This path checks the setup before using clinical inputs. Generate one independent fictional case, configure the launcher, and start the isolated HIS.
@@ -137,6 +149,22 @@ Pack the new manifest by inheriting the study's native settings. Then configure 
 Set `K` to the equal number of distinct test patients in each of the five strata. The launcher rejects overlap with the supplied development manifest and creates all 27 assignments per test patient. Each assignment gets one independent clinical attempt. Provider, observation, and transaction safeguards still apply. Use the same `provision`, `check`, `set-key`, `run --execute`, and audit commands. For a separately provisioned instance, use its own directory and batch name.
 
 Report the held-out denominator and terminal outcomes separately from the development snapshot. The result scripts derive each task's counts from the new audit. Independent operation probes use their own denominator. [Result reconstruction](../results/README.md)
+
+## Replay paired operations
+
+The source-bound replay exercises the adapter and OpenHIS without model calls. It reconstructs fresh business objects from a completed source encounter. The ten published probe outcomes use a separate development source batch. The evidence bundle provides its aggregate for offline table reconstruction.
+
+For a new paired replay, prepare an authorized cohort manifest and a frozen schedule. Each schedule row copies a cohort case row and adds a unique `local_test_id`, an `operation_category` from the replay module, and a `request_condition` of `single_fault` or `compliant_control`. Both rows of a pair can use the same source case. Use a closed source batch with the corresponding `linked_baseline_anchor` traces, matching catalogues, and its isolated OpenHIS deployment. The manifest and attempt indexes must resolve to local authorized files.
+
+~~~sh
+.venv/bin/python -m sandbox.experiments.linked.source_operation_replay \
+  --engineering-only --schedule "$REPLAY_SCHEDULE" --cohort "$SOURCE_MANIFEST" \
+  --source-batch "$SOURCE_BATCH" --deployment-dir "$SOURCE_DEPLOY" \
+  --catalog "$SOURCE_CATALOG" --diagnosis-catalog "$SOURCE_DIAGNOSES" \
+  --run-id paired_replay_01 --output "$WORK/paired_replay_01"
+~~~
+
+The output contains unit-level read-back in `outcomes.jsonl` and grouped counts in `summary.json`. The schedule keeps unresolved source or execution cases in the denominator. Use the summary corresponding to this schedule when rendering new paper tables. [Result renderer](../results/README.md#regenerate-the-manuscript-tables)
 
 ## Model or environment check fails
 
