@@ -15,7 +15,7 @@ import requests
 from .native_his import NativeBlocked, NativeError, NativeRejected, digest
 
 
-VERSION = 'twinhospital-fhir-r4-1'
+VERSION = 'twinhospital-fhir-r4-2'
 MEDIA_TYPE = 'application/fhir+json'
 CANONICAL = 'https://github.com/Ricardo-Wang123/TwinHospital-Reproducibility/fhir'
 MAX_BODY = 8 * 1024 * 1024
@@ -43,8 +43,11 @@ SCOPE = {'case_id': 'Identifier', 'run_id': 'Identifier', 'config_id': 'Identifi
          'patient_id': 'Reference', 'encounter_id': 'Reference', 'idempotency_key': 'Identifier',
          'action_request_id': 'Identifier'}
 OPTIONAL = {'config_id', 'idempotency_key', 'action_request_id', 'parent_order_id', 'parent_version'}
+NULL_FIELDS = 'nullOptionalFields'
+OPTIONAL.add(NULL_FIELDS)
 REFERENCES = {'patient_id': 'Patient', 'encounter_id': 'Encounter'}
-ARTIFACT_TYPES = {'demographics': dict, 'content': dict, 'transcript': list, 'items': list, 'receipt': dict}
+ARTIFACT_TYPES = {'demographics': dict, 'content': dict, 'transcript': list, 'items': list, 'receipt': dict,
+                  NULL_FIELDS:list}
 
 
 def operation_code(operation):
@@ -71,6 +74,8 @@ def operation_definitions():
             'description': f'Execute the {operation} action on one isolated hospital assignment.',
             'parameter': [{'name': name, 'use': 'in', 'min': int(name not in OPTIONAL),
                            'max': '1', 'type': kind} for name, kind in {**scope, **payload}.items()]
+            + [{'name': NULL_FIELDS, 'use':'in', 'min':0, 'max':'1', 'type':'Attachment',
+                'documentation':'Names of explicitly null optional local workflow fields; omission and explicit null remain distinguishable.'}]
             + [{'name': 'receipt', 'use': 'out', 'min': 1, 'max': '1', 'type': 'Attachment',
                 'documentation': 'JSON operation receipt including observed business read-back.'}],
         }
@@ -188,9 +193,15 @@ class _Handler(BaseHTTPRequestHandler):
             if not 0 < length <= MAX_BODY:
                 raise ValueError('Invalid operation request length')
             scope, payload_schema = contract(operation)
-            values = decode(json.loads(self.rfile.read(length)), {**scope, **payload_schema})
+            schema = {**scope, **payload_schema}
+            values = decode(json.loads(self.rfile.read(length)), {**schema, NULL_FIELDS:'Attachment'})
+            nulls = values.pop(NULL_FIELDS, [])
+            if (not all(isinstance(name,str) for name in nulls) or len(nulls)!=len(set(nulls))
+                    or any(name not in OPTIONAL or name not in schema or name in values for name in nulls)):
+                raise ValueError('Invalid explicit-null optional parameter list')
+            values.update({name:None for name in nulls})
             context = {key: values[key] for key in scope if key in values}
-            payload = {key: values.get(key) for key in payload_schema}
+            payload = {key: values[key] for key in payload_schema if key in values}
         except (KeyError, TypeError, ValueError) as exc:
             return self.reply(400, outcome('invalid', str(exc)))
         if ((context['case_id'], context['run_id']) != self.server.assignment
@@ -226,6 +237,10 @@ class _FhirPort:
         try:
             params = encode({key: context[key] for key in scope if key in context}, scope)
             params += encode(payload, payload_schema)
+            nulls = [key for key,value in {**{key:context[key] for key in scope if key in context},
+                                         **payload}.items() if value is None and key in OPTIONAL]
+            if nulls:
+                params.append(parameter(NULL_FIELDS,'Attachment',nulls))
         except (TypeError, ValueError) as exc:
             raise NativeBlocked(f'Invalid FHIR workflow input: {exc}') from exc
         message = {'resourceType': 'Parameters', 'parameter': params}

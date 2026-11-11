@@ -18,7 +18,7 @@ from .run import ROOT, RunConfig, read
 
 BUNDLE_VERSION = 'twinhospital.inputs/1'
 CASE_KEYS = ('case_id', 'patient_key', 'group', 'split', 'data_kind')
-CROSSED_MODES = {'comparison', 'factorial', 'heldout'}
+CROSSED_MODES = {'comparison', 'factorial', 'heldout', 'repeat'}
 OPERATION_SCHEDULE = 'operation_schedule.json'
 RELEASE_REQUIRED = ('release/health-app.jar', 'openhis-seed/openhis_300_seed.dump',
                     'openhis-seed/20-restore-openhis-seed.sh', 'openhis-seed/run-upgrades.sh',
@@ -173,10 +173,13 @@ def configure(args):
         raise ValueError('Development exclusions apply to held-out runs.')
     if args.quick and args.mode != 'comparison':
         raise ValueError('--quick applies to reader comparisons.')
+    assignment_plan = getattr(args, 'assignment_plan', None)
+    if (args.mode == 'repeat') != (assignment_plan is not None):
+        raise ValueError('--mode repeat requires --assignment-plan; other modes do not use it.')
     schedule = None
     if OPERATION_SCHEDULE in receipt['files']:
-        if args.mode != 'heldout':
-            raise ValueError('A preassigned operation schedule applies to the held-out cohort.')
+        if args.mode not in {'heldout', 'repeat'}:
+            raise ValueError('A preassigned operation schedule applies to held-out or repeated assignments.')
         schedule = relocate_operation_schedule(read(bundle / OPERATION_SCHEDULE), portable, manifest['cases'])
 
     provider = read(args.provider)
@@ -185,6 +188,15 @@ def configure(args):
         provider['data_policy'] = read(args.data_policy)
     for kind in {row['data_kind'] for row in manifest['cases']}:
         check_data_policy(kind, provider.get('data_policy', {}), provider['endpoint'], formal=True)
+    if assignment_plan is not None:
+        from sandbox.experiments.linked.assignment_repeat import from_file
+        from sandbox.experiments.linked.linked_acceptance import freeze_design, linked_profiles
+
+        profiles, _ = linked_profiles(provider['tool_models'], factorial=True)
+        design = freeze_design(manifest['cases'], provider['tool_models'],
+                               patients_per_group=args.patients_per_disease,
+                               workers=args.workers or 1, max_attempts=1, factorial=True)
+        from_file(design, assignment_plan, manifest['cases'], profiles)
 
     target = args.output.resolve()
     fields = {
@@ -208,7 +220,7 @@ def configure(args):
             fields[field] = str(bundle / name)
         elif args.mode == 'comparison' and field == 'clinical_catalogue':
             fields[field] = str(ROOT / 'deploy/openhis-experiment/catalogue_metadata_v2.json')
-        elif args.mode in {'factorial', 'heldout'}:
+        elif args.mode in {'factorial', 'heldout', 'repeat'}:
             raise ValueError(f'The crossed design requires {name}.')
     window = None
     if args.mode in CROSSED_MODES:
@@ -225,9 +237,12 @@ def configure(args):
     target.mkdir(parents=True, mode=0o700)
     write(target / 'manifest.local.json', manifest)
     write(target / 'provider.local.json', provider)
+    if assignment_plan is not None:
+        fields['assignment_plan'] = 'assignment_plan.json'
+        shutil.copyfile(assignment_plan, target / fields['assignment_plan'])
     if window is not None:
         write(target / 'workflow.local.json', window)
-    if args.mode == 'comparison':
+    if args.mode == 'comparison' or (args.mode == 'repeat' and schedule is None):
         from sandbox.experiments.linked.source_operation_replay import CATEGORIES
 
         fields['operation_schedule'] = OPERATION_SCHEDULE
@@ -266,12 +281,14 @@ def main():
     setup = actions.add_parser('configure', help='Verify a bundle and generate a machine-local configuration.')
     setup.add_argument('--bundle', required=True, type=Path)
     setup.add_argument('--batch', required=True)
-    setup.add_argument('--mode', choices=('linked', 'comparison', 'factorial', 'heldout'), default='linked')
+    setup.add_argument('--mode', choices=('linked', 'comparison', 'factorial', 'heldout', 'repeat'), default='linked')
+    setup.add_argument('--assignment-plan', type=Path,
+                       help='Repeat the exact case/configuration pairs of a prior audited assignment plan.')
     setup.add_argument('--quick', action='store_true', help='Run three predefined whole-visit configurations.')
     setup.add_argument('--provider', type=Path, default=ROOT / 'config/provider.example.json')
     setup.add_argument('--data-policy', type=Path)
     setup.add_argument('--frozen-runtime', type=Path)
-    setup.add_argument('--his-interface', choices=('native', 'fhir-r4'), default='native')
+    setup.add_argument('--his-interface', choices=('native', 'fhir-r4', 'wst-846'), default='native')
     setup.add_argument('--development-manifest', type=Path)
     setup.add_argument('--workers', type=int, choices=range(1, 33),
                        help='Use the input bundle’s recorded workers by default for crossed runs.')

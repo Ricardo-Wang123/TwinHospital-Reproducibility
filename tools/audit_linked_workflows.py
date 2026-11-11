@@ -219,8 +219,26 @@ def _audit_locked(batch, public, private, observe_native, observer, deployment_d
         target = design.get('target_per_disease_and_condition')
         maximum = design.get('max_attempts_per_unit', 1)
         reader = design.get('version') == READER_DESIGN_VERSION
+        repeated = design.get('version') == 'linked_fixed_assignment_repeat_v1'
         independent = design.get('independent_crossed', False)
-        if reader or independent:
+        if repeated:
+            from sandbox.experiments.linked.assignment_repeat import freeze as freeze_repeat
+            cases = [{**case, 'patient_key':case['case_id']} for case in frozen_cases]
+            groups = design.get('source_patients_by_group', {})
+            if not groups or len(set(groups.values())) != 1:
+                raise ValueError('The repetition must preserve the frozen stratified input cohort')
+            reconstructed = freeze_design(cases, spec['models']['tool_models'],
+                patients_per_group=next(iter(groups.values())), workers=spec['execution_policy']['workers'],
+                max_attempts=1, factorial=True)
+            expected_profiles, _ = linked_profiles(spec['models']['tool_models'], factorial=True)
+            reconstructed = freeze_repeat(reconstructed, design['assignment_plan'], cases,
+                expected_profiles, plan_sha256=design['assignment_plan_sha256'])
+            expected, cells = reconstructed['profiles'], reconstructed['task_condition_profiles']
+            count = len(cases)
+            keys = spec.get('acceptance_source_patient_hashes', [])
+            valid_cohort = (reconstructed == design and maximum == 1
+                and len(keys) == len(set(keys)) == count)
+        elif reader or independent:
             # The public specification keeps hashes of patient keys, not their values.
             keys = spec.get('acceptance_source_patient_hashes', [])
             cases = [{**case, 'patient_key': case['case_id']} for case in frozen_cases]
@@ -260,7 +278,7 @@ def _audit_locked(batch, public, private, observe_native, observer, deployment_d
         if (not valid_cohort or spec.get('formal_experiment') is not False or spec.get('anchor_reuse')
                 or design.get('counts_as_formal_experiment') is not False
                 or design.get('profiles') != expected or design.get('task_condition_profiles') != cells
-                or design.get('planned_unique_encounters') != count * len(expected)
+                or (not repeated and design.get('planned_unique_encounters') != count * len(expected))
                 or batch_summary.get('batch') != spec.get('batch')):
             raise ValueError('Incomplete or changed linked acceptance design')
         profiles = {p['label']: p for p in expected}
@@ -303,6 +321,10 @@ def _audit_locked(batch, public, private, observe_native, observer, deployment_d
         except Exception:
             attempts = {}
         for m, (label, unit) in enumerate(planned, 1):
+            if design and design.get('version') == 'linked_fixed_assignment_repeat_v1':
+                selected = {(row['case_id'],row['profile']) for row in design['assignment_plan']['assignments']}
+                if (case['case_id'],label) not in selected:
+                    continue
             study = f'S{n:04d}-R{m:02d}'
             record = attempts.get(label) or {}
             row, native, protocol, source = None, {}, {}, None
@@ -390,6 +412,8 @@ def _audit_locked(batch, public, private, observe_native, observer, deployment_d
                 crosswalk.append({'study_id': study, 'case_id': case.get('case_id'), 'result_path': str(source) if source else None,
                                   'condition': label, 'error_type': type(exc).__name__})
             row.update(study_id=study, condition=label.replace('__', ':'), unit=unit)
+            if design and design.get('version') == 'linked_fixed_assignment_repeat_v1':
+                row['case_id'] = case['case_id']
             if design:
                 row.update(profile=label, group=case['group'])
                 row.setdefault('verified_paid', False)

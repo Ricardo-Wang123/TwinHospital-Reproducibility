@@ -213,6 +213,9 @@ def execution_checks(run, profile, models):
 
 def summarize_gate(design, rows):
     """Every planned source patient stays in the denominator of every cell."""
+    if design.get('version') == 'linked_fixed_assignment_repeat_v1':
+        from .assignment_repeat import summarize
+        return summarize(design, rows)
     targets = (design['planned_patients_by_group'] if design['version'] == READER_DESIGN_VERSION
                else {group: design['target_per_disease_and_condition'] for group in GROUPS})
     counts = Counter((row['group'], row['profile']) for row in rows if row.get('verified_paid') is True)

@@ -17,6 +17,33 @@ import requests
 from .json_boundary import LEGACY_POLICY as JSON_BOUNDARY_POLICY
 from .provider_content import POLICY as CONTENT_BOUNDARY_POLICY, separate_final_content
 from .provider_stream import receive as receive_stream, StreamProtocolError
+
+STREAM_RETRY_POLICY = {
+    'version': 'incomplete_sse_same_input_v1',
+    'retryable_error': 'missing_stream_completion',
+    'shares_max_http_attempts': True,
+    'partial_content_used': False,
+    'each_attempt_accounted': True,
+}
+PROXY_AUTH_RETRY_POLICY = {
+    'version': 'bounded_same_credential_proxy_auth_retry_v1',
+    'http_status': 401,
+    'provider_error_type': 'shell_api_error',
+    'message_prefix': 'Invalid token.',
+    'backoff_seconds': [30, 60, 120, 240],
+    'shares_max_http_attempts': True,
+    'same_model_messages_and_credential': True,
+    'clinical_decisions_retried': False,
+}
+
+
+def transient_proxy_auth(status, error):
+    return (status == PROXY_AUTH_RETRY_POLICY['http_status'] and isinstance(error, dict)
+            and error.get('type') == PROXY_AUTH_RETRY_POLICY['provider_error_type']
+            and isinstance(error.get('message'), str)
+            and error['message'].startswith(PROXY_AUTH_RETRY_POLICY['message_prefix']))
+
+
 from . import provider_profile
 
 PRICES = {  # CNY / million tokens; conservative day rate, no cache discounts.
@@ -498,6 +525,9 @@ class BudgetedTransport:
         elif self.network_route.get('mode') == 'macos_bound_interface':
             from .network_route import configure
             configure(self.http,self.endpoint,self.network_route)
+        elif self.network_route.get('mode') == 'curl_macos_bound_interface':
+            from .curl_transport import configure
+            configure(self.http,self.endpoint,self.network_route)
         else:
             raise ValueError('unsupported explicit network route')
         self.policy = config.get('data_policy', {})
@@ -633,6 +663,12 @@ class BudgetedTransport:
                         self.ledger.halt_provider(request_id,PROVIDER_FROZEN_CODE)
                         raise ProviderUnavailable('provider resource frozen; request_id='+request_id,
                             request_id=request_id)
+                    if transient_proxy_auth(response.status_code, error):
+                        retry = True
+                        record['retry_reason'] = 'transient_proxy_authentication_same_input'
+                        record['proxy_auth_retry_policy'] = deepcopy(PROXY_AUTH_RETRY_POLICY)
+                        delays = PROXY_AUTH_RETRY_POLICY['backoff_seconds']
+                        record['retry_delay_seconds'] = delays[min(attempt - 1, len(delays) - 1)]
                     raise ModelCallError('HTTP '+str(response.status_code))
                 if not isinstance(value, dict):
                     raise ModelCallError('invalid provider envelope')
@@ -710,6 +746,13 @@ class BudgetedTransport:
                     settled = True
                 if isinstance(exc,StreamProtocolError):
                     record['failure_reason_code']='invalid_or_incomplete_sse_response'
+                    # No incomplete stream has reached a role or business action.
+                    # Repeat the unchanged request within the existing attempt
+                    # limit. Identity, schema and model mismatches remain fatal.
+                    record['stream_retry_policy'] = deepcopy(STREAM_RETRY_POLICY)
+                    if str(exc) == STREAM_RETRY_POLICY['retryable_error']:
+                        retry = True
+                        record['retry_reason'] = 'incomplete_provider_stream_same_input'
                 if isinstance(exc, requests.RequestException):
                     retry = True
                     record.setdefault('failure_reason_code', (
@@ -726,6 +769,7 @@ class BudgetedTransport:
                 # Never archive exception messages/headers that might echo a key.
                 record['retry_planned'] = retry and attempt < attempts
                 if not record['retry_planned']:
+                    record.pop('retry_delay_seconds', None)
                     raise ModelCallError('model call failed; request_id='+request_id,request_id=request_id) from None
             finally:
                 record['elapsed_seconds'] = time.monotonic()-started
@@ -733,5 +777,5 @@ class BudgetedTransport:
                 # credential before writing any returned content.
                 clean = json.loads(json.dumps(record, ensure_ascii=False).replace(self.key, '[REDACTED]'))
                 private_json(self.evidence_dir/(request_id+'.json'), clean)
-            time.sleep(min(2**attempt, 8))
+            time.sleep(record.get('retry_delay_seconds', min(2**attempt, 8)))
         raise ModelCallError('attempt limit reached')

@@ -10,6 +10,7 @@ from pathlib import Path
 
 from .provider import BudgetedTransport, ModelCallError, TOOLS, check_data_policy, private_json
 from .json_boundary import parse_json_response
+from .response_contracts import assert_response_visible
 from . import provider_profile
 
 MEMORY_POLICY = 'explicit_visible_state_per_turn'
@@ -140,7 +141,7 @@ class BudgetedCamelFactory:
                         if directory is not None and self.last_request_id and self.last_parse_metadata:
                             private_json(Path(directory)/'response_parsing'/(self.last_request_id+'.json'),
                                 {'request_id':self.last_request_id,'response_parse':self.last_parse_metadata})
-                    assert_visible(value)
+                    assert_response_visible(value)
                     return value
                 # V2 preserves its original strict parser without normalization.
                 text = response.msg.content.strip()
@@ -149,6 +150,6 @@ class BudgetedCamelFactory:
                 value = json.loads(text)
                 if not isinstance(value, dict):
                     raise ValueError('model response must be a JSON object')
-                assert_visible(value)
+                assert_response_visible(value)
                 return value
         return Session()

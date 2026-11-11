@@ -7,6 +7,7 @@ import os
 from pathlib import Path
 
 from sandbox.experiments.linked.case_preparation.synthetic_execution_v2 import PRIOR_PLANS, build_execution_case
+from sandbox.experiments.linked.case_preparation.anthropometry import author
 from sandbox.experiments.linked.cases import FORMULARY, GROUPS
 from sandbox.experiments.linked.contracts import digest, runtime_case
 
@@ -31,6 +32,7 @@ def main():
     rows = []
     for group in groups:
         case = build_execution_case(group, 100101, FORMULARY, prior_plans=EXAMPLE_PRIOR_PLANS)
+        case, _ = author(case, allow_reference_scenario=True)
         path = output / (f'cases/{group}.json' if args.all_groups else 'case.json')
         path.write_text(json.dumps(case, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
         row = {key: case[key] for key in ('case_id', 'patient_key', 'data_kind', 'group', 'split')}

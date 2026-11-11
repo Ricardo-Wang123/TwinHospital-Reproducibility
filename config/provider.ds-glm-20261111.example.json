@@ -1,0 +1,110 @@
+{
+  "endpoint": "http://127.0.0.1:8000/v1",
+  "api_protocol": "configured_chat_completions",
+  "credential_scope": {
+    "endpoint": "http://127.0.0.1:8000/v1",
+    "credential_id": "operator_local_key"
+  },
+  "role_model": "deepseek-v4.1-flash-1017",
+  "tool_models": {
+    "tool_a": "glm-5.3"
+  },
+  "pricing_cny_per_million_tokens": {
+    "deepseek-v4.1-flash-1017": [
+      0,
+      0
+    ],
+    "glm-5.3": [
+      0,
+      0
+    ]
+  },
+  "pricing_evidence": "Local no-charge endpoint placeholder. For billed services enter account-specific input/output rates including reasoning before launch; this is not a provider price quotation.",
+  "timeout_seconds": 900,
+  "connect_timeout_seconds": 30,
+  "max_attempts": 5,
+  "max_calls_per_run": 150,
+  "minimum_request_interval_seconds": 1,
+  "response_transport": "sse",
+  "generation_policy": {
+    "version": "explicit-chat-completions-v1",
+    "response_parsing": {
+      "version": "terminal_json_delimiters_and_string_whitespace_v2",
+      "required_finish_reason": "stop",
+      "top_level": "single_object",
+      "max_terminal_delimiters": 2,
+      "allowed_operations": [
+        "append_missing_terminal_closers",
+        "remove_extra_terminal_closers",
+        "escape_literal_string_whitespace"
+      ],
+      "edit_keys_values_strings_commas": false,
+      "string_whitespace_encoding_only": [
+        "LF",
+        "CR",
+        "TAB"
+      ],
+      "decoded_string_characters_changed": false,
+      "retry_model": false,
+      "reject_duplicate_keys": true,
+      "reject_nonfinite_constants": true
+    },
+    "provider_content_boundary": {
+      "version": "glm_explicit_final_boundary_v1",
+      "model_family": "glm",
+      "required_finish_reason": "stop",
+      "separator": "</think>",
+      "required_separator_count": 1,
+      "final_shape": "whole_json_object_or_whole_json_fence",
+      "edit_final_content": false,
+      "infer_missing_final_content": false,
+      "retry_model": false
+    },
+    "models": {
+      "deepseek-v4.1-flash-1017": {
+        "thinking": true,
+        "temperature": null,
+        "max_completion_tokens": 16384,
+        "completion_limit_field": "max_tokens",
+        "completion_limit_includes_reasoning": true,
+        "context_window_tokens": 120000,
+        "request_parameters": {
+          "thinking": {
+            "type": "enabled"
+          },
+          "reasoning_effort": "low"
+        },
+        "truncation_retry": {
+          "max_retries": 1,
+          "max_completion_tokens": 32768,
+          "same_messages": true,
+          "shares_max_http_attempts": true
+        }
+      },
+      "glm-5.3": {
+        "thinking": true,
+        "temperature": 0.2,
+        "max_completion_tokens": 16384,
+        "completion_limit_field": "max_tokens",
+        "completion_limit_includes_reasoning": true,
+        "context_window_tokens": 120000,
+        "request_parameters": {
+          "thinking": {
+            "type": "enabled"
+          },
+          "response_format": {
+            "type": "json_object"
+          },
+          "reasoning_effort": "low"
+        },
+        "truncation_retry": {
+          "max_retries": 1,
+          "max_completion_tokens": 32768,
+          "same_messages": true,
+          "shares_max_http_attempts": true
+        }
+      }
+    }
+  },
+  "selection_date": "2026-11-11"
+}

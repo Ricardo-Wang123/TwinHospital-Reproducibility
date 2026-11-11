@@ -2,7 +2,11 @@
 
 Use the MAS in this repository, the OpenHIS reader release, and your own cases in the [TwinHospital case format](CASE_FORMAT.md). Each case enters the same outpatient workflow and writes its own encounter, prescription, document, and simulated settlement.
 
-The paper comparison crosses the three choices at each clinical stage on the same input cases. It also produces an Application I–III report and supports five paired operation probes. If you received the transferable experiment kit, start with its `START-HERE.md` and use the included runtime and cases.
+The paper comparison crosses the three choices at each clinical stage on the same input cases. It also produces an Application I–III report and supports five paired operation probes. The transferable v1 experiment kit retains its packaged snapshot and `START-HERE.md`. Use the current repository checkout for the protocol adapters documented below.
+
+For separate FHIR R4 and WS/T executions of the same selected assignments, use
+the [protocol comparison guide](PROTOCOL_COMPARISON.md). It preserves a shared
+dataset and independent run directories, native records and results for each arm.
 
 ## 1. Install the runtime
 
@@ -83,7 +87,7 @@ Start with `--quick` for a pilot. It schedules three fresh encounters per source
 
 Remove `--quick` to assign every case to all 27 combinations. The full crossing supports matched contrasts that hold the other two stages fixed. Each assignment has its own agent context, encounter, and native records. Comparisons use one worker by default. Set `--workers` when configuring a batch to change parallelism.
 
-For a fresh batch, add `--his-interface fhir-r4` to `configure` to use the FHIR R4 operation bridge. The historical cohort instructions below use the original native path. [HIS protocol and verification](HIS_INTERFACE.md)
+For a fresh batch, add `--his-interface fhir-r4` for the FHIR R4 operation bridge or `--his-interface wst-846` for the independent SOAP service profile. Its national services and project extensions are listed in the [interface specification](HIS_INTERFACE.md#separate-wst-service-profile). Use separate batches for the two protocols. The historical cohort instructions below retain the original native path.
 
 ~~~sh
 .venv/bin/python -m handoff.inputs configure \

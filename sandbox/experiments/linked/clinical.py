@@ -20,7 +20,8 @@ from .chart import INITIAL_BYTE_LIMIT, PAGE_BYTE_LIMIT, MAX_PAGE_RECORDS, json_b
 from .chart_projection import (PROJECTION_POLICY, project_history_page, verify_projection,
                                deduplicate_projected_page, ProjectionBudgetExceeded)
 from .response_contracts import (POLICY as RESPONSE_CONTRACT_POLICY, contract_for, shape_errors,
-                                schema_correction_allowed, normalize_structure)
+                                schema_correction_allowed, normalize_structure, note_revision_errors,
+                                ResponseBoundaryError, assert_response_visible)
 from .diagnosis_codes import POLICY as DIAGNOSIS_CODE_POLICY, canonicalize, all_mapped
 from .json_boundary import DuplicateJSONKeyError
 from .simulation_scope import POLICY as SIMULATION_SCOPE_POLICY
@@ -52,14 +53,16 @@ CURRENT_MEASUREMENT_POLICY = {"version": "consultation_entry_panel_v1",
     "max_records": 20, "max_bytes": 12000, "manual_history_query_budget_consumed": False,
     "fixed_task_source": "anchor_frozen_view_only", "activity_time": "included_in_consultation_not_separately_calibrated"}
 NOTE_REVIEW_CONTEXT_POLICY = {
-    "version": "fresh_current_note_and_sources_v4",
+    "version": "fresh_current_note_and_sources_v5_grounded_revision",
     "previous_feedback_in_review_context": False,
     "previous_feedback_retained_in_audit": True,
     "current_draft_and_all_permitted_sources_visible": True,
     "decision_inferred_from_revision_count": False,
     "instruction": (
         "Review content.text at the exact current version and hash against the supplied visible sources. "
-        "Before requesting a material correction, identify the actual words in the current draft and the "
+        "A revise response must cite revision_evidence from this exact content.text, identify a supplied "
+        "source field and excerpt, and return actually changed note text. A source statement is not a quote "
+        "from the current note. Before requesting a material correction, identify the actual words in the current draft and the "
         "supporting or conflicting source. Earlier reviewer opinions are absent. The original consultation "
         "plan records an initial intention. approved_prescription and observed_business_state record what "
         "was actually signed. A correct list of signed items can stand on its own when there is no direct "
@@ -100,6 +103,8 @@ def _utc():
 
 def _response_shape_errors(role, observation, response):
     errors=shape_errors(role,observation['action'],response)
+    if role == 'doctor' and observation['action'] == 'review_note':
+        errors.extend(note_revision_errors(observation, response))
     if (observation.get('diagnosis_catalogue')
             and response.get('action')=='consultation_complete'
             and isinstance(response.get('prescription'),dict)
@@ -276,7 +281,7 @@ class _Execution:
                        "clinical_disposition_policy": deepcopy(CLINICAL_DISPOSITION_POLICY),
                        "prescription_followthrough_policy": deepcopy(PRESCRIPTION_FOLLOWTHROUGH_POLICY)
                             if runner.close_prescription_loop else None,
-                       "note_review_policy": {"version": "initial_plus_each_revision_v3_fresh_source_review",
+                       "note_review_policy": {"version": "initial_plus_each_revision_v4_grounded_source_review",
                             "context_policy": deepcopy(NOTE_REVIEW_CONTEXT_POLICY),
                             "max_revisions_per_prefix": runner.limits["max_note_revisions"],
                             "max_reviews_per_prefix": runner.limits["max_note_revisions"] + 1,
@@ -366,6 +371,26 @@ class _Execution:
                     'original_clinical_input_hash':original_hash,
                     'instruction':'Your previous response failed JSON format validation and is retained in the private run evidence. Answer the unchanged clinical input in exactly one JSON object using the required response contract, with each object key appearing once and no prose outside JSON. Preserve the evidence and uncertainty; a defer/rejection/no-prescription decision remains permissible. Do not invent clinical facts, seek a preferred clinical outcome, or claim a business action. This is the sole format retry; no fragment or duplicate field value from the malformed response was selected as a clinical decision.'}}
                 continue
+            except ResponseBoundaryError as exc:
+                permitted = (correction < RESPONSE_CONTRACT_POLICY['max_schema_corrections']
+                    and schema_correction_allowed(exc.response)
+                    and len(json.dumps(exc.response, ensure_ascii=False).encode('utf-8'))
+                        <= RESPONSE_CONTRACT_POLICY['max_invalid_response_bytes'])
+                self.event('role_response_boundary_invalid', role=role, phase=phase,
+                    response_hash=digest(exc.response), boundary_reason=exc.boundary_reason,
+                    correction_attempt=correction, correction_scheduled=permitted,
+                    original_clinical_input_hash=original_hash)
+                if not permitted:
+                    raise WorkflowFailure(str(exc)) from None
+                current = {**deepcopy(base), 'schema_correction': {
+                    'attempt': correction + 1,
+                    'max_attempts': RESPONSE_CONTRACT_POLICY['max_schema_corrections'],
+                    'previous_invalid_response_hash': digest(exc.response),
+                    'previous_response_storage': 'private_provider_evidence_not_reinjected',
+                    'contract_errors': [exc.boundary_reason],
+                    'original_clinical_input_hash': original_hash,
+                    'instruction': 'The completed JSON response failed the visible-data schema. Answer the unchanged clinical input in the required role/action schema with complete meaningful field values, without truncated formatting fragments or opaque serialized objects inside text fields. The previous output is retained privately and is not new clinical evidence. Preserve facts, uncertainty and the clinical decision; do not invent facts, hide reference labels or credentials in prose, or change a rejection/defer decision to obtain approval. This uses the same single format-correction allowance.'}}
+                continue
             canonical, moves = normalize_structure(role, observation.get('action'), response)
             if moves:
                 proof = {'policy': RESPONSE_CONTRACT_POLICY['lossless_structure_normalization'],
@@ -400,6 +425,17 @@ class _Execution:
                 "previous_invalid_response": deepcopy(response), "contract_errors": errors,
                 "original_clinical_input_hash": original_hash,
                 "instruction": "Correct only the role/action/JSON structure using the unchanged clinical inputs. Preserve facts, decisions and uncertainty. Do not invent clinical content, infer missing facts, or claim an application action. Return the requested artifact; an old draft is not automatically accepted."}}
+            if role == 'doctor' and observation.get('action') == 'review_note':
+                correction_data = current['schema_correction']
+                correction_data.pop('previous_invalid_response')
+                correction_data['previous_invalid_response_hash'] = digest(response)
+                correction_data['instruction'] = (
+                    'Reassess the unchanged CURRENT content.text against the same visible sources. '
+                    'An invalid prior opinion is retained in the audit and is not review evidence. '
+                    'If proposing a revision, quote a current error or identify a source-grounded omission, '
+                    'supply revision_evidence, and actually edit the full note text. Do not invent an issue, '
+                    'change source facts, or approve merely to satisfy the contract. A justified accept '
+                    'or reject remains available.')
         raise AssertionError("unreachable schema correction")
 
     def _respond_once(self, role, observation, *, phase, family=None, correction=0, original_input_hash=None):
@@ -419,13 +455,18 @@ class _Execution:
             response = session.respond(visible)
             if not isinstance(response, dict):
                 raise WorkflowFailure("role returned a non-object response")
-            assert_visible(response)
+            assert_response_visible(response)
             errors = _response_shape_errors(role, observation, response)
             call.update(status="invalid_schema" if errors else "completed", response=deepcopy(response),
                         response_hash=digest(response), response_schema_errors=errors)
             return deepcopy(response)
         except KeyboardInterrupt:
             call.update(status="interrupted", error_type="KeyboardInterrupt")
+            raise
+        except ResponseBoundaryError as exc:
+            call.update(status='invalid_response_boundary', error_type=type(exc).__name__,
+                        response=deepcopy(exc.response), response_hash=digest(exc.response),
+                        response_boundary_error=exc.boundary_reason)
             raise
         except Exception as exc:
             call.update(status="failed", error_type=type(exc).__name__, error=str(exc)[:500])

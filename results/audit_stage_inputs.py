@@ -13,6 +13,7 @@ from sandbox.experiments.linked import actors
 from sandbox.experiments.linked.clinical import PHYSICIAN_DIALOGUE_PHASES
 from sandbox.experiments.linked.contracts import digest
 from sandbox.experiments.linked.json_boundary import DuplicateJSONKeyError, parse_json_response
+from sandbox.experiments.visibility import assert_visible
 
 
 INTAKE = {'preconsult_collection', 'nurse_summary_review', 'doctor_handoff_verification'}
@@ -71,14 +72,23 @@ def checked_calls(run, archive, models):
             require(call['status'] == 'failed', 'Archived invalid JSON was accepted by the runtime')
             invalid_text_hash = digest(exc.doc)
         else:
-            require(call['status'] in {'completed', 'invalid_schema'}
+            require(call['status'] in {'completed', 'invalid_schema', 'invalid_response_boundary'}
                     and response == call['response'] and digest(response) == event['response_hash'],
                     'Provider response does not match the recorded role decision')
+            if call['status'] == 'invalid_response_boundary':
+                try:
+                    assert_visible(response)
+                except ValueError as exc:
+                    require(str(exc) == call.get('response_boundary_error'),
+                            'Output boundary rejection does not match the archived response')
+                else:
+                    raise ValueError('An output marked boundary-invalid passes the strict boundary')
             if call['sequence'] in normalized:
                 proof = normalized[call['sequence']]
                 require(proof['original_response'] == response and proof['clinical_values_changed'] is False,
                         'Role response normalization has no matching raw response')
                 response = proof['canonical_response']
+            invalid_text_hash = digest(response)
         phases[phase].append({'role': role, 'status': call['status'], 'input': observation, 'base': base,
                               'invalid_text_hash': invalid_text_hash, 'response': response, 'sequence': event['sequence']})
     return phases

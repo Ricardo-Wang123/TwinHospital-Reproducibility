@@ -752,6 +752,9 @@ class LinkedClinicalTests(unittest.TestCase):
                         n = obs['version'] - 1
                         if n < 3:
                             return {'decision': 'revise', 'reason': 'source correction '+str(n),
+                                    'revision_evidence': {'issue_type': 'unsupported_claim',
+                                        'current_text_quote': obs['content']['text'],
+                                        'source_field': 'allowed_source_scope', 'source_excerpt': ''},
                                     'content': {'text': 'corrected '+str(n), 'source_sequences': []}}
                         return {'decision': 'accept', 'reason': 'all source corrections resolved'}
                     return original(obs)
@@ -787,6 +790,9 @@ class LinkedClinicalTests(unittest.TestCase):
                     if obs['action'] == 'review_note':
                         self.observations.append((role, model_family, deepcopy(obs)))
                         return {'decision': 'revise', 'reason': 'still unsupported',
+                            'revision_evidence': {'issue_type': 'unsupported_claim',
+                                'current_text_quote': obs['content']['text'],
+                                'source_field': 'allowed_source_scope', 'source_excerpt': ''},
                             'content': {'text': 'proposed after version '+str(obs['version']), 'source_sequences': []}}
                     return original(obs)
                 session.respond = respond

@@ -24,6 +24,23 @@ For new batches, `--his-interface fhir-r4` uses FHIR R4's HTTP operation protoco
 
 These named operations are TwinHospital's workflow contract over FHIR R4. Each operation delegates to the existing authorization, identity, version, idempotency, and read-back checks. The vendor connector translates to OpenHIS application requests. A connector for another HIS needs equivalent business actions, code mappings, role permissions, and receipts. This repository implements the OpenHIS connector. The read-only FHIR exporter supplied with OpenHIS is a separate service.
 
+## Separate WS/T service profile
+
+`--his-interface wst-846` selects an independent SOAP-only path. Hospital business operations are sent to `HIPMessageServer(action, message)` as two string arguments over SOAP 1.2. No FHIR HTTP bridge is opened. Queue, imported chart, handoff and staff registry remain the same persistent simulator services used in the FHIR configuration. [Implementation](../sandbox/experiments/linked/wst_workflow.py)
+
+| Operation | Service definition | Scope |
+| --- | --- | --- |
+| Patient registration | `PatientInfoRegister`, WS/T 846.2-2024 | Required patient fields follow Table 2. A sender patient identifier maps to a fresh OpenHIS identifier. The registration name and institution are experimental identities. Encounter creation and local registration-fee bookkeeping are declared workflow extensions. |
+| Medication order creation | `OrderInfoAdd`, WS/T 846.8-2024 | Required order, patient, encounter and dose fields follow Table 2. The hospital drug catalogue owns product codes. Fields without a verified national code mapping remain named extensions. |
+| Reception, diagnosis lookup and saving, order attestation, note versions and signing, simulated settlement | Explicit `TH_…` project services in `urn:twinhospital:workflow-extension:1` | These project workflow services use the transport and string-extension form of WS/T 846.1. They are **not national WS/T service identifiers**. |
+
+This is a declared service profile, not an implementation of every WS/T 846 service or a certification of conformance. The published service definitions, local code mappings, role permissions, vendor connector and read-back remain necessary. The service profile is frozen in the batch specification; wire records distinguish national services from project extensions. [WS/T 846 announcement](https://www.nhc.gov.cn/wjw/zcwjtg/202411/308603c60d554dd49052b5bfb3a9d391.shtml) · [WS/T 846.1](https://www.nhc.gov.cn/cms-search/downFiles/b6256203254b4adaa40e0e1d03d13963.pdf) · [WS/T 846.8](https://www.nhc.gov.cn/wjw/zcwjtg/202411/308603c60d554dd49052b5bfb3a9d391/files/1733125981627_90057.pdf)
+
+For a paired comparison, run FHIR R4 first and the WS/T profile second using the same frozen case files, dictionaries, clinical configurations and model settings. Use separate batch names, run directories, ledgers, model evidence and native business objects. Join results by source case and clinical configuration. Do not count the two executions as different source patients, merge their outcome denominators, or reuse a paid encounter from the other interface. Earlier native-path results retain their original provenance. A mixed FHIR/WS/T routing profile is a separate transport configuration and does not count as either independent arm.
+
+The [paired execution guide](PROTOCOL_COMPARISON.md) gives the exact-assignment
+configuration commands and the separate-result comparison command.
+
 ## Run and compare
 
 Pass `--his-interface fhir-r4` when configuring a **fresh** comparison or engineering batch using the current checkout. The selected bridge version, code digest, and operation-definition digest are frozen in that batch's specification. An existing batch keeps its recorded interface. The `cohort-170-runtime` tag and the version 1 reader kit use the original native path. [Run commands](REPRODUCE.md#4-run-a-paper-comparison)

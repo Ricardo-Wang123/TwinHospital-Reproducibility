@@ -95,3 +95,22 @@ To start from selected admissions, create a private JSON array with string keys 
 ~~~
 
 The starter contains the core historical records and labs available at anchor discharge. It excludes and counts malformed prescription intervals and laboratory timestamps. It generates source and role-view scaffolds for explicit selections. The study's supplemental tables and constructed visit use the procedures above. Author the new visit fields and catalogue in the runtime format below, then freeze the case. For the exact study inputs, use the [frozen bundle route](REPRODUCE.md#repeat-the-study-configuration).
+
+### Baseline body measurements
+
+The current-visit chart includes `weight` in `kg` and `height` in `cm`, available at `physician_consultation`. These belong to the hospital's observation view. The patient can still be unable to recall either value. Preserve the original historical rows and their units and dates.
+
+The study authors these two current findings before freezing the cases. The preparation selects the latest eligible OMR weight and height, converting explicitly labeled pounds and inches. If height is absent, a same-date weight/BMI pair can initialize a calculated scenario height. Remaining missing values use sex-specific adult reference medians as explicitly constructed scenario defaults. All added current findings have `source_kind: constructed`; per-field provenance records the historical references or population reference, method, and generator hash. The raw source history and patient-memory view remain unchanged. Values are selected independently of the drug regimen, laboratory values, and model outcomes.
+
+For an authored outpatient scenario, the optional preparation command is:
+
+~~~sh
+.venv/bin/python -m sandbox.experiments.linked.case_preparation.anthropometry \
+  --manifest "$MANIFEST" --output "$WORK/authored_body_baseline" \
+  --author-reference-baseline
+~~~
+
+Pack the resulting `manifest.json` using `handoff.inputs pack`. The automated reference defaults require a numeric age of at least 20 and a recorded sex; other scenarios need explicitly authored body measurements. The current fictional-case generator includes this baseline.
+
+References: [MIMIC-IV OMR fields and units](https://mimic.mit.edu/docs/iv/modules/hosp/omr.html), [NCHS anthropometric reference, Tables 3 and 7](https://stacks.cdc.gov/view/cdc/174595/cdc_174595_DS1.pdf).
+

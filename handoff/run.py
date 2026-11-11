@@ -32,10 +32,10 @@ class RunConfig:
         self.base = path.resolve().parent
         self.fields = read(path)
         self.mode = self.fields['mode']
-        if self.mode not in {'linked', 'comparison', 'factorial', 'heldout', 'formal', 'recover'}:
+        if self.mode not in {'linked', 'comparison', 'factorial', 'heldout', 'formal', 'recover', 'repeat'}:
             raise ValueError('Unsupported run mode.')
         self.his_interface = self.fields.get('his_interface', 'native')
-        if self.his_interface not in {'native', 'fhir-r4'}:
+        if self.his_interface not in {'native', 'fhir-r4', 'wst-846', 'fhir-r4+wst-8468'}:
             raise ValueError('Unsupported HIS interface.')
         self.name = self.fields['batch']
         if not re.fullmatch('[A-Za-z0-9_-]{1,90}', self.name):
@@ -82,14 +82,17 @@ class RunConfig:
             command += ['--his-interface', self.his_interface]
         if self.fields.get('uncapped') is True:
             command += ['--uncapped-budget']
-        if self.mode in {'comparison', 'factorial', 'heldout', 'recover', 'formal'}:
+        if self.mode in {'comparison', 'factorial', 'heldout', 'recover', 'formal', 'repeat'}:
             command += ['--capture-native', '--observation-deploy', self.deploy,
                         '--workflow-policy', self.path('workflow_policy'),
                         '--rule-engine', 'documented-candidate',
                         '--clinical-catalogue', self.path('clinical_catalogue'),
                         '--acceptance-patients-per-disease', str(self.fields.get('patients_per_disease', 2)),
                         '--acceptance-factorial']
-        if self.mode in {'factorial', 'recover'}:
+        if self.mode == 'repeat':
+            command += ['--mode', 'linked-acceptance', '--engineering-only', '--acceptance-attempts', '1',
+                        '--assignment-plan', self.path('assignment_plan')]
+        elif self.mode in {'factorial', 'recover'}:
             command += ['--mode', 'linked-acceptance', '--engineering-only', '--acceptance-attempts',
                         str(self.fields.get('acceptance_attempts', 3))]
         elif self.mode == 'comparison':
@@ -234,14 +237,17 @@ def preflight(config, command, log_path, *, enforce_capacity=False):
 
 def verify_his(config):
     require_private_file(config.credentials)
-    health = config.his_url.removesuffix('/api/app') + '/actuator/health'
-    try:
-        with build_opener(ProxyHandler({})).open(health, timeout=10) as response:
-            ok = response.status == 200 and json.load(response).get('status') == 'UP'
-    except Exception:
-        ok = False
-    if not ok:
-        raise ValueError('The isolated OpenHIS health check did not return UP.')
+    origin = config.his_url.removesuffix('/api/app')
+    for path in ('/api/health', '/actuator/health'):
+        try:
+            with build_opener(ProxyHandler({})).open(origin + path, timeout=10) as response:
+                payload = json.load(response)
+                status = payload.get('status') or (payload.get('data') or {}).get('status')
+                if response.status == 200 and status == 'UP':
+                    return
+        except Exception:
+            continue
+    raise ValueError('The isolated OpenHIS health check did not return UP.')
 
 
 def provision_his(config):
@@ -254,7 +260,7 @@ def provision_his(config):
     for fixture in fixtures:
         command.extend(('--fixture', fixture))
     subprocess.run(command, check=True)
-    if config.mode in {'comparison', 'factorial', 'heldout', 'formal'}:
+    if config.mode in {'comparison', 'factorial', 'heldout', 'formal', 'repeat'}:
         from sandbox.experiments.linked.native_observation import IsolatedObservationDB
 
         database = IsolatedObservationDB(config.deploy)
@@ -318,7 +324,7 @@ def audit(config, observe):
 def operation_replay(config):
     from sandbox.experiments.linked.source_operation_replay import run
 
-    if config.mode not in {'comparison', 'heldout'} or 'operation_schedule' not in config.fields:
+    if config.mode not in {'comparison', 'heldout', 'repeat'} or 'operation_schedule' not in config.fields:
         raise ValueError('Operation replay requires a comparison or held-out batch with a prepared schedule.')
     verify_his(config)
     replay_id = config.name[:50] + '-ops-' + sha256(config.name.encode()).hexdigest()[:10]
@@ -326,7 +332,7 @@ def operation_replay(config):
     run(config.path('operation_schedule'), config.path('manifest'), config.batch, output, replay_id,
         config.path('catalog', config.deploy / 'catalog_mapping.json'),
         config.path('diagnosis_catalog', config.deploy / 'diagnosis_mapping.json'),
-        engineering=config.mode == 'comparison', deployment_dir=config.deploy)
+        engineering=config.mode in {'comparison', 'repeat'}, deployment_dir=config.deploy)
     print(f'Paired operation results: {output / "summary.json"}')
 
 
@@ -379,7 +385,7 @@ def main():
     if args.action == 'report':
         from .reader_report import write_report
 
-        if cfg.mode not in {'comparison', 'heldout'}:
+        if cfg.mode not in {'comparison', 'heldout', 'repeat'}:
             raise ValueError('Use a reader comparison or held-out batch for this report.')
         results_name = 'heldout_results' if cfg.mode == 'heldout' else 'reader_results'
         return write_report(cfg.batch, audit_directory(cfg) / 'audit.private.json', cfg.path('manifest'),
@@ -409,7 +415,7 @@ def main():
         preflight(cfg, command, session/'preflight.log', enforce_capacity=True)
         require_private_file(cfg.path('key_file'))
         verify_his(cfg)
-        if cfg.mode in {'comparison','recover','factorial','heldout','formal'}:
+        if cfg.mode in {'comparison','recover','factorial','heldout','formal','repeat'}:
             from sandbox.experiments.linked.campaign import admission_status
             from sandbox.experiments.linked.native_observation import IsolatedObservationDB
 

@@ -1,5 +1,9 @@
-# Direct dependencies from the working Python 3.11 environment.
+# Direct dependencies and compatibility-sensitive CAMEL imports (Python 3.12).
 camel-ai==0.2.90
+# CAMEL 0.2.90 imports FastMCP from the MCP 1.x module layout.
+mcp==1.30.0
+openai==2.54.0
+pydantic==2.12.0
 python-dotenv==1.2.1
 PyYAML==6.0.3
 requests==2.32.5

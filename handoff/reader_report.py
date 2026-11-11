@@ -8,6 +8,7 @@ from results.render_linked_manuscript import OPERATIONS, SAFE_FAULT_OUTCOMES, pr
 from results.summarize_paid_runs import read, summarize
 from sandbox.experiments.linked.cases import GROUPS
 from sandbox.experiments.linked.linked_acceptance import READER_DESIGN_VERSION
+from sandbox.experiments.linked.assignment_repeat import VERSION as REPEAT_DESIGN_VERSION
 from sandbox.experiments.linked.source_operation_replay import FORMAL_REQUESTS_PER_CELL
 
 
@@ -38,17 +39,25 @@ def comparison_data(batch, audit_path, manifest, clinical_catalogue, operation_p
     specification = json.loads(specification_bytes)
     design = specification.get('linked_acceptance', {})
     heldout = design.get('independent_crossed') is True and design.get('evaluation_partition') == 'test'
-    if design.get('version') != READER_DESIGN_VERSION and not heldout:
+    repeat = design.get('version') == REPEAT_DESIGN_VERSION
+    if design.get('version') != READER_DESIGN_VERSION and not heldout and not repeat:
         raise ValueError('The batch is not a reader comparison or independent held-out crossing.')
     audit_document = read(audit_path)
     audit = audit_document['audit']
     rows = audit['runs']
+    expected_profiles = (Counter(row['profile'] for row in design['assignment_plan']['assignments']) if repeat else
+                         Counter({profile['label']: len(specification['cases']) for profile in design['profiles']}))
     if (audit['source_specification_sha256'] != specification_hash
             or len(rows) != design['planned_unique_encounters']
             or len({row['study_id'] for row in rows}) != len(rows)
             or Counter(row['profile'] for row in rows)
-            != Counter({profile['label']: len(specification['cases']) for profile in design['profiles']})):
+            != expected_profiles):
         raise ValueError('The audit does not cover the planned assignments for this batch.')
+    if repeat:
+        expected_pairs = {(row['case_id'], row['profile']) for row in design['assignment_plan']['assignments']}
+        observed_pairs = [(row.get('case_id'), row['profile']) for row in rows]
+        if len(observed_pairs) != len(set(observed_pairs)) or set(observed_pairs) != expected_pairs:
+            raise ValueError('The audit does not match the frozen repeated case/configuration pairs.')
     groups = {case['case_id']: case['group'] for case in specification['cases']}
     if heldout:
         expected = {(case_id, profile['label']) for case_id in groups
@@ -104,7 +113,9 @@ def comparison_data(batch, audit_path, manifest, clinical_catalogue, operation_p
     paid = summarize(batch, audit_path, manifest, clinical_catalogue, allow_unverified=True)
     report = {
         'batch': specification['batch'],
-        'design': 'three-profile pilot' if design.get('quick') else '27-profile full crossing',
+        'design': ('frozen assignment repetition across 27 configurations' if repeat else
+                   'three-profile pilot' if design.get('quick') else '27-profile full crossing'),
+        'his_interface': specification.get('his_interface'),
         'source_cases_by_group': dict(Counter(case['group'] for case in specification['cases'])),
         **({'evaluation_partition': 'test'} if heldout else {}),
         'role_model': specification['models']['role_model'],
@@ -116,7 +127,7 @@ def comparison_data(batch, audit_path, manifest, clinical_catalogue, operation_p
         'paid_cohort_metrics': paid,
         'operation_replay': operations,
     }
-    if heldout:
+    if heldout or repeat:
         by_disease = {}
         for group in GROUPS:
             selected = [row for row in rows if row['group'] == group]

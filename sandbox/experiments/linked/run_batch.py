@@ -40,7 +40,7 @@ from .linked_acceptance import (
 )
 from .native_his import NativeOpenHISPort
 from .protocol_his import PaperProtocolPort, PROTOCOL_VERSION
-from .provider import BudgetLedger, configured_prices, check_data_policy, private_json, validate_generation_policy
+from .provider import BudgetLedger, configured_prices, check_data_policy, private_json, validate_generation_policy, STREAM_RETRY_POLICY, PROXY_AUTH_RETRY_POLICY
 from .rules import EngineeringPPRS
 from .response_contracts import POLICY as RESPONSE_CONTRACT_POLICY
 from .diagnosis_codes import POLICY as DIAGNOSIS_CODE_POLICY
@@ -98,7 +98,9 @@ def code_fingerprint():
              'safe_context_adapter.py', 'evidence_bindings.py', 'run_batch.py',
              'batch_observation.py', 'native_observation.py', 'native_observation_analysis.py',
              'campaign.py', 'workflow_analysis.py', 'network_route.py', 'trace_evidence.py',
-             'linked_acceptance.py')
+             'linked_acceptance.py', 'assignment_repeat.py', 'curl_transport.py',
+             'standard_his.py', 'wst846.py', 'wst846_order.py', 'wst846_server.py', 'wst_workflow.py',
+             'case_preparation/anthropometry.py')
     return {name: hashlib.sha256((root/name).read_bytes()).hexdigest() for name in names}
 
 
@@ -611,6 +613,12 @@ def execute_case(case, *, args, config, mapping, ledger, batch_root, stop_event=
                 from .fhir_his import fhir_workflow
 
                 interface = fhir_workflow(backend, case_id=case['case_id'], run_id=run_id)
+            elif getattr(args, 'his_interface', 'native') == 'fhir-r4+wst-8468':
+                from .standard_his import standard_workflow
+                interface = standard_workflow(backend, case_id=case['case_id'], run_id=run_id)
+            elif getattr(args, 'his_interface', 'native') == 'wst-846':
+                from .wst_workflow import wst_workflow
+                interface = wst_workflow(backend, case_id=case['case_id'], run_id=run_id)
             with interface as his:
                 runner = LinkedEncounterRunner(factory, his, make_rule_engine(args, case['formulary']),
                     output_dir=attempt_root/'runs', close_prescription_loop=getattr(args,'close_prescription_loop',False),
@@ -779,7 +787,7 @@ def execute_acceptance_schedule(cases, acceptance, *, args, config, mapping, led
     from .linked_acceptance import READER_DESIGN_VERSION
     profiles = {profile['label']: profile for profile in acceptance['profiles']}
     by_assignment = acceptance['schedule_policy'] == ASSIGNMENT_SCHEDULE_POLICY
-    stop_on_failure = (acceptance['version'] != READER_DESIGN_VERSION
+    stop_on_failure = (acceptance['version'] not in {READER_DESIGN_VERSION, 'linked_fixed_assignment_repeat_v1'}
                        and not acceptance.get('independent_crossed', False))
     failure_event = 'regression_gate_stopped' if stop_on_failure else 'assignment_failed'
     indices = {ref['case_id']: {'case_id': ref['case_id'], 'attempts': {}} for ref in cases}
@@ -881,7 +889,10 @@ def execute_acceptance_schedule(cases, acceptance, *, args, config, mapping, led
         return index
 
     dispatch_cases = cases
-    if acceptance.get('independent_crossed'):
+    if acceptance.get('version') == 'linked_fixed_assignment_repeat_v1':
+        from .assignment_repeat import units as repeated_units
+        units = iter(repeated_units(cases, acceptance))
+    elif acceptance.get('independent_crossed'):
         order = heldout_dispatch_order(cases, profiles)
         frozen = specification.get('execution_policy', {}).get('heldout_dispatch_sha256')
         if frozen is not None and digest(order) != frozen:
@@ -891,7 +902,8 @@ def execute_acceptance_schedule(cases, acceptance, *, args, config, mapping, led
         units = ((cases_by_id[case_id], label) for case_id, labels in order for label in labels)
     else:
         units = iter(ordered_units(cases, profiles, rotate=acceptance.get('factorial', False)))
-    for _ in acceptance['first_baseline_regressions']:
+    initial_count = acceptance.get('initial_admission_assignments', len(acceptance['first_baseline_regressions']))
+    for _ in range(initial_count):
         ref, label = next(units)
         case_id = ref['case_id']
         initial = {'case_id': case_id, 'attempts': {}} if by_assignment else indices[case_id]
@@ -954,9 +966,11 @@ def main():
         help='Frozen product source metadata for development candidate clinical rules')
     parser.add_argument('--his-credentials', type=Path)
     parser.add_argument('--his-url', default='http://127.0.0.1:28081/api/app')
-    parser.add_argument('--his-interface', choices=('native', 'fhir-r4'), default='native',
+    parser.add_argument('--his-interface', choices=('native', 'fhir-r4', 'wst-846', 'fhir-r4+wst-8468'), default='native',
                         help='Select the native path or the FHIR R4 workflow bridge for a fresh batch.')
     parser.add_argument('--mode', choices=('linked', 'matrix', 'linked-acceptance'), default='linked')
+    parser.add_argument('--assignment-plan', type=Path,
+                        help='Repeat a frozen subset of prior whole-encounter assignments once each.')
     parser.add_argument('--matrix-task', choices=('preconsult','prescription','documentation'),
         help='Execute all frozen configurations of this task; no selection by observed outcome')
     parser.add_argument('--close-prescription-loop', action='store_true',
@@ -1089,6 +1103,12 @@ def main():
                                 factorial=args.acceptance_factorial, independent=args.independent_crossed,
                                 reader=args.reader_comparison, quick=args.reader_quick)
                   if args.mode == 'linked-acceptance' else None)
+    if args.assignment_plan:
+        if acceptance is None or not args.acceptance_factorial or args.acceptance_attempts != 1:
+            raise ValueError('An assignment repetition requires a one-attempt linked factorial design')
+        from .assignment_repeat import from_file
+        profiles, _ = linked_profiles(config['tool_models'], factorial=True)
+        acceptance = from_file(acceptance, args.assignment_plan, cases, profiles)
     if args.workers>5 and config.get('minimum_request_interval_seconds',0)<1.0:
         parser.error('more than five workers require explicit shared API pacing of at least one second')
     args.diagnosis_mapping = validate_diagnosis_mapping(_read(args.diagnosis_catalog))
@@ -1151,6 +1171,8 @@ def main():
             'connect_timeout_seconds':config.get('connect_timeout_seconds'),
             'response_transport':config.get('response_transport','nonstream'),
             'stream_max_duration_seconds':config.get('stream_max_duration_seconds') if config.get('response_transport')=='sse' else None,
+            'incomplete_stream_retry': STREAM_RETRY_POLICY if config.get('response_transport')=='sse' else None,
+            'proxy_auth_retry': PROXY_AUTH_RETRY_POLICY,
             'minimum_request_interval_seconds':config.get('minimum_request_interval_seconds',0),
             'tls_verification':True, 'follow_redirects':False},
         'budget_limit_mode': 'uncapped_user_authorized' if args.uncapped_budget else 'capped_1000_cny',
@@ -1194,6 +1216,12 @@ def main():
     if args.his_interface == 'fhir-r4':
         from .fhir_his import interface_contract
 
+        specification['his_interface'] = interface_contract()
+    elif args.his_interface == 'fhir-r4+wst-8468':
+        from .standard_his import interface_contract
+        specification['his_interface'] = interface_contract()
+    elif args.his_interface == 'wst-846':
+        from .wst_workflow import interface_contract
         specification['his_interface'] = interface_contract()
     if acceptance is not None:
         specification['linked_acceptance'] = acceptance

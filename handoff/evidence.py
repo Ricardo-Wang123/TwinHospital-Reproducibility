@@ -8,7 +8,8 @@ from pathlib import Path
 from shutil import copyfile
 from tempfile import TemporaryDirectory
 
-from results.render_linked_manuscript import render
+from results.render_linked_manuscript import (render, manuscript_values, command, table,
+                                              paid_cohort, validate_cohort)
 from results.summarize_paid_runs import summarize
 
 from .inputs import digest, write
@@ -16,6 +17,8 @@ from .run import ROOT, read
 
 
 VERSION = 'twinhospital.paid-evidence/1'
+AGENT_REVIEW_VERSION = 'twinhospital.paid-evidence/2'
+AGENT_ASSESSMENT_SCOPE = 'programmatic_checks_and_agent_reviews_no_human_assessment_record'
 SIDECARS = ('audit.json', 'human_review.json', 'operation_replays.json')
 
 
@@ -47,7 +50,10 @@ def paid_index(batch):
 
 
 def calculate(bundle):
-    audit, human_review, probes = (read(bundle / name) for name in SIDECARS)
+    audit = read(bundle / 'audit.json')
+    review_file = bundle / 'human_review.json'
+    human_review = read(review_file) if review_file.is_file() else None
+    probes = read(bundle / 'operation_replays.json')
     spec_hash = digest(bundle / 'batch/specification.json')
     if audit.get('audit', audit).get('source_specification_sha256') != spec_hash:
         raise ValueError('The evidence requires a native audit bound to the batch specification.')
@@ -60,7 +66,14 @@ def calculate(bundle):
     metrics = summarize(batch, bundle / 'audit.json', manifest,
                         bundle / 'inputs/clinical_catalogue.json')
     data = (json.dumps(metrics, indent=2) + '\n').encode()
-    tables = render(metrics, audit, human_review, probes).encode()
+    if human_review is None:
+        validate_cohort(metrics, paid_cohort(audit), allow_unknown_delivery=False)
+        macros, tables = manuscript_values(metrics, audit, None, probes, heldout=True)
+        tables = ('% Generated from linked-encounter metrics and native audit.\n'
+                  + ''.join(command(k, v) for k, v in macros.items()) + '\n'
+                  + ''.join(table(k, v) for k, v in tables.items())).encode()
+    else:
+        tables = render(metrics, audit, human_review, probes).encode()
     return metrics, data, tables
 
 
@@ -81,7 +94,8 @@ def pack(args):
         copyfile(batch / 'specification.json', bundle / 'batch/specification.json')
         copyfile(inputs / 'clinical_catalogue.json', bundle / 'inputs/clinical_catalogue.json')
         for name, source in zip(SIDECARS, (args.audit, args.human_review, args.probes), strict=True):
-            copyfile(source, bundle / name)
+            if source is not None:
+                copyfile(source, bundle / name)
 
         index = {}
         for number, (case_id, item) in enumerate(paid_index(batch), 1):
@@ -102,7 +116,9 @@ def pack(args):
         checks = output_checks(*calculate(bundle))
         files = {p.relative_to(bundle).as_posix(): digest(p)
                  for p in sorted(bundle.rglob('*')) if p.is_file()}
-        write(bundle / 'bundle.json', {'version': VERSION, 'files': files, **checks})
+        scope = ({'version': VERSION} if args.human_review is not None else
+                 {'version': AGENT_REVIEW_VERSION, 'assessment_scope': AGENT_ASSESSMENT_SCOPE})
+        write(bundle / 'bundle.json', {**scope, 'files': files, **checks})
         bundle.rename(target)
     print(f"Packed evidence for {checks['verified_paid']} verified paid encounters.")
 
@@ -110,8 +126,14 @@ def pack(args):
 def recompute(args):
     bundle = args.bundle.resolve()
     receipt = read(bundle / 'bundle.json')
-    if receipt['version'] != VERSION:
+    if receipt['version'] not in {VERSION, AGENT_REVIEW_VERSION}:
         raise ValueError('Unsupported evidence bundle.')
+    has_review = 'human_review.json' in receipt['files']
+    if ((receipt['version'] == VERSION and not has_review)
+            or (receipt['version'] == AGENT_REVIEW_VERSION
+                and (has_review or (bundle / 'human_review.json').exists()
+                     or receipt.get('assessment_scope') != AGENT_ASSESSMENT_SCOPE))):
+        raise ValueError('Evidence assessment scope does not match its version and review records.')
     for name, expected in receipt['files'].items():
         if digest(contained_file(bundle, name, portable=True)) != expected:
             raise ValueError('An evidence file differs from the bundle checksum.')
@@ -131,8 +153,10 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     commands = parser.add_subparsers(dest='action', required=True)
     producer = commands.add_parser('pack', help='Create a private portable evidence package.')
-    for name in ('batch', 'audit', 'inputs', 'human-review', 'probes', 'output'):
+    for name in ('batch', 'audit', 'inputs', 'probes', 'output'):
         producer.add_argument('--' + name, type=Path, required=True)
+    producer.add_argument('--human-review', type=Path,
+                          help='Include an actual cohort-bound human assessment record if one exists.')
     producer.set_defaults(action_function=pack)
     receiver = commands.add_parser('recompute', help='Verify a received bundle and regenerate the results.')
     receiver.add_argument('--bundle', type=Path, required=True)

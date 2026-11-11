@@ -25,6 +25,7 @@ from .cases import GROUPS, load_case
 from .batch_observation import deployment_metadata
 from .contracts import runtime_case
 from .fhir_his import OPERATIONS as FHIR_OPERATIONS, fhir_workflow, interface_contract
+from .wst_workflow import wst_workflow, interface_contract as wst_contract
 from .linked_acceptance import BASELINE_LABEL
 from .native_his import NativeBlocked, NativeOpenHISPort, digest, isolated_port, write_private
 from .protocol_his import PaperProtocolPort
@@ -61,7 +62,8 @@ def sha(path):
 def replay_code_hashes():
     return {name: sha(Path(__file__).with_name(name)) for name in (
         'source_operation_replay.py', 'safety_paper.py', 'safety_native.py',
-        'protocol_his.py', 'native_his.py', 'fhir_his.py', 'run_batch.py', 'cases.py', 'contracts.py')}
+        'protocol_his.py', 'native_his.py', 'fhir_his.py', 'wst_workflow.py', 'wst846.py',
+        'wst846_order.py', 'run_batch.py', 'cases.py', 'contracts.py')}
 
 
 def unchanged(files):
@@ -198,12 +200,14 @@ def prepare_bindings(rows, source_batch, source_spec, output):
 
 
 class SourceOperationReplay(PaperLocalSafety):
-    def __init__(self, output, run_id, mapping, diagnosis_mapping, *, credentials_path=None, fhir=False):
+    def __init__(self, output, run_id, mapping, diagnosis_mapping, *, credentials_path=None, fhir=False,
+                 his_interface=None):
         self.output = Path(output)
         self.output.mkdir(parents=True, exist_ok=True, mode=0o700)
         self.run_id, self.mapping, self.diagnosis_mapping = run_id, mapping, diagnosis_mapping
         self.credentials_path = credentials_path
         self.fhir = fhir
+        self.his_interface = his_interface or ('fhir-r4' if fhir else 'native')
         self.clients = None  # No authentication or native writes before binding checks.
         self.checkpoint = None
         self.source_native_ids = set()
@@ -228,7 +232,9 @@ class SourceOperationReplay(PaperLocalSafety):
             native.clients = self.clients
         p = PaperProtocolPort(native)
         ctx = {'case_id': cid, 'run_id': self.run_id}
-        if self.fhir:
+        if self.his_interface == 'wst-846':
+            p = self.bridges.enter_context(wst_workflow(p, **ctx))
+        elif self.his_interface == 'fhir-r4':
             p = self.bridges.enter_context(fhir_workflow(p, **ctx))
         # New business identity; original patient and encounter are never edited.
         reg = self.perform(p, ctx, 'registration.create', {'patient_key': cid,
@@ -287,7 +293,8 @@ class SourceOperationReplay(PaperLocalSafety):
             self.checkpoint = None
         operation = result.get('operation')
         if operation:
-            result['target_operation_interface'] = ('fhir-r4' if self.fhir and operation in FHIR_OPERATIONS else
+            result['target_operation_interface'] = (self.his_interface
+                                                    if self.his_interface != 'native' and operation in FHIR_OPERATIONS else
                                                     'runtime-gateway' if operation == 'queue.enter' else 'native')
         result.update(group=row['group'], operation_category=row['operation_category'],
                       request_condition=row['request_condition'], source_binding=proof,
@@ -324,14 +331,16 @@ def _run_closed_batch(schedule_path, cohort_path, source_batch, output, run_id,
     output = Path(output).resolve()
     spec = read(source_batch / 'specification.json')
     source_interface = spec.get('his_interface')
-    contract = interface_contract()
-    if source_interface is not None and source_interface != contract:
-        raise ValueError('The FHIR bridge differs from the frozen source batch')
-    route = 'fhir-r4' if source_interface else 'native'
+    contracts = {'fhir-r4': interface_contract(), 'wst-846': wst_contract()}
+    route = next((name for name, value in contracts.items() if value == source_interface),
+                 'native' if source_interface is None else None)
+    if route is None:
+        raise ValueError('The interface differs from the frozen source batch')
     if his_interface is not None:
-        if his_interface not in {'native', 'fhir-r4'} or (not engineering and his_interface != route):
+        if his_interface not in {'native', 'fhir-r4', 'wst-846'} or (not engineering and his_interface != route):
             raise ValueError('Only engineering comparisons can change the source batch interface')
         route = his_interface
+    contract = contracts.get(route)
     if credentials_path is not None and (not engineering or deployment_dir is not None or isolated_port() == 28081):
         raise ValueError('Alternate credentials require an engineering replay on a dedicated smoke port')
     summary_path = source_batch / 'batch_summary.json'
@@ -392,12 +401,12 @@ def _run_closed_batch(schedule_path, cohort_path, source_batch, output, run_id,
                 'entire_MAS_rerun': False, 'source_object_ids_remapped': True,
                 'missing_source_policy': 'retain unresolved cell; never select another successful patient',
                 'note_edit_policy': 'preserve actual clinical text and add a nonclinical revision marker; vary only lock precondition',
-                'code_sha256': code_hashes, 'his_interface': contract if route == 'fhir-r4' else None}
+                'code_sha256': code_hashes, 'his_interface': contract}
     if not engineering and heldout:
         manifest['heldout_operations'] = bound
     write_private(output / 'manifest.json', manifest)
     executor = SourceOperationReplay(output, run_id, mapping, diagnoses, credentials_path=credentials_path,
-                                     fhir=route == 'fhir-r4')
+                                     his_interface=route)
     for binding in bindings.values():
         proof = read(binding['path']).get('proof', {})
         executor.source_native_ids.update(str(proof[k]) for k in
@@ -431,7 +440,7 @@ def main():
     p.add_argument('--run-id', required=True)
     p.add_argument('--engineering-only', action='store_true')
     p.add_argument('--deployment-dir', type=Path, help='Isolated deployment of the source batch')
-    p.add_argument('--his-interface', choices=('native', 'fhir-r4'), help='Interface override for engineering comparisons')
+    p.add_argument('--his-interface', choices=('native', 'fhir-r4', 'wst-846'), help='Interface override for engineering comparisons')
     p.add_argument('--credentials', type=Path, help='Dedicated smoke credentials for an engineering replay')
     a = p.parse_args()
     run(a.schedule, a.cohort, a.source_batch, a.output, a.run_id, a.catalog,

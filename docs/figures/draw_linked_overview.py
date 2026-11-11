@@ -139,7 +139,7 @@ label(315, 158, "OpenHIS records", bold=True, size=11)
 label(315, 174, "Orders, notes and payments", color=MUTED)
 
 line([(137, 158), (169, 158)], NAVY)
-label(227, 158, "Role-scoped requests", align="center", size=10.5)
+label(227, 158, "FHIR R4 / WS/T services", align="center", size=10.5)
 arrow((284, 158), (306, 158))
 line([(306, 174), (284, 174)], TEAL)
 label(227, 174, "Verified state read-back", align="center", size=10.5, color=TEAL)
