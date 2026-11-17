@@ -38,6 +38,9 @@ class RunConfig:
         if self.his_interface not in {'native', 'fhir-r4', 'wst-846', 'fhir-r4+wst-8468'}:
             raise ValueError('Unsupported HIS interface.')
         self.name = self.fields['batch']
+        self.scenario_design = self.fields.get('scenario_design', 'legacy-v1')
+        if self.scenario_design not in {'legacy-v1', 'outpatient-v2'}:
+            raise ValueError('Unsupported scenario design.')
         if not re.fullmatch('[A-Za-z0-9_-]{1,90}', self.name):
             raise ValueError('Invalid batch name.')
         port = isolated_port()
@@ -78,6 +81,8 @@ class RunConfig:
                    '--diagnosis-catalog', self.path('diagnosis_catalog', self.deploy / 'diagnosis_mapping.json'),
                    '--his-credentials', self.credentials, '--his-url', self.his_url,
                    '--workers', str(self.fields.get('workers', 1)), '--close-prescription-loop']
+        if self.scenario_design == 'outpatient-v2':
+            command += ['--scenario-design', self.scenario_design]
         if self.his_interface != 'native':
             command += ['--his-interface', self.his_interface]
         if self.fields.get('uncapped') is True:
@@ -85,10 +90,11 @@ class RunConfig:
         if self.mode in {'comparison', 'factorial', 'heldout', 'recover', 'formal', 'repeat'}:
             command += ['--capture-native', '--observation-deploy', self.deploy,
                         '--workflow-policy', self.path('workflow_policy'),
-                        '--rule-engine', 'documented-candidate',
-                        '--clinical-catalogue', self.path('clinical_catalogue'),
                         '--acceptance-patients-per-disease', str(self.fields.get('patients_per_disease', 2)),
                         '--acceptance-factorial']
+            if self.scenario_design == 'legacy-v1':
+                command += ['--rule-engine', 'documented-candidate',
+                            '--clinical-catalogue', self.path('clinical_catalogue')]
         if self.mode == 'repeat':
             command += ['--mode', 'linked-acceptance', '--engineering-only', '--acceptance-attempts', '1',
                         '--assignment-plan', self.path('assignment_plan')]
@@ -98,6 +104,8 @@ class RunConfig:
         elif self.mode == 'comparison':
             command += ['--mode', 'linked-acceptance', '--engineering-only',
                         '--reader-comparison', '--acceptance-attempts', '1']
+            if self.fields.get('assignment_plan'):
+                command += ['--assignment-plan', self.path('assignment_plan')]
             if self.fields.get('quick'):
                 command += ['--reader-quick']
         elif self.mode == 'heldout':
@@ -389,7 +397,8 @@ def main():
             raise ValueError('Use a reader comparison or held-out batch for this report.')
         results_name = 'heldout_results' if cfg.mode == 'heldout' else 'reader_results'
         return write_report(cfg.batch, audit_directory(cfg) / 'audit.private.json', cfg.path('manifest'),
-                            cfg.path('clinical_catalogue'), cfg.base / 'operation_replay' / 'summary.json',
+                            cfg.path('clinical_catalogue') if cfg.scenario_design == 'legacy-v1' else None,
+                            cfg.base / 'operation_replay' / 'summary.json',
                             args.output or cfg.base / results_name, human_review=args.human_review)
     live = args.action == 'run' and args.execute
     state = cfg.path('launcher_state', cfg.path('ledger').parent / 'handoff_runs')

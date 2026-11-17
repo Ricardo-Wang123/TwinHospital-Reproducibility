@@ -15,7 +15,7 @@ import requests
 from .native_his import NativeBlocked, NativeError, NativeRejected, digest
 
 
-VERSION = 'twinhospital-fhir-r4-2'
+VERSION = 'twinhospital-fhir-r4-3'
 MEDIA_TYPE = 'application/fhir+json'
 CANONICAL = 'https://github.com/Ricardo-Wang123/TwinHospital-Reproducibility/fhir'
 MAX_BODY = 8 * 1024 * 1024
@@ -25,7 +25,7 @@ MAX_BODY = 8 * 1024 * 1024
 OPERATIONS = {
     'registration.create': {'patient_key': 'Identifier', 'demographics': 'Attachment'},
     'encounter.begin_consultation': {},
-    'diagnosis.catalogue': {},
+    'diagnosis.catalogue': {'codes': 'Attachment'},
     'consultation.save': {'artifact_id': 'Identifier', 'content': 'Attachment', 'transcript': 'Attachment'},
     'order.save': {'order_id': 'Identifier', 'items': 'Attachment', 'parent_order_id': 'Identifier'},
     'order.attest': {'order_id': 'Identifier', 'signatory_id': 'Identifier'},
@@ -42,12 +42,12 @@ SCOPE = {'case_id': 'Identifier', 'run_id': 'Identifier', 'config_id': 'Identifi
          'role': 'code', 'actor_id': 'Identifier',
          'patient_id': 'Reference', 'encounter_id': 'Reference', 'idempotency_key': 'Identifier',
          'action_request_id': 'Identifier'}
-OPTIONAL = {'config_id', 'idempotency_key', 'action_request_id', 'parent_order_id', 'parent_version'}
+OPTIONAL = {'config_id', 'idempotency_key', 'action_request_id', 'parent_order_id', 'parent_version', 'codes'}
 NULL_FIELDS = 'nullOptionalFields'
 OPTIONAL.add(NULL_FIELDS)
 REFERENCES = {'patient_id': 'Patient', 'encounter_id': 'Encounter'}
 ARTIFACT_TYPES = {'demographics': dict, 'content': dict, 'transcript': list, 'items': list, 'receipt': dict,
-                  NULL_FIELDS:list}
+                  'codes': list, NULL_FIELDS:list}
 
 
 def operation_code(operation):

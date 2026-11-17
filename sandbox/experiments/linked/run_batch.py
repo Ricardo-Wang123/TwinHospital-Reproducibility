@@ -28,11 +28,13 @@ from .cases import load_case
 from .clinical import (LinkedEncounterRunner, DEFAULT_LIMITS, DEFAULT_TIMING,
                        HISTORY_CONTEXT_BYTE_LIMIT, CURRENT_MEASUREMENT_POLICY,
                        CLINICAL_DISPOSITION_POLICY, PRESCRIPTION_FOLLOWTHROUGH_POLICY,
-                       CONSULTATION_DIALOGUE_POLICY)
+                       CONSULTATION_DIALOGUE_POLICY, CONTINUATION_POLICY)
+from .continuation import EncounterContinuation
 from .chart import POLICY as CHART_POLICY, INITIAL_BYTE_LIMIT, PAGE_BYTE_LIMIT
 from .chart_projection import PROJECTION_POLICY
 from .contracts import (baseline_conditions as _baseline_conditions, digest,
                         linked_config_id, paper_conditions, runtime_case)
+from . import scenario_design as scenarios
 from .linked_acceptance import (
     ASSIGNMENT_SCHEDULE_POLICY, BASELINE_LABEL, HELDOUT_DISPATCH_ORDER, MAX_ENGINEERING_ATTEMPTS,
     PATIENTS_PER_GROUP, SUPPORTED_PATIENTS_PER_GROUP, attempt_label, documented_unpaid_stop,
@@ -93,14 +95,14 @@ def code_fingerprint():
     root = Path(__file__).parent
     names = ('actors.py', 'camel_provider.py', 'chart.py', 'chart_projection.py', 'clinical.py', 'contracts.py',
              'native_his.py', 'protocol_his.py', 'provider.py', 'provider_profile.py', 'regimen.py', 'response_contracts.py',
-             'json_boundary.py', 'rules.py', 'documented_pprs.py', 'clinical_faults.py', 'order_encoding.py',
+             'json_boundary.py', 'diagnosis_codes.py', 'rules.py', 'documented_pprs.py', 'clinical_faults.py', 'order_encoding.py',
              'prescription_variants.py', 'exact_product_route_reference_v1.json',
              'safe_context_adapter.py', 'evidence_bindings.py', 'run_batch.py',
              'batch_observation.py', 'native_observation.py', 'native_observation_analysis.py',
              'campaign.py', 'workflow_analysis.py', 'network_route.py', 'trace_evidence.py',
              'linked_acceptance.py', 'assignment_repeat.py', 'curl_transport.py',
              'standard_his.py', 'wst846.py', 'wst846_order.py', 'wst846_server.py', 'wst_workflow.py',
-             'case_preparation/anthropometry.py')
+             'case_preparation/anthropometry.py', 'scenario_design.py', 'continuation.py', 'workflow_events.py')
     return {name: hashlib.sha256((root/name).read_bytes()).hexdigest() for name in names}
 
 
@@ -461,7 +463,7 @@ def validate_saved_result(result, expected, stage_input=None):
         task = next(iter(expected['conditions']))
         if digest(result.get('stage_inputs', {}).get(task)) != expected['stage_input_hash']:
             raise ValueError('saved run frozen input content does not match its hash')
-    if result.get('status') not in {'completed', 'failed', 'stopped_budget', 'stopped_provider', 'incomplete_clinical_decision'}:
+    if result.get('status') not in {'completed', 'failed', 'stopped_budget', 'stopped_provider', 'incomplete_clinical_decision', 'waiting_retry'}:
         raise ValueError('saved result has no final disposition')
 
 
@@ -511,6 +513,8 @@ def unstarted_stop_record(ledger, config_id, batch_root=None):
 
 
 def make_rule_engine(args, formulary):
+    if getattr(args, 'scenario_design', scenarios.LEGACY_VERSION) == scenarios.VERSION:
+        return None
     if getattr(args, 'rule_engine', 'engineering') == 'engineering':
         return EngineeringPPRS(formulary)
     if args.rule_engine != 'documented-candidate':
@@ -562,6 +566,8 @@ def execute_case(case, *, args, config, mapping, ledger, batch_root, stop_event=
         index['anchor_source'] = provenance
 
     def execute(label, condition=None, stage_input=None, controlled_variant=None, *, linked_conditions=None):
+        if linked_conditions is None and getattr(args, 'scenario_design', scenarios.LEGACY_VERSION) == scenarios.VERSION:
+            linked_conditions = scenarios.baselines()
         if reuse:
             verify_anchor_source_files(reuse, source_entry)
         run_id = args.batch + ':' + case['case_id'] + ':' + label
@@ -575,7 +581,8 @@ def execute_case(case, *, args, config, mapping, ledger, batch_root, stop_event=
             validate_saved_result(result, expected, stage_input)
             if result['status'] in {'stopped_budget','stopped_provider'}:
                 stop_event.set()
-            return result
+            if result['status'] != 'waiting_retry':
+                return result
         attempt_root = root/label
         # A directory without an indexed final result is an interrupted attempt.
         # Recover a saved result only; never repeat uncertain native effects.
@@ -590,7 +597,7 @@ def execute_case(case, *, args, config, mapping, ledger, batch_root, stop_event=
             result = _read(existing[0])
             validate_saved_result(result, expected, stage_input)
             result_path = existing[0]
-        else:
+        if not existing or result['status'] == 'waiting_retry':
             admission = admission_status(getattr(args, 'workflow_policy_data', None))
             if admission != 'open':
                 save_attempt(label, unadmitted_record(expected['config_id'], admission))
@@ -598,10 +605,17 @@ def execute_case(case, *, args, config, mapping, ledger, batch_root, stop_event=
             if _batch_stopped(ledger, stop_event, batch_root):
                 save_attempt(label, unstarted_stop_record(ledger, expected['config_id'], batch_root))
                 return None
-            attempt_root.mkdir(mode=0o700)
+            attempt_root.mkdir(mode=0o700, exist_ok=True)
             factory = BudgetedCamelFactory(config, ledger, args.model_evidence,
                 case_id=case['case_id'], data_kind=case['data_kind'], run_id=run_id,
                 config_id=expected['config_id'] if condition or linked_conditions is not None else BASELINE_LABEL)
+            continuation = None
+            if (getattr(args, 'scenario_design', scenarios.LEGACY_VERSION) == scenarios.VERSION
+                    and getattr(args, 'close_prescription_loop', False)):
+                continuation = EncounterContinuation(attempt_root/'continuation.json', {
+                    'run': expected, 'implementation': code_fingerprint(),
+                    'generation': {k: config.get(k) for k in ('endpoint', 'role_model', 'tool_models', 'generation_policy', 'provider_profile')}})
+                factory = continuation.factory(factory)
             backend = PaperProtocolPort(NativeOpenHISPort(attempt_root/'native', catalog_mapping=mapping,
                 diagnosis_mapping=getattr(args, 'diagnosis_mapping', None),
                 credentials_path=args.his_credentials, base_url=args.his_url))
@@ -620,9 +634,9 @@ def execute_case(case, *, args, config, mapping, ledger, batch_root, stop_event=
                 from .wst_workflow import wst_workflow
                 interface = wst_workflow(backend, case_id=case['case_id'], run_id=run_id)
             with interface as his:
-                runner = LinkedEncounterRunner(factory, his, make_rule_engine(args, case['formulary']),
+                runner = LinkedEncounterRunner(factory, continuation.backend(his) if continuation else his, make_rule_engine(args, case['formulary']),
                     output_dir=attempt_root/'runs', close_prescription_loop=getattr(args,'close_prescription_loop',False),
-                    workflow_policy=getattr(args, 'workflow_policy_data', None))
+                    workflow_policy=getattr(args, 'workflow_policy_data', None), continuation=continuation)
                 if condition:
                     continuation=None
                     if condition.task == 'prescription' and getattr(args,'close_prescription_loop',False):
@@ -652,7 +666,8 @@ def execute_case(case, *, args, config, mapping, ledger, batch_root, stop_event=
         return result
 
     if args.mode == 'linked-acceptance':
-        profiles, _ = linked_profiles(config['tool_models'], factorial=getattr(args, 'acceptance_factorial', False))
+        profiles, _ = linked_profiles(config['tool_models'], factorial=getattr(args, 'acceptance_factorial', False),
+                                      scenario_design=getattr(args, 'scenario_design', scenarios.LEGACY_VERSION))
         if acceptance_profile not in profiles:
             raise ValueError('linked acceptance dispatch must select one frozen profile')
         execute(attempt_label(acceptance_profile, acceptance_attempt), linked_conditions=profiles[acceptance_profile])
@@ -784,6 +799,11 @@ def bind_verified_acceptance_recovery(path, specification):
 
 def execute_acceptance_schedule(cases, acceptance, *, args, config, mapping, ledger,
                                 batch_root, stop_event, specification, session_log, session_id):
+    if (getattr(args, 'scenario_design', scenarios.LEGACY_VERSION) == scenarios.VERSION
+            and getattr(args, 'close_prescription_loop', False)):
+        return execute_continuation_schedule(cases, acceptance, args=args, config=config,
+            mapping=mapping, ledger=ledger, batch_root=batch_root, stop_event=stop_event,
+            specification=specification, session_log=session_log, session_id=session_id)
     from .linked_acceptance import READER_DESIGN_VERSION
     profiles = {profile['label']: profile for profile in acceptance['profiles']}
     by_assignment = acceptance['schedule_policy'] == ASSIGNMENT_SCHEDULE_POLICY
@@ -946,6 +966,66 @@ def execute_acceptance_schedule(cases, acceptance, *, args, config, mapping, led
     return [indices[ref['case_id']] for ref in cases], stopped
 
 
+def execute_continuation_schedule(cases, acceptance, *, args, config, mapping, ledger,
+                                  batch_root, stop_event, specification, session_log, session_id):
+    from .continuation import run_retry_queue
+    profiles = {p['label']: p for p in acceptance['profiles']}
+    indices = {ref['case_id']: {'case_id': ref['case_id'], 'attempts': {}} for ref in cases}
+    locks = {ref['case_id']: Lock() for ref in cases}
+    if acceptance.get('version') == 'linked_fixed_assignment_repeat_v1':
+        from .assignment_repeat import units as repeated_units
+        units = list(repeated_units(cases, acceptance))
+    elif acceptance.get('independent_crossed'):
+        by_id = {ref['case_id']: ref for ref in cases}
+        order = heldout_dispatch_order(cases, profiles)
+        frozen = specification.get('execution_policy', {}).get('heldout_dispatch_sha256')
+        if frozen is not None and digest(order) != frozen:
+            raise ValueError('Held-out dispatch order differs from the frozen specification')
+        units = [(by_id[case_id], label) for case_id, labels in order for label in labels]
+    else:
+        units = list(ordered_units(cases, profiles, rotate=acceptance.get('factorial', False)))
+
+    def save(ref, label, record):
+        with locks[ref['case_id']]:
+            index = indices[ref['case_id']]
+            index['attempts'][label] = deepcopy(record)
+            directory = batch_root/ref['case_id']
+            directory.mkdir(exist_ok=True, mode=0o700)
+            _atomic(directory/'attempts.json', index)
+
+    def execute(unit, dispatch):
+        ref, label = unit
+        record_batch_event(session_log, 'case_dispatched', session_id=session_id,
+            case_id=ref['case_id'], acceptance_profile=label, dispatch_number=dispatch,
+            same_encounter_continuation=dispatch > 1)
+        returned = execute_case_reference(ref, args=args, config=config, mapping=mapping,
+            ledger=ledger, batch_root=batch_root, stop_event=stop_event,
+            acceptance_profile=label, acceptance_attempt=1, isolated_acceptance_index=True)
+        record = returned['attempts'][attempt_label(label, 1)]
+        record['dispatch_number'] = dispatch
+        record['attempt_number'] = 1
+        if record['status'] == 'completed':
+            record['progression_checks'] = _acceptance_progression_checks(ref, record, profiles[label], specification)
+        save(ref, label, record)
+        record_batch_event(session_log, 'case_worker_returned', session_id=session_id,
+            case_id=ref['case_id'], acceptance_profile=label, dispatch_number=dispatch,
+            status=record['status'])
+        return record
+
+    def requeue(unit, dispatch, delay):
+        ref, label = unit
+        record_batch_event(session_log, 'provider_retry_queued', session_id=session_id,
+            case_id=ref['case_id'], acceptance_profile=label, dispatch_number=dispatch,
+            queue_position='tail', retry_after_seconds=delay, verified_complete=False)
+
+    _, pending = run_retry_queue(units, execute, workers=getattr(args, 'workers', 1),
+        stopped=lambda: _batch_stopped(ledger, stop_event, batch_root), on_requeue=requeue)
+    for ref, label in pending:
+        if label not in indices[ref['case_id']]['attempts']:
+            save(ref, label, unstarted_stop_record(ledger, profiles[label]['config_id'], batch_root))
+    return [indices[ref['case_id']] for ref in cases], None
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--manifest', required=True, type=Path)
@@ -969,6 +1049,8 @@ def main():
     parser.add_argument('--his-interface', choices=('native', 'fhir-r4', 'wst-846', 'fhir-r4+wst-8468'), default='native',
                         help='Select the native path or the FHIR R4 workflow bridge for a fresh batch.')
     parser.add_argument('--mode', choices=('linked', 'matrix', 'linked-acceptance'), default='linked')
+    parser.add_argument('--scenario-design', choices=(scenarios.LEGACY_VERSION, scenarios.VERSION),
+                        default=scenarios.LEGACY_VERSION)
     parser.add_argument('--assignment-plan', type=Path,
                         help='Repeat a frozen subset of prior whole-encounter assignments once each.')
     parser.add_argument('--matrix-task', choices=('preconsult','prescription','documentation'),
@@ -1014,6 +1096,8 @@ def main():
     parser.add_argument('--observation-deploy', type=Path,
         help='Existing isolated deployment directory; never copy credentials into frozen code')
     args = parser.parse_args()
+    if args.scenario_design == scenarios.VERSION and args.mode == 'matrix':
+        parser.error('outpatient-v2 uses complete linked encounters; select linked or linked-acceptance')
     args.workflow_policy_data = validate_window(_read(args.workflow_policy), workers=args.workers) if args.workflow_policy else None
     if args.formal_experiment and args.workflow_policy_data is None:
         parser.error('--formal-experiment requires a prospective --workflow-policy')
@@ -1095,27 +1179,34 @@ def main():
     if formal_inputs and bind_formal_inputs(args.manifest) != formal_inputs:
         raise ValueError('formal input files changed during case preflight')
     config, mapping = _read(args.provider_config), _read(args.catalog)
-    paper_conditions(model_families=config['tool_models'])  # one fixed AI tool; legacy pairs remain readable
+    if args.scenario_design == scenarios.VERSION:
+        scenarios.conditions(config['tool_models'])
+    else:
+        paper_conditions(model_families=config['tool_models'])
     validate_formal_design(args, cases, config, args.workflow_policy_data)
     acceptance = (freeze_design(cases, config['tool_models'],
                                 patients_per_group=args.acceptance_patients_per_disease,
                                 workers=args.workers, max_attempts=args.acceptance_attempts,
                                 factorial=args.acceptance_factorial, independent=args.independent_crossed,
-                                reader=args.reader_comparison, quick=args.reader_quick)
+                                reader=args.reader_comparison, quick=args.reader_quick,
+                                scenario_design=args.scenario_design)
                   if args.mode == 'linked-acceptance' else None)
     if args.assignment_plan:
         if acceptance is None or not args.acceptance_factorial or args.acceptance_attempts != 1:
             raise ValueError('An assignment repetition requires a one-attempt linked factorial design')
         from .assignment_repeat import from_file
-        profiles, _ = linked_profiles(config['tool_models'], factorial=True)
+        profiles, _ = linked_profiles(config['tool_models'], factorial=True, scenario_design=args.scenario_design)
         acceptance = from_file(acceptance, args.assignment_plan, cases, profiles)
     if args.workers>5 and config.get('minimum_request_interval_seconds',0)<1.0:
         parser.error('more than five workers require explicit shared API pacing of at least one second')
     args.diagnosis_mapping = validate_diagnosis_mapping(_read(args.diagnosis_catalog))
-    args.clinical_catalogue_data = _read(args.clinical_catalogue) if args.rule_engine == 'documented-candidate' else None
+    args.clinical_catalogue_data = (_read(args.clinical_catalogue) if args.rule_engine == 'documented-candidate'
+                                    and args.scenario_design == scenarios.LEGACY_VERSION else None)
     rule_metadata = {'engine': 'engineering', 'version': EngineeringPPRS.rule_version,
                      'engineering_only': True, 'development_only': True}
-    if args.rule_engine == 'documented-candidate':
+    if args.scenario_design == scenarios.VERSION:
+        rule_metadata = {'engine': None, 'prescription_review': 'common_pharmacist_review_outpatient_v2'}
+    elif args.rule_engine == 'documented-candidate':
         from .safe_context_adapter import POLICY as SHARED_RULE_CONTEXT_POLICY
         engine = make_rule_engine(args, [])
         rule_metadata = {'engine': args.rule_engine, 'version': engine.rule_version,
@@ -1144,6 +1235,7 @@ def main():
         variant_policy={**VARIANT_POLICY,'kind':args.controlled_prescription_variant,
             'registry_hash':digest(variant_registry()),'item_index':0,'new_route':'intravenous'}
     specification = {'batch': args.batch, 'mode': args.mode,
+        **({'scenario_design': scenarios.VERSION} if args.scenario_design == scenarios.VERSION else {}),
         'matrix_task': args.matrix_task,
         'controlled_prescription_variant_policy':variant_policy,
         'prescription_followthrough_policy': PRESCRIPTION_FOLLOWTHROUGH_POLICY if args.close_prescription_loop else None,
@@ -1184,7 +1276,11 @@ def main():
         'native_observation': args.observation_metadata,
         'anchor_reuse': args.anchor_reuse,
         'workflow_limits': DEFAULT_LIMITS, 'modeled_activity_seconds': DEFAULT_TIMING,
-        'consultation_dialogue_policy': CONSULTATION_DIALOGUE_POLICY,
+        'continuation_policy': CONTINUATION_POLICY if args.scenario_design == scenarios.VERSION and args.close_prescription_loop else None,
+        'consultation_dialogue_policy': ({'version': scenarios.VERSION,
+            'opening_question': '请用你自己的话说说，今天最想解决什么问题？',
+            'report_during_consultation': 'first_read_after_the_opening_patient_answer'}
+            if args.scenario_design == scenarios.VERSION else CONSULTATION_DIALOGUE_POLICY),
         'current_measurement_policy': CURRENT_MEASUREMENT_POLICY,
         'clinical_disposition_policy': CLINICAL_DISPOSITION_POLICY,
         'history_access_policy': {'chart_policy': CHART_POLICY, 'initial_byte_limit': INITIAL_BYTE_LIMIT,
@@ -1212,7 +1308,10 @@ def main():
             'literature_comparison': 'after_observed_results_not_case_labels',
         },
         'formal_experiment': args.formal_experiment,
-        'conditions': [item.to_dict() for item in paper_conditions(args.matrix_task,config['tool_models'])] if args.mode == 'matrix' else []}
+        'conditions': ([item.to_dict() for item in scenarios.conditions(config['tool_models'])]
+                       if args.scenario_design == scenarios.VERSION else
+                       [item.to_dict() for item in paper_conditions(args.matrix_task, config['tool_models'])]
+                       if args.mode == 'matrix' else [])}
     if args.his_interface == 'fhir-r4':
         from .fhir_his import interface_contract
 
@@ -1225,11 +1324,14 @@ def main():
         specification['his_interface'] = interface_contract()
     if acceptance is not None:
         specification['linked_acceptance'] = acceptance
+        if args.scenario_design == scenarios.VERSION:
+            specification['role_effort_analysis'] = scenarios.effort_plan()
         if args.independent_crossed:
             from results.summarize_paid_runs import heldout_effort_plan
 
             specification['development_exclusion_sha256'] = hashlib.sha256(exclusion).hexdigest()
-            specification['heldout_effort_analysis'] = heldout_effort_plan()
+            if args.scenario_design == scenarios.LEGACY_VERSION:
+                specification['heldout_effort_analysis'] = heldout_effort_plan()
         specification['acceptance_source_patient_hashes'] = sorted(digest(r['patient_key']) for r in cases)
         specification['execution_policy']['dispatch_unit'] = (
             'one_isolated_encounter_per_assignment' if acceptance['schedule_policy'] == ASSIGNMENT_SCHEDULE_POLICY

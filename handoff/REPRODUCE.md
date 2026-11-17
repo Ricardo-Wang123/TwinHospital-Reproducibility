@@ -2,7 +2,7 @@
 
 Use the MAS in this repository, the OpenHIS reader release, and your own cases in the [TwinHospital case format](CASE_FORMAT.md). Each case enters the same outpatient workflow and writes its own encounter, prescription, document, and simulated settlement.
 
-The paper comparison crosses the three choices at each clinical stage on the same input cases. It also produces an Application I–III report and supports five paired operation probes. The transferable v1 experiment kit retains its packaged snapshot and `START-HERE.md`. Use the current repository checkout for the protocol adapters documented below.
+New configurations use `outpatient-v2`, crossing three choices at each clinical stage on the same input cases and producing an Application I–III report. The transferable v1 experiment kit retains its packaged snapshot and `START-HERE.md`; historical configurations use `legacy-v1`. Use the current checkout for the revised workflows and protocol adapters.
 
 For separate FHIR R4 and WS/T executions of the same selected assignments, use
 the [protocol comparison guide](PROTOCOL_COMPARISON.md). It preserves a shared
@@ -79,11 +79,11 @@ The runner reads assistant JSON, the model identifier, completion status, and to
 
 Start with `--quick` for a pilot. It schedules three fresh encounters per source case and exercises every choice at least once.
 
-| Intake | Prescription review | Documentation |
+| Consultation | Prescribing | Documentation |
 | --- | --- | --- |
-| Nurse | Rules with pharmacist routing | Physician |
-| AI alone | Sequential | During consultation |
-| AI with nurse review | Parallel | After consultation |
+| Direct physician consultation | Physician alone | Physician writing |
+| Read AI report before consultation | AI draft, physician finalization | Physician dictation, AI draft, physician finalization |
+| Read AI report during consultation | Physician draft, AI advice, physician finalization | Complete dialogue and physician addendum, AI draft, physician finalization |
 
 Remove `--quick` to assign every case to all 27 combinations. The full crossing supports matched contrasts that hold the other two stages fixed. Each assignment has its own agent context, encounter, and native records. Comparisons use one worker by default. Set `--workers` when configuring a batch to change parallelism.
 
@@ -101,21 +101,32 @@ RUN="$WORK/my_cohort_01/run.local.json"
 .venv/bin/python -m handoff.run --config "$RUN" run --execute
 .venv/bin/python -m handoff.run --config "$RUN" status
 .venv/bin/python -m handoff.run --config "$RUN" audit --observe-native
-.venv/bin/python -m handoff.run --config "$RUN" operations
 .venv/bin/python -m handoff.run --config "$RUN" report
 ~~~
 
-Enter the API key in the hidden prompt. For a loopback endpoint that accepts requests without authentication, enter a local placeholder. Use a fresh batch name and output directory for each comparison. Keep the isolated OpenHIS instance running through the audit and operation checks.
+Enter the API key in the hidden prompt. For a loopback endpoint that accepts requests without authentication, enter a local placeholder. Use a fresh batch name and output directory for each comparison. Keep the isolated OpenHIS instance running through the state audit.
 
 | Paper application | What to inspect in `reader_results/REPORT.md` and `summary.json` |
 | --- | --- |
-| I · Clinical artifacts | Handoff and note delivery, original prescription decisions, original and follow-up alerts, and the false-positive rate among resolved rule-reference negatives. |
-| II · Modeled staff effort | Staff minutes per delivered artifact, supplementation and rework, and elapsed note turnaround. Matched contrasts use cells with the same case and other stage configurations. |
-| III · Workflow integrity | Native signed order, locked note, and simulated payment, with planned and verified counts for each combination. The paired operation schedule reports fault and control dispositions separately. |
+| I · Clinical artifacts | Saved reports, physician and AI prescription proposals, physician revisions, common pharmacist decisions, note drafts and signed versions. Content quality uses case-specific reference criteria. |
+| II · Role workload | Modeled report-reading, prescribing and documentation work, patient answer counts, and revision counts. Activity estimates and API elapsed time remain separate. |
+| III · Workflow integrity | Native signed order, locked note and simulated payment, with planned and verified counts for each combination. |
 
-Configuration selects the first manifest case for the paired operation checks. The replay uses that case's completed baseline artifacts to create fresh OpenHIS objects, with one fault and one valid control for each of five operations. If the baseline is unavailable, the planned requests retain unresolved outcomes. Choose the first manifest row before running if you want a different source.
+All prescribing conditions receive the same pharmacist review before signing and payment. New configurations do not generate a fault-injection schedule. The report retains every planned assignment and identifies the workflow version, protocol and exact models. Clinical correctness is separate from review approval and payment. Case files and detailed traces remain in the local workspace.
 
-The run reports every planned assignment. The artifact and effort tables apply the paper's verified-paid observation window. A rule with no covered product or sufficient evidence remains indeterminate. Rates with no eligible denominator appear as a dash. The JSON includes the counts and the exact model identifiers. The case files, traces, and detailed audit stay in the local workspace.
+### Documentation inputs
+
+All three conditions start after prescription review and signing and end with the treating physician's review, edits and note signature.
+
+| Condition | AI drafting input |
+| --- | --- |
+| C1 · Physician writing | No documentation AI; the physician writes from the encounter and permitted records. |
+| C2 · Physician dictation | A postencounter spoken-style summary generated by the treating physician, plus shared structured clinical records. The AI cannot read the raw dialogue or a separate full consultation summary. |
+| C3 · Encounter transcript | The actual physician–patient dialogue, a separate physician addendum for observed findings or final decisions not spoken in the dialogue, and the same shared clinical records. An empty addendum is valid when no supplement is needed. |
+
+The text simulation assumes accurate transcription and requires no speech-recognition model or external scribe. Physician summary, supplementation, review and editing count toward workload. Runs retain `clinical_brief` or `clinical_addendum`, source permissions, draft versions and the signed note. Internal workflow IDs remain `brief_to_note` and `postvisit`; `documentation_source_policy` records this input version. Historical traces retain their original definitions.
+
+Workflow basis: [Gładysz et al., 2026, Workflows 3–4](https://ai.jmir.org/2026/1/e77351/). Initial-note quality dimensions: [Palm et al., 2025](https://www.frontiersin.org/journals/artificial-intelligence/articles/10.3389/frai.2025.1691499/full).
 
 ### Run a single baseline visit
 
@@ -123,7 +134,7 @@ Use `--mode linked` for one baseline visit per case. Run `provision`, `set-key`,
 
 ### Compare to the study snapshot
 
-The independent dataset route uses the same workflow configurations. Use the study sections below for the exact historical inputs and model profile. [Study results](../results/README.md)
+Use `--scenario-design legacy-v1` to select the original nurse, rule-review and incremental-note conditions. The study sections below describe the historical inputs and runtime. Their archived results remain separate from `outpatient-v2`. [Study results](../results/README.md)
 
 ## Repeat the study configuration
 
@@ -184,11 +195,11 @@ RUN="$WORK/heldout_run/run.local.json"
 .venv/bin/python -m handoff.run --config "$RUN" check
 ~~~
 
-Set `K` to the equal number of distinct test patients in each of the five strata. The runner assigns each patient to all 27 configurations, with one attempt per assignment. For the planned 1,000-patient comparison, set `K=200` and add `--operation-schedule "$LOCAL_SCHEDULE"` to `pack`. This includes the preassigned Application III requests in the input bundle. The 500 requests use 500 patients from the same cohort, with four fault requests and sixteen controls per disease and operation. The batch specification binds both manifests, the replay code, and the baseline configuration used as the replay source. [Operation schedule format](#replay-paired-operations)
+Set `K` to the equal number of distinct test patients in each of the five strata. The runner assigns each patient to all 27 configurations, with one attempt per assignment. For 1,000 patients, set `K=200`. The current design measures Application III along these encounters and uses no additional fault-injection schedule.
 
 The runner takes patients in turn from the five disease strata and advances the starting configuration by one position for each successive patient. This spreads the first assignments across diseases and configurations if dispatch stops early. The batch specification hashes the patient order and each patient's configuration order. The audit reconstructs this order from the frozen cases and profiles.
 
-The local `check` command reports 27,000 planned encounters and 500 planned operations for a 1,000-patient bundle with the schedule. Use the same `provision`, `set-key`, `run --execute`, and `audit --observe-native` subcommands to collect the held-out outcomes. Set the dispatch window with `--dispatch-hours` when configuring the batch. Each encounter retains the observation window in the inherited workflow policy.
+The local `check` command reports 27,000 planned encounters for a 1,000-patient bundle. Use the same `provision`, `set-key`, `run --execute`, and `audit --observe-native` subcommands to collect the held-out outcomes. Set the dispatch window with `--dispatch-hours` when configuring the batch. Each encounter retains the observation window in the inherited workflow policy.
 
 The held-out `check` reports available GiB, projected archive size, and any shortfall for each output volume. Directories on the same volume share that capacity. The [170-encounter storage profile](../results/heldout_storage_profile.json) includes partial attempts and projects to about 138 GiB for 27,000 assignments at the observed allocation rates. This includes about 77 GiB for terminal attempt files, 37 GiB for model evidence, and 24 GiB for native observation. Reserve additional capacity for OpenHIS database growth, the final audit, and operation replays. The estimate varies with case size, workflow, and filesystem. Use `configure --output` on the intended work volume. `run --execute` checks this estimate before any provider probe or encounter dispatch.
 
@@ -200,11 +211,11 @@ On APFS, start this command in a separate terminal once the runner creates `batc
   --receipt "$WORK/heldout_run/evidence_compression.jsonl" --follow
 ~~~
 
-After the native audit, run the `operations` subcommand if the bundle includes the frozen schedule, then run `report`. The operation replay exercises the shared gateway on fresh OpenHIS objects reconstructed from the baseline assignment. An unavailable baseline leaves its preassigned operation unresolved. The report uses the same Application I and II metrics and keeps all assigned encounters and replay requests in their respective Application III denominators.
+After the native audit, run `report`. All assigned encounters remain in the Application III denominator; missing or unfinished traces do not become completed encounters.
 
 The audit indexes the streamed native capture beside the private audit output. It checks the complete request and mutation sequence, then reads the records for each encounter as needed. Fresh read-back observations also stream to the private output. Keep scratch capacity on that volume. The audit releases its temporary index and preserves the source capture and its checksums.
 
-The output directory `heldout_results/` contains `summary.json`, `REPORT.md`, and the generated ACL fragment `acl_heldout_results.tex`. The fragment can be included as a separate results section in the paper. When a final-prescription assessment is available, add `--human-review "$REVIEW_RECORD"` after `report` to include its verified coverage and any recorded outcomes. Use a fresh output directory with `--output` when exporting an updated report. [Result reconstruction](../results/README.md)
+The output directory `heldout_results/` contains `summary.json` and `REPORT.md`. Historical `legacy-v1` batches additionally support their original ACL table export and final-prescription review record. Keep each workflow version's results in its own output directory. [Historical result reconstruction](../results/README.md)
 
 ## Replay paired operations
 

@@ -187,7 +187,7 @@ class NativeOpenHISPort:
             if rb.get('statusEnum')!='IN_PROGRESS' or str(rb.get('doctorId'))!=principal:raise NativeError('Native reception transition/operator not observed')
             b['consultation_started']=True
             return self._result({'status':'in_progress','encounter_id':b['encounter_id'],'doctor_id':principal},rb)
-        if op=='diagnosis.catalogue':return self._diagnosis_catalogue(pair)
+        if op=='diagnosis.catalogue':return self._diagnosis_catalogue(pair,p)
         if op=='consultation.save':return self._save_consultation(p,ctx,b,pair)
         if op in ('history.import','handoff.save'):
             name={'history.import':'history','handoff.save':'handoff','consultation.save':'consultation'}[op]
@@ -307,16 +307,55 @@ class NativeOpenHISPort:
         if not found:raise NativeError('Bound native encounter not observed')
         return found
 
-    def _diagnosis_catalogue(self,pair):
-        c=self._client('doctor');items=[];evidence=[]
-        for code,mapping in self.diagnosis_mapping.items():
+    def _diagnosis_catalogue(self,pair,p=None):
+        p=p or {}
+        if set(p)-{'codes'}:raise NativeBlocked('Unsupported diagnosis catalogue query fields')
+        requested=p.get('codes')
+        missing=[];candidate_pairs=[];exact_keys=set()
+        if requested is None:
+            selected=[m for m in self.diagnosis_mapping.values() if m.get('default_visible',True)]
+        else:
+            if (not isinstance(requested,list) or len(requested)>32 or any(
+                not isinstance(d,dict) or set(d)!={'code','system'} or any(
+                    not isinstance(d[k],str) or not d[k] for k in ('code','system')) for d in requested)):
+                raise NativeBlocked('Diagnosis lookup requires at most 32 explicit code/system pairs')
+            selected=[]
+            for entry in requested:
+                code=entry['code']
+                mapping=self.diagnosis_mapping.get(code)
+                if mapping is None and '.' not in code and len(code)>3:
+                    mapping=self.diagnosis_mapping.get(code[:3]+'.'+code[3:])
+                if mapping and mapping['system']==entry['system']:
+                    if mapping not in selected:selected.append(mapping)
+                    exact_keys.add((mapping['system'],mapping['code']))
+                elif mapping:
+                    if mapping not in selected:selected.append(mapping)
+                    missing.append({**entry,'reason':'exact_code_present_in_other_declared_system'})
+                    candidate_pairs.append((entry,(mapping['system'],mapping['code'])))
+                else:missing.append({**entry,'reason':'not_in_configured_source_vocabulary'})
+        c=self._client('doctor');verified={};evidence=[]
+        for mapping in selected:
+            code=mapping['code']
             rows=c.post('/doctorStationDiagnosis/getConditionDefinitionMetadata',{'keyword':code,'pageNo':1,'pageSize':100})
-            rows=rows.get('content',rows.get('records',[]))
-            found=next((x for x in rows if str(x.get('conditionDefinitionId',x.get('id')))==mapping['conditionDefinitionId']),None)
+            page=1;seen=set()
+            while True:
+                content=rows.get('content',rows.get('records',[]))
+                found=next((x for x in content if str(x.get('conditionDefinitionId',x.get('id')))==mapping['conditionDefinitionId']),None)
+                if found or len(content)<100:break
+                identities={str(x.get('conditionDefinitionId',x.get('id'))) for x in content}
+                if not identities-seen:raise NativeError('Native diagnosis catalogue pagination did not advance')
+                seen.update(identities)
+                page+=1
+                rows=c.post('/doctorStationDiagnosis/getConditionDefinitionMetadata',{'keyword':code,'pageNo':page,'pageSize':100})
             if not found:raise NativeBlocked('Native diagnosis definition not found: '+code)
             if found.get('conditionCode')!=code:raise NativeBlocked('Native diagnosis code mismatch')
-            items.append({k:mapping[k] for k in ('code','display','system')});evidence.append(found)
-        return self._result({'items':items},evidence)
+            verified[(mapping['system'],code)]={k:mapping[k] for k in ('code','display','system','code_version') if k in mapping};evidence.append(found)
+        items=[item for key,item in verified.items() if requested is None or key in exact_keys]
+        candidates=[{'requested':copy.deepcopy(entry),'matches':[copy.deepcopy(verified[key])],
+            'selection':'physician_must_confirm_current_encounter_concept_and_system_not_an_automatic_crosswalk'}
+            for entry,key in candidate_pairs]
+        return self._result({'items':items,'unmapped':missing,'total_catalogue_entries':len(self.diagnosis_mapping),
+                             'coding_candidates':candidates,'catalogue_is_shortlist':requested is None},evidence)
     def _save_consultation(self,p,ctx,b,pair):
         diagnoses=p.get('content',{}).get('diagnoses')
         if not isinstance(diagnoses,list) or not diagnoses:raise NativeBlocked('Physician-generated structured diagnoses required for native settlement')

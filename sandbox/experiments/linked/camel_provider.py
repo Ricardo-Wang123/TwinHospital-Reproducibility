@@ -76,7 +76,10 @@ class BudgetedCamelFactory:
                 self.last_finish_reason = None
                 if tools or response_format:
                     raise ValueError('clinical runtime owns actions; model receives text observations only')
-                if factory.call_count >= factory.config.get('max_calls_per_run', 150):
+                ceiling = factory.config.get('max_calls_per_run')
+                if ceiling is not None and (type(ceiling) is not int or ceiling < 1):
+                    raise ValueError('max_calls_per_run must be a positive integer or null')
+                if ceiling is not None and factory.call_count >= ceiling:
                     raise RuntimeError('per-run model-call ceiling reached')
                 factory.call_count += 1
                 try:

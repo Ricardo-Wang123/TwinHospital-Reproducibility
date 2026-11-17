@@ -151,6 +151,10 @@ def pack(args):
 
 
 def configure(args):
+    scenario_design = getattr(args, 'scenario_design', None) or (
+        'legacy-v1' if args.frozen_runtime or args.mode == 'repeat' else 'outpatient-v2')
+    if args.frozen_runtime and scenario_design != 'legacy-v1':
+        raise ValueError('The historical runtime uses legacy-v1 conditions.')
     bundle = args.bundle.resolve()
     receipt = verify_bundle(bundle, release_hashes(args.assets))
     manifest = read(bundle / 'manifest.json')
@@ -178,6 +182,8 @@ def configure(args):
         raise ValueError('--mode repeat requires --assignment-plan; other modes do not use it.')
     schedule = None
     if OPERATION_SCHEDULE in receipt['files']:
+        if scenario_design == 'outpatient-v2':
+            raise ValueError('Use an outpatient-v2 input bundle without a legacy fault-injection schedule.')
         if args.mode not in {'heldout', 'repeat'}:
             raise ValueError('A preassigned operation schedule applies to held-out or repeated assignments.')
         schedule = relocate_operation_schedule(read(bundle / OPERATION_SCHEDULE), portable, manifest['cases'])
@@ -192,15 +198,15 @@ def configure(args):
         from sandbox.experiments.linked.assignment_repeat import from_file
         from sandbox.experiments.linked.linked_acceptance import freeze_design, linked_profiles
 
-        profiles, _ = linked_profiles(provider['tool_models'], factorial=True)
+        profiles, _ = linked_profiles(provider['tool_models'], factorial=True, scenario_design=scenario_design)
         design = freeze_design(manifest['cases'], provider['tool_models'],
                                patients_per_group=args.patients_per_disease,
-                               workers=args.workers or 1, max_attempts=1, factorial=True)
+                               workers=args.workers or 1, max_attempts=1, factorial=True, scenario_design=scenario_design)
         from_file(design, assignment_plan, manifest['cases'], profiles)
 
     target = args.output.resolve()
     fields = {
-        'mode': args.mode, 'batch': args.batch, 'manifest': 'manifest.local.json',
+        'mode': args.mode, 'batch': args.batch, 'scenario_design': scenario_design, 'manifest': 'manifest.local.json',
         'provider_config': 'provider.local.json', 'key_file': 'api.key',
         'openhis_assets': str(args.assets.resolve()), 'deploy': str(ROOT / 'deploy/openhis-experiment'),
         'batches': 'batches',
@@ -218,6 +224,8 @@ def configure(args):
     for field, name in CATALOGUES.items():
         if name in receipt['files']:
             fields[field] = str(bundle / name)
+        elif scenario_design == 'outpatient-v2' and field == 'clinical_catalogue':
+            continue
         elif args.mode == 'comparison' and field == 'clinical_catalogue':
             fields[field] = str(ROOT / 'deploy/openhis-experiment/catalogue_metadata_v2.json')
         elif args.mode in {'factorial', 'heldout', 'repeat'}:
@@ -242,7 +250,7 @@ def configure(args):
         shutil.copyfile(assignment_plan, target / fields['assignment_plan'])
     if window is not None:
         write(target / 'workflow.local.json', window)
-    if args.mode == 'comparison' or (args.mode == 'repeat' and schedule is None):
+    if scenario_design == 'legacy-v1' and (args.mode == 'comparison' or (args.mode == 'repeat' and schedule is None)):
         from sandbox.experiments.linked.source_operation_replay import CATEGORIES
 
         fields['operation_schedule'] = OPERATION_SCHEDULE
@@ -282,6 +290,7 @@ def main():
     setup.add_argument('--bundle', required=True, type=Path)
     setup.add_argument('--batch', required=True)
     setup.add_argument('--mode', choices=('linked', 'comparison', 'factorial', 'heldout', 'repeat'), default='linked')
+    setup.add_argument('--scenario-design', choices=('outpatient-v2', 'legacy-v1'))
     setup.add_argument('--assignment-plan', type=Path,
                        help='Repeat the exact case/configuration pairs of a prior audited assignment plan.')
     setup.add_argument('--quick', action='store_true', help='Run three predefined whole-visit configurations.')

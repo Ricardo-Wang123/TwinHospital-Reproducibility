@@ -21,24 +21,29 @@ from .chart_projection import (PROJECTION_POLICY, project_history_page, verify_p
                                deduplicate_projected_page, ProjectionBudgetExceeded)
 from .response_contracts import (POLICY as RESPONSE_CONTRACT_POLICY, contract_for, shape_errors,
                                 schema_correction_allowed, normalize_structure, note_revision_errors,
-                                ResponseBoundaryError, assert_response_visible)
+                                ResponseBoundaryError, assert_response_visible, visible_note_source,
+                                empty_finalization_format_error)
 from .diagnosis_codes import POLICY as DIAGNOSIS_CODE_POLICY, canonicalize, all_mapped
 from .json_boundary import DuplicateJSONKeyError
 from .simulation_scope import POLICY as SIMULATION_SCOPE_POLICY
+from . import scenario_design
 
 
 DEFAULT_LIMITS = {"preconsult_turns": 10, "nurse_review_turns": 4,
                   "handoff_verification_turns": 4, "consultation_turns": 10,
-                  "prescription_revisions": 2, "max_note_revisions": 6,
+                  "prescription_revisions": 6, "max_note_revisions": 6,
                   "realtime_chunk_segments": 6, "history_queries_per_phase": 8,
-                  "in_hospital_reconciliation_requests": 2, "reconciliation_turns": 6}
+                  "in_hospital_reconciliation_requests": 2, "reconciliation_turns": 6,
+                  "diagnosis_coding_returns": 2, "care_work_routes": 4}
 DEFAULT_TIMING = {"information_collection": 30, "summary_documentation": 45,
                   "summary_review": 30, "handoff_verification": 20,
                   "handoff_supplementation": 30, "handoff_correction": 30,
                   "diagnostic": 30, "prescription_review": 30,
                   "prescription_adjudication": 40, "prescription_revision": 40,
                   "documentation": 60, "note_review": 35, "note_rework": 45,
-                  "attestation": 10, "history_lookup": 20}
+                  "attestation": 10, "history_lookup": 20, "report_reading": 20,
+                  "prescription_drafting": 40, "prescribing_ai_review": 30,
+                  "brief_documentation": 30, "note_supplementation": 30, "patient_answer": 30}
 PHYSICIAN_DIALOGUE_PHASES = frozenset({"doctor_handoff_verification", "consultation"})
 CONSULTATION_DIALOGUE_POLICY = {
     "version": "direct_physician_exchange_v1",
@@ -71,18 +76,29 @@ NOTE_REVIEW_CONTEXT_POLICY = {
         "Preserve actual unknowns and pending actions. Judge the accuracy of this note rather than reopen "
         "the prescription decision. Accept only when the current note faithfully represents the visible encounter."),
 }
-CLINICAL_DISPOSITION_POLICY = {"version": "clinical_incomplete_decision_note_v1",
+NOTE_FINALIZATION_POLICY = {
+    'version': 'physician_edit_and_finalize_v1',
+    'instruction': 'The physician reviews the current note and may accept it or return corrected final text. '
+        'An explicit finalized correction is saved, read back and signed without an extra self-review. '
+        'Unknown facts remain unknown. A rejected or unfinalized note is not signed.',
+    'manual_source_serialization_required': False,
+}
+CLINICAL_DISPOSITION_POLICY = {"version": "physician_owned_pending_care_v4_continuation",
     "continue_documentation": True, "three_task_eligible": False,
     "no_drug_settlement": True, "preserve_original_disposition": True,
     "documentation_outcome_independent": True,
-    "scope": "actual no-prescription, unresolved adjudication, retained rejection or fixed revision limit",
+    "scope": "actual no-prescription or unsupported care; current complete encounters renew work windows rather than terminate at a revision count",
     "clinical_appropriateness": "not_assessed_outside_programmatic_scope",
-    "budget_stop": "administrative_stop_preserving_original_clinical_disposition"}
+    "budget_stop": "administrative_stop_preserving_original_clinical_disposition",
+    "pending_care_owner": "same_physician",
+    "pending_work_before_terminal_documentation": True,
+    "unchanged_evidence_assessment_resampled": False,
+    "pending_assessment": "same physician performs the requested focused work before returning to the selected prescribing condition"}
 PRESCRIPTION_FOLLOWTHROUGH_POLICY = {
-    "version": "frozen_original_review_then_in_hospital_resolution_v5",
+    "version": "physician_owned_care_resolution_v9_current_plan",
     "primary_endpoint": "first_review_of_unchanged_original_prescription",
     "revisions_create_new_scored_cases": False,
-    "followup_budgets": "physician revisions share original consultation budgets; each separately logged pharmacist service has its own declared question/history budget",
+    "followup_budgets": "current complete encounters renew declared work windows while retaining cumulative work; legacy fixed-input tasks retain finite budgets",
     "new_measurements": "only_existing_declared_case_records_may_be_read",
     "followthrough_documentation": "manual_physician_baseline",
     "stage_branch_is_complete_encounter": False,
@@ -93,8 +109,18 @@ PRESCRIPTION_FOLLOWTHROUGH_POLICY = {
     "reconciliation": "actual pharmacist service and optional patient/chart queries; original review unchanged",
     "persistent_deferral": "route a deferred revised prescription through available in-hospital reconciliation before its next physician revision",
     "pending_item": "an unmet prerequisite belongs to the pending care plan until supported, not a resubmitted order for immediate dispensing",
-    "initial_no_prescription": "preserve initial assessment, route its named unresolved issues to actual in-hospital reconciliation, then return the new evidence to the same physician; no unchanged-input clinical retry",
+    "initial_no_prescription": "outpatient-v2 preserves the decision and asks the same physician for a concrete next task: assess, ask, query or request medication reconciliation; legacy workflows retain their original reconciliation route",
+    "post_review_pending": "unsigned deferred or withheld orders return to the same physician; reassessment preserves prior candidates and reviews and creates a distinct successor order for fresh review",
     "clinical_appropriateness": "not_assessed_outside_programmatic_scope"}
+CONTINUATION_POLICY = {
+    'version': 'same_encounter_continuation_v1',
+    'scope': 'outpatient-v2 complete encounters with close_prescription_loop',
+    'work_windows': 'renewable; cumulative work and all prior decisions are retained',
+    'focused_assessment_owner': 'same_treating_physician',
+    'provider_interruption': 'checkpoint_same_run_and_encounter_then_requeue_at_tail',
+    'completion': 'signed_approved_prescription_locked_note_and_verified_medication_payment',
+    'automatic_approval_or_fact_completion': False,
+}
 
 
 def _utc():
@@ -103,6 +129,9 @@ def _utc():
 
 def _response_shape_errors(role, observation, response):
     errors=shape_errors(role,observation['action'],response)
+    if (observation['action'] == 'finalize_prescription' and response.get('decision') == 'accept'
+            and response.get('prescription') != observation.get('candidate_prescription')):
+        errors.append('accept returns the unchanged candidate_prescription; use revise for your changed prescription')
     if role == 'doctor' and observation['action'] == 'review_note':
         errors.extend(note_revision_errors(observation, response))
     if (observation.get('diagnosis_catalogue')
@@ -120,7 +149,7 @@ def _response_shape_errors(role, observation, response):
 class LinkedEncounterRunner:
     def __init__(self, actor_factory, backend, pprs, *, output_dir=None, limits=None,
                  timing=None, timing_source="constructed_uncalibrated", close_prescription_loop=False,
-                 workflow_policy=None):
+                 workflow_policy=None, continuation=None):
         self.factory, self.backend, self.pprs = actor_factory, backend, pprs
         self.output_dir = Path(output_dir) if output_dir else None
         if limits and set(limits) - set(DEFAULT_LIMITS):
@@ -134,6 +163,7 @@ class LinkedEncounterRunner:
             raise ValueError("activity times must be nonnegative numbers")
         self.timing_source = timing_source
         self.close_prescription_loop = bool(close_prescription_loop)
+        self.continuation = continuation
         from .campaign import validate_window
         self.workflow_policy = validate_window(workflow_policy) if workflow_policy is not None else None
 
@@ -147,25 +177,49 @@ class LinkedEncounterRunner:
         for task, condition in conditions.items():
             if condition.task != task:
                 raise ValueError("condition belongs to a different task")
+        current_design = scenario_design.is_current(conditions)
+        if current_design:
+            scenario_design.validate_conditions(conditions)
         execution = _Execution(self, case, run_id, linked_config_id(conditions))
+        if current_design:
+            execution.scenario_conditions = conditions
+            execution.result['scenario_design'] = scenario_design.VERSION
+            execution.result['note_review_policy'] = {
+                'version': NOTE_FINALIZATION_POLICY['version'],
+                'context_policy': deepcopy(NOTE_FINALIZATION_POLICY),
+                'revision_window_size': self.limits['max_note_revisions'],
+                'work_windows_renewable': self.close_prescription_loop,
+                'attestation_requires_physician_confirmation': True,
+                'edited_finalization_without_extra_self_review': True,
+            }
+            execution.result['continuation_policy'] = deepcopy(CONTINUATION_POLICY)
         def run():
             execution.register()
             execution.preconsult(conditions["preconsult"])
             if conditions["documentation"].workflow == "realtime":
                 execution.realtime_condition = conditions["documentation"]
-            try:
-                consultation = execution.consult()
-                if not consultation["prescription"]["items"]:
-                    raise ClinicalDecisionIncomplete("physician issued no prescription; three-task chain incomplete")
-                original = validate_prescription(consultation["prescription"])
-                execution.result["stage_inputs"]["prescription"] = {
-                    "prescription": deepcopy(original), "clinical_context": execution.prepare_rule_context(execution.clinical_context())}
-                final_rx = execution.prescription(original, conditions["prescription"], revise=True)
-                if final_rx is None:
-                    raise WorkflowFailure("prescription workflow returned without a terminal disposition")
-            except ClinicalDecisionIncomplete as clinical_stop:
-                execution.document_clinical_disposition(conditions["documentation"], clinical_stop)
-                raise
+            resuming = False
+            while True:
+                try:
+                    consultation = execution.consult(resume=resuming)
+                    execution.record_care_decision(consultation)
+                    if not consultation["prescription"]["items"]:
+                        raise ClinicalDecisionIncomplete("physician issued no prescription; three-task chain incomplete")
+                    original = validate_prescription(consultation["prescription"])
+                    stage = {
+                        "prescription": deepcopy(original), "clinical_context": execution.prepare_rule_context(execution.clinical_context())}
+                    execution.result["stage_inputs"].setdefault("prescription", deepcopy(stage))
+                    execution.result['artifacts'].setdefault('prescription_stage_attempts', []).append(deepcopy(stage))
+                    final_rx = execution.prescription(original, conditions["prescription"], revise=True)
+                    if final_rx is None:
+                        raise WorkflowFailure("prescription workflow returned without a terminal disposition")
+                    break
+                except ClinicalDecisionIncomplete as clinical_stop:
+                    if execution.resolve_pending_care(clinical_stop):
+                        resuming = True
+                        continue
+                    execution.document_clinical_disposition(conditions["documentation"], clinical_stop)
+                    raise
             # Keep the original consultation artifact intact, but the final note
             # must also see actual physician followups from the review loop.
             consultation=deepcopy(execution.consultation_record)
@@ -186,6 +240,8 @@ class LinkedEncounterRunner:
         """A paired task branch. It does not claim complete-encounter completion."""
         if not isinstance(condition, TaskCondition):
             raise TypeError("condition must be TaskCondition")
+        if scenario_design.is_current({condition.task: condition}):
+            raise ValueError('Outpatient-v2 conditions run as complete encounters, not legacy fixed-input tasks.')
         execution = _Execution(self, case, run_id, condition.config_id)
         stage_input = deepcopy(stage_input or {})
         if controlled_variant is not None:
@@ -247,13 +303,21 @@ class _Execution:
         self.prefix = "th_" + digest(self.context)[:22]
         self.clock_origin=time.monotonic()
         self.clock_id='workflow_'+uuid.uuid4().hex
+        if runner.continuation:
+            started = datetime.fromisoformat(runner.continuation.data['started_at'])
+            self.clock_origin -= (datetime.now(timezone.utc)-started).total_seconds()
+            self.clock_id = 'workflow_' + digest([run_id, runner.continuation.data['started_at']])[:24]
         self.request_sequence=0
         self.clinical_disposition = None
+        self.pending_clinical_work = None
+        self.clinical_work_evidence = set()
+        self.work_windows = {}
+        self.consultation_interactions_used = 0
         self.directory = runner.output_dir / self.prefix if runner.output_dir else None
         if self.directory is not None:
             # Reserve before any model or native write. A reused run ID must not
             # spend tokens or duplicate business actions before discovering a collision.
-            self.directory.mkdir(parents=True, exist_ok=False, mode=0o700)
+            self.directory.mkdir(parents=True, exist_ok=bool(runner.continuation and runner.continuation.resuming), mode=0o700)
         self.sessions, self.transcript, self.activities, self.events, self.calls = {}, [], [], [], []
         self.history, self.handoff, self.consultation_record = None, None, None
         self.history_query_counts = {}
@@ -263,6 +327,9 @@ class _Execution:
         self.in_hospital_reconciliation_requests = 0
         self.diagnosis_catalogue = []
         self.realtime_condition = None
+        self.scenario_conditions = None
+        self.pending_report = None
+        self.report_preparation = None
         self.note_state = None
         self.note_review_history = []
         self.result = {"schema_version": "twinhospital.linked.run/1", **self.context,
@@ -303,13 +370,57 @@ class _Execution:
                 'version': 'prospective_workflow_observation_v1',
                 'scope': 'Frozen observation deadline; all late effects and final disposition are retained.',
                 'late_outcomes': runner.workflow_policy['late_outcomes']}
+        if runner.continuation:
+            self.result['started_at'] = runner.continuation.data['started_at']
 
     def event(self, kind, **fields):
         row = {"sequence": len(self.events) + 1, "occurred_at": _utc(),
                **self.context, "event": kind, **deepcopy(fields),
+               'execution_segment': self.runner.continuation.data['segments'] if self.runner.continuation else 1,
                "clock_id":self.clock_id,"elapsed_seconds":time.monotonic()-self.clock_origin}
+        replayed = False
+        if self.runner.continuation:
+            row, replayed = self.runner.continuation.observe_event(row)
         self.events.append(row)
-        self.journal("events.jsonl", row)
+        if not replayed:
+            self.journal("events.jsonl", row)
+        from .workflow_events import observe_event, update_resolutions
+        issue = observe_event(row, self.events, self.result['artifacts'])
+        if issue is not None:
+            self.result.setdefault('workflow_issues', []).append(issue)
+            if not replayed:
+                self.journal('workflow_issues.jsonl', issue)
+        changes = update_resolutions(row, self.result.get('workflow_issues', []))
+        if not replayed:
+            for change in changes:
+                self.journal('workflow_issues.jsonl', change)
+
+    def observation_time(self, key):
+        return self.runner.continuation.timestamp(key) if self.runner.continuation else _utc()
+
+    @property
+    def continuous(self):
+        return bool(self.scenario_conditions and self.runner.close_prescription_loop)
+
+    def work_limit(self, name, used=0, *, scope=None):
+        initial = self.runner.limits[name]
+        if not self.continuous:
+            return initial
+        key = (name, scope)
+        bound = self.work_windows.get(key, initial)
+        if used >= bound:
+            bound = (used // initial + 1) * initial
+            self.work_windows[key] = bound
+            self.event('work_window_extended', work_type=name, phase=scope,
+                       cumulative_used=used, window_size=initial, allocated_through=bound)
+        return bound
+
+    def work_steps(self, name, *, scope=None):
+        index = 0
+        while self.continuous or index <= self.runner.limits[name]:
+            self.work_limit(name, index, scope=scope)
+            yield index
+            index += 1
 
     def journal(self, filename, value):
         if self.directory is None:
@@ -340,7 +451,10 @@ class _Execution:
             base['simulation_scope'] = deepcopy(SIMULATION_SCOPE_POLICY)
         original_hash = digest(base)
         current = base
-        for correction in range(RESPONSE_CONTRACT_POLICY["max_schema_corrections"] + 1):
+        schema_corrections = syntax_corrections = 0
+        total_corrections = (RESPONSE_CONTRACT_POLICY['max_schema_corrections']
+                             + RESPONSE_CONTRACT_POLICY['max_syntax_corrections'])
+        for correction in range(total_corrections + 1):
             try:
                 response = self._respond_once(role, current, phase=phase, family=family,
                                               correction=correction, original_input_hash=original_hash)
@@ -353,7 +467,7 @@ class _Execution:
                 # Truncation, nonfinite values, transport and budget exceptions
                 # remain ineligible for this correction.
                 metadata = deepcopy(getattr(exc, 'parse_metadata', None)) or {}
-                permitted = (correction < RESPONSE_CONTRACT_POLICY['max_schema_corrections']
+                permitted = (syntax_corrections < RESPONSE_CONTRACT_POLICY['max_syntax_corrections']
                     and metadata.get('finish_reason') == 'stop'
                     and not metadata.get('normalization_performed')
                     and len(exc.doc.encode('utf-8')) <= RESPONSE_CONTRACT_POLICY['max_invalid_response_bytes'])
@@ -363,17 +477,22 @@ class _Execution:
                     original_clinical_input_hash=original_hash)
                 if not permitted:
                     raise
+                syntax_corrections += 1
+                selected_source = deepcopy(current.get('schema_correction', {}).get('selected_visible_source'))
                 current = {**deepcopy(base), 'schema_correction': {
-                    'attempt':correction+1, 'max_attempts':RESPONSE_CONTRACT_POLICY['max_schema_corrections'],
+                    'attempt':syntax_corrections, 'max_attempts':RESPONSE_CONTRACT_POLICY['max_syntax_corrections'],
+                    'kind':'json_syntax',
                     'previous_invalid_response_hash':digest(exc.doc),
                     'previous_response_storage':'private_provider_evidence_not_reinjected_as_opaque_input',
                     'contract_errors':['The completed response was not exactly one unambiguous valid JSON object: '+exc.msg],
                     'original_clinical_input_hash':original_hash,
                     'instruction':'Your previous response failed JSON format validation and is retained in the private run evidence. Answer the unchanged clinical input in exactly one JSON object using the required response contract, with each object key appearing once and no prose outside JSON. Preserve the evidence and uncertainty; a defer/rejection/no-prescription decision remains permissible. Do not invent clinical facts, seek a preferred clinical outcome, or claim a business action. This is the sole format retry; no fragment or duplicate field value from the malformed response was selected as a clinical decision.'}}
+                if selected_source is not None:
+                    current['schema_correction']['selected_visible_source'] = selected_source
                 continue
             except ResponseBoundaryError as exc:
-                permitted = (correction < RESPONSE_CONTRACT_POLICY['max_schema_corrections']
-                    and schema_correction_allowed(exc.response)
+                permitted = (schema_corrections < RESPONSE_CONTRACT_POLICY['max_schema_corrections']
+                    and schema_correction_allowed(exc.response, observation.get('action'))
                     and len(json.dumps(exc.response, ensure_ascii=False).encode('utf-8'))
                         <= RESPONSE_CONTRACT_POLICY['max_invalid_response_bytes'])
                 self.event('role_response_boundary_invalid', role=role, phase=phase,
@@ -382,8 +501,9 @@ class _Execution:
                     original_clinical_input_hash=original_hash)
                 if not permitted:
                     raise WorkflowFailure(str(exc)) from None
+                schema_corrections += 1
                 current = {**deepcopy(base), 'schema_correction': {
-                    'attempt': correction + 1,
+                    'attempt': schema_corrections,
                     'max_attempts': RESPONSE_CONTRACT_POLICY['max_schema_corrections'],
                     'previous_invalid_response_hash': digest(exc.response),
                     'previous_response_storage': 'private_provider_evidence_not_reinjected',
@@ -406,9 +526,14 @@ class _Execution:
                     canonical_response_hash=proof['canonical_response_hash'], clinical_values_changed=False)
                 response = canonical
             errors = _response_shape_errors(role, observation, response)
+            if current.get('schema_correction', {}).get('preserve_empty_prescription'):
+                if (response.get('action') not in {'ask', 'read_history'}
+                        and (response.get('prescription') or {}).get('items') != []):
+                    errors.append('A format correction cannot replace the previous empty prescription with medication items')
             if not errors:
                 return response
-            permitted = correction < RESPONSE_CONTRACT_POLICY["max_schema_corrections"] and schema_correction_allowed(response)
+            permitted = (schema_corrections < RESPONSE_CONTRACT_POLICY["max_schema_corrections"]
+                         and schema_correction_allowed(response, observation.get('action')))
             self.event("role_response_schema_invalid", role=role, phase=phase,
                 response_hash=digest(response), contract_errors=errors,
                 correction_attempt=correction, correction_scheduled=permitted,
@@ -420,11 +545,15 @@ class _Execution:
                         "prescription_hash": digest(observation.get("prescription")),
                         "clinical_appropriateness": "not_assessed_outside_programmatic_scope"}
                 raise WorkflowFailure("role response contract not satisfied: " + "; ".join(errors))
+            schema_corrections += 1
             current = {**deepcopy(base), "schema_correction": {
-                "attempt": correction+1, "max_attempts": RESPONSE_CONTRACT_POLICY["max_schema_corrections"],
+                "attempt": schema_corrections, "max_attempts": RESPONSE_CONTRACT_POLICY["max_schema_corrections"],
                 "previous_invalid_response": deepcopy(response), "contract_errors": errors,
                 "original_clinical_input_hash": original_hash,
                 "instruction": "Correct only the role/action/JSON structure using the unchanged clinical inputs. Preserve facts, decisions and uncertainty. Do not invent clinical content, infer missing facts, or claim an application action. Return the requested artifact; an old draft is not automatically accepted."}}
+            if empty_finalization_format_error(response, observation.get('action')):
+                current['schema_correction'].update(preserve_empty_prescription=True,
+                    instruction='Correct only the response structure. Preserve prescription.items=[] and the actual reason for no dispensing. Use decision=defer if your assessment remains pending, or no_prescription for your actual no-dispensing decision. A question uses action=ask and question, within the remaining question budget, never decision=ask. Do not introduce medication items, infer missing facts or change uncertainty into approval.')
             if role == 'doctor' and observation.get('action') == 'review_note':
                 correction_data = current['schema_correction']
                 correction_data.pop('previous_invalid_response')
@@ -436,6 +565,13 @@ class _Execution:
                     'supply revision_evidence, and actually edit the full note text. Do not invent an issue, '
                     'change source facts, or approve merely to satisfy the contract. A justified accept '
                     'or reject remains available.')
+                evidence = response.get('revision_evidence') or {}
+                source = visible_note_source(base, evidence.get('source_field'))
+                if source is not None:
+                    literal = json.dumps(source, ensure_ascii=False, separators=(',', ':'))
+                    if len(literal.encode('utf-8')) <= 8000:
+                        correction_data['selected_visible_source'] = {
+                            'source_field': evidence['source_field'], 'exact_json_value': literal}
         raise AssertionError("unreachable schema correction")
 
     def _respond_once(self, role, observation, *, phase, family=None, correction=0, original_input_hash=None):
@@ -447,6 +583,7 @@ class _Execution:
         session = self.sessions[key]
         visible = {**deepcopy(observation), "data_kind": self.case["data_kind"]}
         call = {"sequence": len(self.calls)+1, "role": role, "phase": phase,
+                'execution_segment': self.runner.continuation.data['segments'] if self.runner.continuation else 1,
                 "model_family": family, "observation_hash": digest(visible), "observation": visible,
                 "schema_correction_attempt": correction, "original_clinical_input_hash": original_input_hash,
                 "started_at": _utc()}
@@ -469,7 +606,9 @@ class _Execution:
                         response_boundary_error=exc.boundary_reason)
             raise
         except Exception as exc:
-            call.update(status="failed", error_type=type(exc).__name__, error=str(exc)[:500])
+            from .continuation import EncounterDeferred
+            call.update(status='waiting_retry' if isinstance(exc, EncounterDeferred) else 'failed',
+                        error_type=type(exc).__name__, error=str(exc)[:500])
             raise
         finally:
             call.update(wall_seconds=time.monotonic()-start,
@@ -478,8 +617,13 @@ class _Execution:
                         memory_policy=getattr(session, "memory_policy", None),
                         response_parse=deepcopy(getattr(session, "last_parse_metadata", None)),
                         request_id=getattr(session, "last_request_id", None))
+            if getattr(session, 'observed_seconds', None) is not None:
+                call.update(wall_seconds=session.observed_seconds, started_at=session.observed_started_at,
+                            execution_segment=session.origin_segment,
+                            replayed_from_checkpoint=session.replayed)
             self.calls.append(call)
-            self.journal("calls.jsonl", call)
+            if not getattr(session, 'replayed', False):
+                self.journal("calls.jsonl", call)
             self.event("role_call", role=role, phase=phase, model_family=family,
                        call_sequence=call["sequence"], status=call["status"],
                        observation_hash=call["observation_hash"], response_hash=call.get("response_hash"))
@@ -565,7 +709,8 @@ class _Execution:
         self.result["artifacts"]["visible_history"] = deepcopy(self.history)
 
     def history_queries_remaining(self, phase):
-        return self.runner.limits["history_queries_per_phase"] - self.history_query_counts.get(phase, 0)
+        used = self.history_query_counts.get(phase, 0)
+        return self.work_limit('history_queries_per_phase', used, scope=phase) - used
 
     def read_history(self, action, phase, *, actor_role="doctor"):
         reconciliation_phase = (phase.startswith('in_hospital_reconciliation_') and
@@ -734,6 +879,12 @@ class _Execution:
         return segment
 
     def ask_patient(self, role, question, phase):
+        normalized = ' '.join(str(question).split()).casefold()
+        prior = [s for s in self.transcript if s['speaker_role'] == role
+                 and ' '.join(s['text'].split()).casefold() == normalized]
+        if prior:
+            self.event('repeated_patient_question', role=role, phase=phase,
+                       previous_sequences=[s['sequence'] for s in prior], question_hash=digest(normalized))
         self.say(role, question, phase=phase)
         answer = self.respond("patient", {"action": "answer", "question": question,
                 "patient_memory": self.case["patient_initial"],
@@ -741,6 +892,8 @@ class _Execution:
         if answer.get("action") != "answer":
             raise WorkflowFailure("patient response must use action=answer")
         self.say("patient", answer.get("text"), phase=phase)
+        if self.scenario_conditions:
+            self.activity('patient', 'patient_answer')
         memory_ids = {f["fact_id"] for f in self.case["patient_initial"]["patient_facts"]}
         expressed = answer.get("expressed_fact_ids", [])
         if not isinstance(expressed, list):
@@ -752,7 +905,12 @@ class _Execution:
 
     def inquiry(self, role, action, limit, *, phase, family=None, prior_summary=None):
         turn = 0
-        while turn <= limit:
+        window = limit
+        while self.continuous or turn <= limit:
+            if self.continuous and turn >= limit:
+                limit += window
+                self.event('work_window_extended', work_type='inquiry', phase=phase,
+                           cumulative_used=turn, window_size=window, allocated_through=limit)
             # A physician receives the persisted handoff, not the collector's hidden
             # original conversation. Missing handoff information must be re-elicited.
             conversation = self.physician_transcript() if role == "doctor" else deepcopy(self.transcript)
@@ -789,6 +947,22 @@ class _Execution:
 
     def preconsult(self, condition):
         flow, family = condition.workflow, condition.model_family
+        if self.scenario_conditions:
+            if flow == 'direct_consultation':
+                self.handoff = None
+                self.result['artifacts']['final_handoff'] = None
+                self.event('preconsult_skipped', condition=condition.to_dict())
+                return
+            report = self.inquiry('preconsult_ai', 'collect', self.runner.limits['preconsult_turns'],
+                                  phase='preconsult_collection', family=family)
+            self.result['artifacts'].update(initial_summary=deepcopy(report), final_handoff=deepcopy(report))
+            self.pending_report = report
+            self.perform('handoff.save', {'artifact_id': self.prefix + ':handoff',
+                                         'content': report, 'version': 1}, 'preconsult_ai')
+            self.event('preconsult_completed', final_handoff_hash=digest(report), condition=condition.to_dict())
+            if flow == 'report_before_consultation':
+                self.read_preconsult_report('before_consultation')
+            return
         role = "nurse" if flow == "nurse_only" else "preconsult_ai"
         first = self.inquiry(role, "collect", self.runner.limits["preconsult_turns"],
                              phase="preconsult_collection", family=family)
@@ -815,12 +989,35 @@ class _Execution:
         self.event("preconsult_completed", final_handoff_hash=digest(first),
                    physician_verified_hash=digest(verified), condition=condition.to_dict())
 
+    def read_preconsult_report(self, timing):
+        saved = self.perform('handoff.read', {'artifact_id': self.prefix + ':handoff'},
+                             'doctor', write=False).get('content')
+        if saved != self.pending_report:
+            raise WorkflowFailure('Preconsultation report read-back mismatch')
+        self.handoff = deepcopy(saved)
+        self.activity('doctor', 'report_reading')
+        self.report_preparation = self.respond('doctor', {'action': 'prepare_consultation',
+            'handoff': deepcopy(saved), 'hospital_history': deepcopy(self.history),
+            'conversation': self.physician_transcript()}, phase='report_reading_' + timing)
+        self.result['artifacts']['report_preparation'] = deepcopy(self.report_preparation)
+        self.result['artifacts']['physician_read_handoff'] = deepcopy(saved)
+        self.event('preconsult_report_read', timing=timing, report_hash=digest(saved),
+                   physician_dialogue_segments=len(self.physician_transcript()))
+
     def clinical_context(self):
-        return {"hospital_history": deepcopy(self.history), "handoff": deepcopy(self.handoff),
+        context = {"hospital_history": deepcopy(self.history), "handoff": deepcopy(self.handoff),
                 "current_encounter_measurements": deepcopy(self.current_measurement_panel),
                 "consultation": deepcopy(self.consultation_record), "conversation": self.physician_transcript()}
+        if self.pending_clinical_work is not None:
+            context['pending_clinical_work'] = deepcopy(self.pending_clinical_work)
+        assessments = self.result['artifacts'].get('focused_assessments')
+        if assessments:
+            context['completed_physician_assessments'] = deepcopy(assessments)
+        return context
 
     def prepare_rule_context(self, context):
+        if self.scenario_conditions:
+            return deepcopy(context)
         prepare = getattr(self.runner.pprs, "prepare_context", None)
         if prepare is None:
             return deepcopy(context)
@@ -867,7 +1064,7 @@ class _Execution:
                 raise WorkflowFailure("invalid current measurement panel readback")
             panel = {"records": [], "source_section": "current_observations",
                 "source_operation": "history.query", "readback_verified": True,
-                "available_at": "physician_consultation", "observed_at": _utc(),
+                "available_at": "physician_consultation", "observed_at": self.observation_time('current_measurement_panel'),
                 "queried_after_sequence": self.transcript[-1]["sequence"] if self.transcript else 0,
                 "time_basis": deepcopy(page.get("time_basis")),
                 "unshown_is_not_absent": True, "withheld_or_oversize_returned_records": 0,
@@ -890,33 +1087,43 @@ class _Execution:
                 readback_verified=True, manual_history_query_budget_consumed=False,
                 withheld_or_oversize_returned_records=panel["withheld_or_oversize_returned_records"])
 
-    def consult(self):
-        self.consultation_interactions_used=0
-        self.begin_consultation()
+    def consult(self, *, resume=False):
+        if not resume:
+            self.consultation_interactions_used=0
+            self.begin_consultation()
         # A short visit still has a direct physician exchange. The opening
         # question is a common clinic protocol; the patient generates its answer.
         if not self.physician_transcript():
             self.activity("doctor", "diagnostic")
-            self.ask_patient("doctor", CONSULTATION_DIALOGUE_POLICY["opening_question"], "consultation")
+            opening = ('请用你自己的话说说，今天最想解决什么问题？'
+                       if self.scenario_conditions else CONSULTATION_DIALOGUE_POLICY['opening_question'])
+            self.ask_patient("doctor", opening, "consultation")
             self.event("standard_consultation_opening_completed",
-                       policy=CONSULTATION_DIALOGUE_POLICY["version"])
+                       policy=scenario_design.VERSION if self.scenario_conditions else CONSULTATION_DIALOGUE_POLICY['version'])
+        if (not resume and self.scenario_conditions and self.scenario_conditions['preconsult'].workflow
+                == 'report_during_consultation'):
+            self.read_preconsult_report('during_consultation')
         draft_prefix_length = 0
         if self.realtime_condition is not None:
             prefix = self.physician_transcript()[:2]
             self.documentation(self.realtime_condition, prefix, {}, {}, finalize=False)
             draft_prefix_length = len(prefix)
-        turn = 0
-        while turn <= self.runner.limits["consultation_turns"]:
+        turn = self.consultation_interactions_used
+        while self.continuous or turn <= self.runner.limits["consultation_turns"]:
             self.consultation_interactions_used=turn
-            response = self.respond("doctor", {"action": "consult", **self.clinical_context(),
+            observation = {"action": "consult", **self.clinical_context(),
                 "formulary": deepcopy(self.case["formulary"]),
                 "diagnosis_catalogue": deepcopy(self.diagnosis_catalogue),
                 "remaining_history_queries": self.history_queries_remaining("consultation"),
-                "remaining_interactions": self.runner.limits["consultation_turns"]-turn}, phase="consultation")
+                "remaining_interactions": self.work_limit('consultation_turns', turn)-turn}
+            response = self.prescribing_response(observation) if self.scenario_conditions else self.respond(
+                'doctor', observation, phase='consultation')
+            turn = self.consultation_interactions_used
             if response.get("action") == "read_history":
                 self.read_history(response, "consultation")
                 continue
             if response.get("action") == "consultation_complete":
+                response = self.resolve_diagnosis_coding(response)
                 normalized, code_changes = canonicalize(response.get('diagnoses'), self.diagnosis_catalogue)
                 if code_changes:
                     original = deepcopy(response)
@@ -940,7 +1147,7 @@ class _Execution:
                 # staff service before returning new findings to this physician.
                 # The bounded service deduplicates its request, so an unchanged
                 # no-Rx answer is never repeatedly sampled until it becomes Rx.
-                if not candidate['items'] and self.runner.close_prescription_loop:
+                if not candidate['items'] and self.runner.close_prescription_loop and not self.scenario_conditions:
                     prior_services = deepcopy((self.consultation_record or {}).get('in_hospital_services', []))
                     self.consultation_record = deepcopy(response)
                     if prior_services:
@@ -960,10 +1167,14 @@ class _Execution:
                             same_encounter=True, clinical_decision_changed_by_runtime=False)
                         continue
                 prior_services = deepcopy((self.consultation_record or {}).get('in_hospital_services', []))
+                prior_followups = deepcopy((self.consultation_record or {}).get('prescription_review_followups', []))
                 self.consultation_record = deepcopy(response)
                 if prior_services:
                     self.consultation_record['in_hospital_services'] = prior_services
+                if prior_followups:
+                    self.consultation_record['prescription_review_followups'] = prior_followups
                 self.result["artifacts"]["consultation"] = deepcopy(response)
+                self.result['artifacts'].setdefault('consultation_versions', []).append(deepcopy(response))
                 diagnoses_mapped = True
                 if self.diagnosis_catalogue:
                     diagnoses = response.get("diagnoses")
@@ -999,7 +1210,7 @@ class _Execution:
                                clinical_appropriateness="not_assessed_outside_programmatic_scope")
                 self.result["artifacts"]["prescription_eligibility"] = eligibility
                 return response
-            if response.get("action") != "ask" or turn >= self.runner.limits["consultation_turns"]:
+            if response.get("action") != "ask" or (not self.continuous and turn >= self.runner.limits["consultation_turns"]):
                 raise WorkflowFailure("consultation did not finish within the declared limit")
             self.activity("doctor", "diagnostic")
             self.ask_patient("doctor", response.get("question"), "consultation")
@@ -1011,7 +1222,148 @@ class _Execution:
                     self.documentation(self.realtime_condition, prefix[:draft_prefix_length], {}, {}, finalize=False)
         raise AssertionError("unreachable consultation")
 
+    def resolve_diagnosis_coding(self, response):
+        if not response.get('diagnoses'):
+            return response
+        result=deepcopy(response)
+        for attempt in self.work_steps('diagnosis_coding_returns'):
+            diagnoses=result['diagnoses']
+            if (not isinstance(diagnoses,list) or any(not isinstance(d,dict)
+                    or not all(isinstance(d.get(k),str) and d[k] for k in ('code','system'))
+                    for d in diagnoses)):
+                raise WorkflowFailure('Structured diagnosis lookup requires explicit code/system pairs')
+            normalized,_=canonicalize(diagnoses,self.diagnosis_catalogue)
+            if all_mapped(normalized,self.diagnosis_catalogue):return result
+            known={(d['system'],d['code']) for d in self.diagnosis_catalogue}
+            requested=[{'code':d['code'],'system':d['system']} for d in normalized
+                       if (d.get('system'),d.get('code')) not in known]
+            receipt={'items':[],'unmapped':[],'coding_candidates':[]}
+            for offset in range(0,len(requested),32):
+                page=self.perform('diagnosis.catalogue',{'codes':requested[offset:offset+32]},'doctor',write=False)
+                receipt['items'].extend(page.get('items',[]))
+                receipt['unmapped'].extend(page.get('unmapped',[]))
+                receipt['coding_candidates'].extend(page.get('coding_candidates',[]))
+            candidates=[item for group in receipt['coding_candidates'] for item in group['matches']]
+            for item in receipt['items']+candidates:
+                if (item['system'],item['code']) not in known:
+                    self.diagnosis_catalogue.append(deepcopy(item))
+                    known.add((item['system'],item['code']))
+            normalized,_=canonicalize(diagnoses,self.diagnosis_catalogue)
+            self.event('diagnosis_codes_looked_up',requested=requested,
+                returned=deepcopy(receipt.get('items',[])),unmapped=deepcopy(receipt.get('unmapped',[])),
+                coding_candidates=deepcopy(receipt['coding_candidates']),
+                clinical_decision_changed=False)
+            if all_mapped(normalized,self.diagnosis_catalogue):return result
+            if not self.continuous and attempt>=self.runner.limits['diagnosis_coding_returns']:
+                raise WorkflowFailure('Physician diagnosis remains outside the configured source vocabulary after coding return')
+            self.activity('doctor','history_lookup')
+            correction=self.respond('doctor',{'action':'resolve_diagnosis_coding',
+                'consultation':deepcopy(result),'diagnosis_catalogue':deepcopy(self.diagnosis_catalogue),
+                'lookup_feedback':deepcopy(receipt),'remaining_coding_returns':
+                    self.work_limit('diagnosis_coding_returns', attempt)-attempt},phase='diagnosis_coding')
+            record={'original_diagnoses':deepcopy(diagnoses),'physician_response':deepcopy(correction),
+                    'prescription_changed_by_runtime':False}
+            self.result['artifacts'].setdefault('diagnosis_coding_returns',[]).append(record)
+            corrected=correction['diagnoses']
+            if (len(corrected)!=len(diagnoses) or any(
+                    any(old.get(k)!=new.get(k) for k in ('primary','certainty'))
+                    for old,new in zip(diagnoses,corrected))):
+                raise WorkflowFailure('A coding return cannot change the number, order or clinical status of diagnoses')
+            result['diagnoses']=[{**deepcopy(old),**{k:new[k] for k in ('code','display','system')}}
+                                  for old,new in zip(diagnoses,corrected)]
+        raise AssertionError('unreachable coding return')
+
+    def prescribing_response(self, observation):
+        condition = self.scenario_conditions['prescription']
+        observation = deepcopy(observation)
+        if self.report_preparation is not None:
+            observation['report_preparation'] = deepcopy(self.report_preparation)
+        if condition.workflow == 'ai_first_prescribing':
+            observation['action'] = 'assess'
+        assessment = self.respond('doctor', observation, phase='consultation')
+        if assessment.get('action') in {'ask', 'read_history'}:
+            return assessment
+        if condition.workflow != 'ai_first_prescribing':
+            self.activity('doctor', 'prescription_drafting')
+            initial = deepcopy(assessment['prescription'])
+        else:
+            initial = None
+        record = {'condition': condition.to_dict(), 'assessment': deepcopy(assessment),
+                  'physician_initial_prescription': initial}
+        self.result['artifacts'].setdefault('prescribing_attempts', []).append(record)
+        if condition.workflow == 'physician_prescribing' or (initial is not None and not initial['items']):
+            record['physician_final_prescription'] = deepcopy(initial)
+            self.event('prescribing_completed', condition=condition.to_dict(),
+                       attempt=len(self.result['artifacts']['prescribing_attempts']),
+                       final_prescription_hash=digest(initial), ai_used=False)
+            return assessment
+        source = {**self.clinical_context(), 'consultation': deepcopy(assessment)}
+        action = 'draft_prescription' if initial is None else 'advise_prescription'
+        ai = self.respond('rx_ai', {'action': action, 'clinical_context': source,
+            'prescription': deepcopy(initial), 'formulary': deepcopy(self.case['formulary'])},
+            phase='prescribing_ai', family=condition.model_family)
+        record['ai_response'] = deepcopy(ai)
+        candidate = deepcopy(ai['prescription' if initial is None else 'suggested_prescription'])
+        if candidate['items']:
+            validate_prescription(candidate)
+        self.activity('doctor', 'prescribing_ai_review')
+        while True:
+            finalized = self.respond('doctor', {'action': 'finalize_prescription',
+                'clinical_context': {**self.clinical_context(), 'consultation': deepcopy(assessment)},
+                'physician_initial_prescription': deepcopy(initial), 'ai_response': deepcopy(ai),
+                'candidate_prescription': deepcopy(candidate), 'formulary': deepcopy(self.case['formulary']),
+                'diagnosis_catalogue': deepcopy(self.diagnosis_catalogue),
+                'remaining_history_queries': self.history_queries_remaining('consultation'),
+                'remaining_interactions': self.work_limit('consultation_turns', self.consultation_interactions_used) - self.consultation_interactions_used},
+                phase='prescribing_finalization')
+            if finalized.get('action') == 'read_history':
+                self.read_history(finalized, 'consultation')
+            elif finalized.get('action') == 'ask':
+                if not self.continuous and self.consultation_interactions_used >= self.runner.limits['consultation_turns']:
+                    raise WorkflowFailure('Prescribing clarification exceeded the shared consultation question limit')
+                self.activity('doctor', 'diagnostic')
+                self.ask_patient('doctor', finalized['question'], 'consultation')
+                self.consultation_interactions_used += 1
+            else:
+                break
+        if finalized['decision'] == 'accept' and finalized['prescription'] != candidate:
+            raise WorkflowFailure('Accept must retain the AI candidate unchanged; use revise for a changed prescription')
+        if finalized['prescription']['items']:
+            validate_prescription(finalized['prescription'])
+        if finalized['decision'] == 'revise':
+            self.activity('doctor', 'prescription_revision')
+        record['physician_finalization'] = deepcopy(finalized)
+        record['physician_final_prescription'] = deepcopy(finalized['prescription'])
+        completed = {**deepcopy(assessment), 'action': 'consultation_complete',
+                     'prescription': deepcopy(finalized['prescription']),
+                     'plan': deepcopy(finalized.get('plan', finalized['reason'])),
+                     'prescribing_decision': deepcopy(finalized)}
+        for field in ('assessment', 'plan', 'diagnoses', 'medication_reconciliation', 'allergy_assessment'):
+            if field in finalized:
+                completed[field] = deepcopy(finalized[field])
+        if finalized['decision'] in {'no_prescription', 'defer'}:
+            completed['no_prescription_reason'] = finalized['reason']
+        else:
+            completed.pop('no_prescription_reason', None)
+        self.event('prescribing_completed', condition=condition.to_dict(),
+                   attempt=len(self.result['artifacts']['prescribing_attempts']),
+                   final_prescription_hash=digest(finalized['prescription']), ai_used=True)
+        return completed
+
     def review_prescription(self, prescription, condition, context, revision):
+        if self.scenario_conditions:
+            self.activity('pharmacist', 'prescription_review')
+            pharmacist = self.respond('pharmacist', {'action': 'review_prescription',
+                'prescription': deepcopy(prescription), 'clinical_context': deepcopy(context),
+                'formulary': deepcopy(self.case['formulary'])}, phase=f'prescription_review_{revision}:common')
+            decision = {'approve': 'approve', 'reject': 'reject', 'flag': 'defer'}[pharmacist['decision']]
+            senior = None
+            review = {'rule_review': None, 'ai_review': None, 'pharmacist_review': pharmacist,
+                'senior_review': senior, 'decision': decision, 'prescription_hash': digest(prescription),
+                'revision': revision, 'condition': condition.to_dict(),
+                'resolution_policy': 'common_pharmacist_review_outpatient_v2'}
+            self.event('prescription_reviewed', **review)
+            return review
         context = self.prepare_rule_context(context)
         rule = self.runner.pprs.review(prescription, context)
         if not isinstance(rule, dict) or rule.get("decision") not in {"pass", "flag", "reject"}:
@@ -1143,12 +1495,13 @@ class _Execution:
             counts_as_new_complete_encounter=False)
 
     def reconcile_in_hospital(self, review, prescription):
-        """A real bounded staff task, not a retry of the same review decision."""
-        if self.in_hospital_reconciliation_requests >= self.runner.limits['in_hospital_reconciliation_requests']:
+        """Complete a factual medication task and return it to the physician."""
+        if not self.continuous and self.in_hospital_reconciliation_requests >= self.runner.limits['in_hospital_reconciliation_requests']:
             return False
         if any(s['requested_review_hash']==digest(review) and s['prescription_hash']==digest(prescription)
                 for s in self.result['artifacts'].get('in_hospital_services',[])):
             return False  # Never repeat the same service to fish for a preferred answer.
+        self.work_limit('in_hospital_reconciliation_requests', self.in_hospital_reconciliation_requests)
         self.in_hospital_reconciliation_requests += 1
         number=self.in_hospital_reconciliation_requests
         phase=f'in_hospital_reconciliation_{number}'
@@ -1160,12 +1513,12 @@ class _Execution:
                 'requested_issues':deepcopy(review),'formulary':deepcopy(self.case['formulary']),
                 'reconciliation_conversation':[deepcopy(s) for s in self.transcript if s.get('phase')==phase],
                 'remaining_history_queries':self.history_queries_remaining(phase),
-                'remaining_interactions':self.runner.limits['reconciliation_turns']-questions_used,
-                'scope':'Provide an in-hospital medication/allergy reconciliation for the physician, not a prescription approval. Use the actual visible chart and patient report; distinguish reported current use, historical orders, unknowns and your assessment. Source research-review status is not itself a clinical information gap. Staff, drug stock and equipment are available here. Do not require an outside referral or invent missing laboratory results. Query or ask only to resolve the named issue.'},phase=phase)
+                'remaining_interactions':self.work_limit('reconciliation_turns', questions_used, scope=phase)-questions_used,
+                'scope':'Provide an in-hospital medication/allergy reconciliation for the physician, not a prescription approval. Use the actual visible chart and patient report; distinguish reported current use, historical orders, unknowns and your assessment. If the named issue requires patient confirmation not yet obtained in the visible dialogue, ask the patient rather than only restating that source metadata is unverified. Read source-recorded diagnoses when a historical indication is unclear. An unknown answer remains unknown. Source research-review status is not itself a clinical information gap. Staff, drug stock and equipment are available here. Do not require an outside referral or invent missing laboratory results. Query or ask only to resolve the named issue.'},phase=phase)
             if answer.get('action')=='read_history':
                 self.read_history(answer,phase,actor_role='pharmacist')
             elif answer.get('action')=='ask':
-                if questions_used >= self.runner.limits['reconciliation_turns']:
+                if not self.continuous and questions_used >= self.runner.limits['reconciliation_turns']:
                     raise WorkflowFailure('In-hospital reconciliation exceeded its declared question budget')
                 self.activity('pharmacist','information_collection')
                 self.ask_patient('pharmacist',answer.get('question'),phase)
@@ -1192,14 +1545,19 @@ class _Execution:
         assert_visible(context)
         if isinstance(context, dict) and "conversation" in context:
             self.verify_physician_transcript(context["conversation"])
-        self.result["artifacts"]["original_prescription"] = deepcopy(original)
+        self.result["artifacts"].setdefault("original_prescription", deepcopy(original))
         versions = self.result["artifacts"].setdefault("prescription_versions", [])
-        parent_order = None
-        parent_native_order = None
+        parent_order = versions[-1]['order_id'] if versions else None
+        parent_native_order = next((v['order_id'] for v in reversed(versions)
+                                    if v.get('native_write_attempted')), None)
         formulary_codes={p['drug_code'] for p in self.case['formulary']}
-        maximum = self.runner.limits["prescription_revisions"] if revise else 0
-        for revision in range(maximum + 1):
-            self.order_id = self.prefix + f":order:{revision}"
+        maximum = self.runner.limits["prescription_revisions"] - len(versions) if revise else 0
+        if maximum < 0 and not self.continuous:
+            raise ClinicalDecisionIncomplete('The encounter prescription revision budget is exhausted; no settlement')
+        for revision in self.work_steps('prescription_revisions') if self.continuous else range(maximum + 1):
+            if self.continuous:
+                maximum = revision + self.work_limit('prescription_revisions', len(versions)) - len(versions)
+            self.order_id = self.prefix + f":order:{len(versions)}"
             unmapped=sorted({i['drug_code'] for i in prescription['items'] if i['drug_code'] not in formulary_codes})
             business_validation={'status':'unmapped_product' if unmapped else 'catalogue_codes_present',
                 'unsupported_codes':unmapped,'clinical_appropriateness':'not_assessed',
@@ -1228,12 +1586,12 @@ class _Execution:
                     native_write_attempted=False,business_validation=deepcopy(business_validation))
             review = self.review_prescription(prescription, condition, context, revision)
             versions.append({"order_id": self.order_id, "parent_order_id": parent_order,
-                             "version": revision+1, "prescription": deepcopy(prescription), "review": review,
+                             "version": len(versions)+1, "prescription": deepcopy(prescription), "review": review,
                              "native_write_attempted": save_native,'native_parent_order_id':parent_native_order,
                              'business_validation':deepcopy(business_validation)})
             if revision == 0:
                 # The scored outcome always belongs to the original candidate, even after successful repair.
-                self.result["artifacts"]["original_prescription_review"] = deepcopy(review)
+                self.result["artifacts"].setdefault("original_prescription_review", deepcopy(review))
             if review["decision"] == "defer":
                 source = next((name for name in ("senior_review", "pharmacist_review", "ai_review", "rule_review")
                                if review.get(name) is not None), "rule_review")
@@ -1255,6 +1613,11 @@ class _Execution:
                     self.result['artifacts'].setdefault('resolved_prescription_adjudications',[]).append({
                         'previous_unresolved_record':prior_unresolved,
                         'resolution_review_hash':digest(review),'resolved_at_revision':revision})
+                prior_pending = self.result['artifacts'].pop('prescription_termination', None)
+                if prior_pending is not None:
+                    self.result['artifacts'].setdefault('resolved_prescription_terminations', []).append({
+                        'previous_pending_record':prior_pending, 'resolution_review_hash':digest(review),
+                        'successor_order_id':self.order_id})
                 if revise:
                     registry = self.perform("personnel.registry", {}, "doctor", write=False)
                     signatory_id = registry.get("signatory_id")
@@ -1269,7 +1632,7 @@ class _Execution:
                     self.prescription_business_state = {
                         "logical_order_id": self.order_id, "status": state["status"],
                         "items": deepcopy(prescription["items"]), "readback_verified": True,
-                        "observed_at": _utc(), "source_operation": "order.attest",
+                        "observed_at": self.observation_time('signed_prescription_'+self.order_id), "source_operation": "order.attest",
                         "signatory_verified_from_registry": True, "registry_version": registry.get("registry_version")}
                     self.result["artifacts"]["prescription_business_state"] = deepcopy(self.prescription_business_state)
                 self.result["artifacts"]["final_prescription"] = deepcopy(prescription)
@@ -1291,7 +1654,7 @@ class _Execution:
                 # A fixed-input review task can validly finish by rejecting its
                 # original candidate; it does not claim a complete encounter.
                 return None
-            if (revision > 0 and review['decision'] == 'defer' and self.runner.close_prescription_loop
+            if ((revision > 0 or self.scenario_conditions) and review['decision'] == 'defer' and self.runner.close_prescription_loop
                     and self.reconcile_in_hospital(review, prescription)):
                 context = self.prepare_rule_context(self.clinical_context())
             self.activity("doctor", "prescription_revision")
@@ -1302,7 +1665,7 @@ class _Execution:
                     "reviews": review, "formulary": self.case["formulary"],
                     "remaining_revisions":maximum-revision,
                     "remaining_history_queries":self.history_queries_remaining('consultation'),
-                    "remaining_interactions":self.runner.limits['consultation_turns']-self.consultation_interactions_used,
+                    "remaining_interactions":self.work_limit('consultation_turns', self.consultation_interactions_used)-self.consultation_interactions_used,
                     "review_state":review['decision'],
                     "followup_scope":(
                         "Respond to the actual review. Read existing chart records or ask the patient within "
@@ -1322,18 +1685,18 @@ class _Execution:
                 if answer.get('action')=='read_history':
                     self.read_history(answer,'consultation')
                 elif answer.get('action')=='ask':
-                    if self.consultation_interactions_used>=self.runner.limits['consultation_turns']:
+                    if not self.continuous and self.consultation_interactions_used>=self.runner.limits['consultation_turns']:
                         raise WorkflowFailure('Prescription follow-up exceeded the shared consultation question limit')
                     self.activity('doctor','diagnostic')
                     self.ask_patient('doctor',answer.get('question'),'consultation')
                     self.consultation_interactions_used+=1
                     self.event('prescription_followup_question',revision=revision,
-                        remaining_interactions=self.runner.limits['consultation_turns']-self.consultation_interactions_used)
+                        remaining_interactions=self.work_limit('consultation_turns', self.consultation_interactions_used)-self.consultation_interactions_used)
                 elif answer.get('decision') in {'defer','retain_rejected'} and self.runner.close_prescription_loop:
                     self.result['artifacts'].setdefault('physician_unresolved_decisions',[]).append({
                         'revision':revision,'response':deepcopy(answer),'response_hash':digest(answer),
                         'routed_to':'in_hospital_reconciliation','not_an_approval':True})
-                    if not self.reconcile_in_hospital(review,prescription):break
+                    if self.continuous or not self.reconcile_in_hospital(review,prescription):break
                 else:break
                 context=self.prepare_rule_context(self.clinical_context())
             if answer.get('decision') == 'defer':
@@ -1378,6 +1741,112 @@ class _Execution:
             parent_order = self.order_id
             if save_native:parent_native_order=self.order_id
         return None
+
+    def record_care_decision(self, consultation):
+        if self.pending_clinical_work is None:
+            return
+        record = self.result['artifacts']['clinical_work_routes'][-1]
+        record.update(status='physician_decision_recorded', response_hash=digest(consultation),
+                      prescription_proposed=bool(consultation['prescription']['items']))
+        self.event('clinical_work_returned_to_physician', work_id=record['work_id'],
+                   response_hash=digest(consultation), prescription_proposed=record['prescription_proposed'])
+        self.pending_clinical_work = None
+
+    def resolve_pending_care(self, clinical_stop):
+        artifacts = self.result['artifacts']
+        termination = artifacts.get('prescription_termination', {})
+        initial_no_rx = (not self.order_id and artifacts.get('prescription_eligibility', {}).get('decision')
+                         == 'no_prescription_issued')
+        review_pending = termination.get('status') in {
+            'physician_deferred_after_review', 'physician_withheld_after_review',
+            'physician_retained_rejected_prescription', 'physician_retained_unapproved_prescription'}
+        if (not self.scenario_conditions or not self.runner.close_prescription_loop
+                or (self.prescription_business_state or {}).get('status') == 'signed'
+                or not (initial_no_rx or review_pending)):
+            return False
+        routes = self.result['artifacts'].setdefault('clinical_work_routes', [])
+        remaining_routes = self.work_limit('care_work_routes', len(routes)) - len(routes)
+        pending_review = deepcopy(termination) if review_pending else None
+        evidence = digest([self.history,self.physician_transcript(),self.current_measurement_panel,
+                           artifacts.get('in_hospital_services',[]), pending_review])
+        self.activity('doctor','diagnostic')
+        request = self.respond('doctor', {'action':'resolve_pending_care', **self.clinical_context(),
+            'reason_for_return':str(clinical_stop),
+            'pending_prescription_review':pending_review,
+            'remaining_interactions':self.work_limit('consultation_turns', self.consultation_interactions_used)-self.consultation_interactions_used,
+            'remaining_history_queries':self.history_queries_remaining('consultation'),
+            'remaining_reconciliation_requests':self.work_limit('in_hospital_reconciliation_requests', self.in_hospital_reconciliation_requests)-self.in_hospital_reconciliation_requests,
+            'remaining_care_work_routes':remaining_routes,
+            'formulary':deepcopy(self.case['formulary']),
+            'available_services':{'patient_questions':True,'existing_chart_queries':True,
+                                  'pharmacist_reconciliation':True,'new_investigation_results':False}},
+            phase='clinical_work_routing')
+        action = request['action']
+        record = {'work_id':f'{self.prefix}:clinical-work:{len(routes)+1}',
+            'requested_by':'doctor','return_to':'doctor','request':deepcopy(request),
+            'evidence_hash':evidence,'status':'requested','clinical_decision_changed_by_runtime':False}
+        routes.append(record)
+        if action in {'confirm_no_prescription','request_investigation'}:
+            record.update(owner='doctor' if action=='confirm_no_prescription' else 'diagnostic_service',
+                status='physician_confirmed_no_prescription' if action=='confirm_no_prescription' else 'required_service_not_implemented')
+            self.event('clinical_work_not_completed', work=deepcopy(record))
+            return False
+        if action=='resume_assessment':
+            key=('doctor',evidence)
+            if key in self.clinical_work_evidence:
+                self.event('repeated_care_request', role='doctor', work_id=record['work_id'],
+                           evidence_hash=evidence, request_hash=digest(request))
+            self.clinical_work_evidence.add(key)
+            record.update(owner='doctor',status='awaiting_physician_assessment')
+            self.complete_focused_assessment(record)
+        elif action=='ask':
+            self.activity('doctor','diagnostic')
+            self.ask_patient('doctor',request['question'],'consultation')
+            self.consultation_interactions_used += 1
+            record.update(owner='patient',status='patient_answer_observed')
+        elif action=='read_history':
+            self.read_history(request,'consultation')
+            record.update(owner='hospital_history',status='chart_response_observed')
+        elif action=='request_medication_reconciliation':
+            review={'decision':'defer','source':'physician_requested_medication_information',
+                    'reason':request['reason'],'issues':deepcopy(request['issues'])}
+            if not self.reconcile_in_hospital(review,{'items':[]}):
+                record.update(owner='pharmacist',status='reconciliation_not_completed')
+                return False
+            record.update(owner='pharmacist',status='reconciliation_observed')
+        else:
+            raise WorkflowFailure('Unsupported physician care-work action')
+        self.pending_clinical_work = {'work_id':record['work_id'],'owner':'doctor',
+            'task':request.get('work') or request.get('reason'),
+            'service_request':deepcopy(request),'return_from':record['owner'],
+            'pending_prescription_review':pending_review}
+        self.event('clinical_work_routed',work=deepcopy(record),same_encounter=True)
+        return True
+
+    def complete_focused_assessment(self, record):
+        while True:
+            self.activity('doctor', 'diagnostic')
+            response = self.respond('doctor', {
+                'action': 'assess_pending_care', **self.clinical_context(),
+                'assigned_work': deepcopy(record['request']),
+                'pending_prescription_review': deepcopy(self.result['artifacts'].get('prescription_termination')),
+                'remaining_interactions': self.work_limit('consultation_turns', self.consultation_interactions_used)-self.consultation_interactions_used,
+                'remaining_history_queries': self.history_queries_remaining('consultation')},
+                phase='focused_physician_assessment')
+            if response['action'] == 'ask':
+                self.ask_patient('doctor', response['question'], 'consultation')
+                self.consultation_interactions_used += 1
+            elif response['action'] == 'read_history':
+                self.read_history(response, 'consultation')
+            else:
+                assessment = {'work_id': record['work_id'], 'owner': 'doctor',
+                    'response': deepcopy(response), 'response_hash': digest(response),
+                    'source': 'actual_physician_assessment_not_new_measurement'}
+                self.result['artifacts'].setdefault('focused_assessments', []).append(assessment)
+                record.update(status='assessment_completed', assessment_hash=digest(assessment))
+                self.event('focused_assessment_completed', work_id=record['work_id'],
+                           response_hash=digest(response), unresolved_issues=len(response['unresolved_issues']))
+                return
 
     def document_clinical_disposition(self, condition, clinical_stop):
         """Write the actual non-prescribing decision without completing/charging the chain."""
@@ -1461,6 +1930,37 @@ class _Execution:
         manual = condition.workflow == "manual_documentation"
         chunk = self.runner.limits["realtime_chunk_segments"]
         replay = condition.workflow == "realtime" and finalize and self.realtime_condition is None
+        brief = None
+        addendum = None
+        if condition.workflow == 'brief_to_note':
+            self.activity('doctor', 'brief_documentation')
+            brief = self.respond('doctor', {'action': 'write_brief', 'transcript': deepcopy(transcript),
+                'hospital_history': deepcopy(self.history), 'handoff': deepcopy(self.handoff),
+                'current_encounter_measurements': deepcopy(self.current_measurement_panel),
+                'consultation': deepcopy(consultation), 'approved_prescription': deepcopy(prescription),
+                'observed_business_state': {'prescription': deepcopy(self.prescription_business_state)}},
+                phase='documentation_brief')['content']
+            if not set(brief.get('source_sequences', [])) <= set(sequences):
+                raise WorkflowFailure('Clinical brief cites unavailable dialogue sequences')
+            self.result['artifacts']['clinical_brief'] = deepcopy(brief)
+        elif self.scenario_conditions is not None and condition.workflow == 'postvisit':
+            self.activity('doctor', 'note_supplementation')
+            addendum = self.respond('doctor', {'action': 'dictate_addendum',
+                'transcript': deepcopy(transcript), 'hospital_history': deepcopy(self.history),
+                'current_encounter_measurements': deepcopy(self.current_measurement_panel),
+                'consultation': deepcopy(consultation), 'approved_prescription': deepcopy(prescription),
+                'observed_business_state': {'prescription': deepcopy(self.prescription_business_state)}},
+                phase='documentation_addendum')['content']
+            if not set(addendum.get('source_sequences', [])) <= set(sequences):
+                raise WorkflowFailure('Physician addendum cites unavailable dialogue sequences')
+            self.result['artifacts']['clinical_addendum'] = deepcopy(addendum)
+        if self.scenario_conditions is not None:
+            self.result['artifacts']['documentation_source_policy'] = {
+                'version': 'dictation_and_dialogue_v1', 'workflow': condition.workflow,
+                'transcription': 'assumed_accurate_text',
+                'physician_summary': brief is not None,
+                'physician_addendum': addendum is not None,
+                'full_dialogue_to_ai': not manual and brief is None}
         # An interim draft may contain the same dialogue as the final draft in
         # a short visit, but only the latter sees the final decision and order.
         stops = ([(n, False) for n in range(2, len(transcript) + 1, chunk)]
@@ -1487,12 +1987,26 @@ class _Execution:
                           "future_information_required": False},
                       "observed_business_state": {"prescription": deepcopy(self.prescription_business_state) if final else None},
                       "clinical_disposition": deepcopy(self.clinical_disposition) if final else None,
+                      "clinical_addendum": deepcopy(addendum),
                       "consultation": consultation if final else None,
                       "approved_prescription": prescription if final else None}
             role = "doctor" if manual else "scribe"
             if manual:
                 self.activity(role, "documentation")
-            draft = self.respond(role, {"action": "document", **source, "previous_draft": content,
+            writing_source = deepcopy(source)
+            if not manual and self.scenario_conditions is not None:
+                writing_source.update(consultation=None, handoff=None)
+                writing_source['allowed_source_scope'].update(
+                    consultation_available=False, consultation_and_signed_prescription_available=False)
+            if brief is not None:
+                writing_source.update(transcript=[], clinical_brief=deepcopy(brief),
+                                      input_mode='physician_dictation_and_clinical_records')
+                writing_source['allowed_source_scope'].update(
+                    source_sequences=deepcopy(brief['source_sequences']), full_transcript_available=False)
+            elif addendum is not None:
+                writing_source.update(input_mode='encounter_transcript_and_physician_addendum')
+                writing_source['allowed_source_scope']['full_transcript_available'] = True
+            draft = self.respond(role, {"action": "document", **writing_source, "previous_draft": content,
                                       "is_final_prefix": final}, phase=f"documentation_draft_{stop}",
                                   family=condition.model_family)
             content = draft.get("content")
@@ -1510,37 +2024,55 @@ class _Execution:
                                  "source_sequences": [x["sequence"] for x in prefix], "reason": reason})
             save(content, role, "initial_draft" if not versions else "incremental_generation")
             accepted = False
-            for review_index in range(self.runner.limits["max_note_revisions"] + 1):
+            for review_index in self.work_steps('max_note_revisions', scope=stop):
                 self.activity("doctor", "note_review")
-                review = self.respond("doctor", {"action": "review_note", **source,
+                finalization = self.scenario_conditions is not None
+                review = self.respond("doctor", {"action": "finalize_note" if finalization else "review_note", **source,
                     "content": content, "version": version,
-                    "remaining_note_revisions": self.runner.limits["max_note_revisions"] - review_index,
+                    "remaining_note_revisions": self.work_limit('max_note_revisions', review_index, scope=stop) - review_index,
                     "current_note_identity": {"version": version, "content_hash": digest(content)},
-                    "review_context_policy": deepcopy(NOTE_REVIEW_CONTEXT_POLICY),
+                    "review_context_policy": deepcopy(NOTE_FINALIZATION_POLICY if finalization else NOTE_REVIEW_CONTEXT_POLICY),
                     "previous_review_index": [{k: deepcopy(r[k]) for k in
                         ("reviewed_version", "content_hash", "source_sequences", "is_final_prefix")}
                         for r in self.note_review_history]}, phase=f"note_review_{stop}_{review_index}")
                 review_record = {"reviewed_version": version, "content_hash": digest(content),
                     "source_sequences": [x["sequence"] for x in prefix], "is_final_prefix": final,
-                    "decision": review.get("decision"), "reason": review.get("reason")}
+                    "decision": review.get("decision"), "reason": review.get("reason"),
+                    **({'finalized': review.get('finalized')} if finalization else {})}
                 self.note_review_history.append(deepcopy(review_record))
                 self.result["artifacts"].setdefault("note_reviews", []).append({
                     **review_record, "response": deepcopy(review), "revision_saved": False})
                 if review.get("decision") == "accept":
                     accepted = True
                     break
+                if review.get('decision') == 'reject' and self.continuous:
+                    self.event('note_returned_for_revision', role='doctor', version=version,
+                               content_hash=digest(content), review_hash=digest(review))
+                    self.activity('doctor', 'note_rework')
+                    revised = self.respond('doctor', {'action': 'document', **source,
+                        'previous_draft': deepcopy(content), 'revision_request': deepcopy(review)},
+                        phase=f'note_rewrite_{stop}_{review_index}')
+                    content = revised['content']
+                    save(content, 'doctor', 'physician_rewrite_after_rejection')
+                    continue
                 if review.get("decision") != "revise" or not isinstance(review.get("content"), dict):
                     raise WorkflowFailure("physician rejected note or returned an invalid review")
                 content = review["content"]
                 if not isinstance(content.get("text"), str):
                     raise WorkflowFailure("note revision requires text")
-                if review_index >= self.runner.limits["max_note_revisions"]:
+                if (not self.continuous and review_index >= self.runner.limits["max_note_revisions"]
+                        and not (finalization and review.get('finalized') is True)):
                     # Keep the proposed text in the response audit, but do not
                     # create a business version that cannot receive its review.
                     break
                 self.activity("doctor", "note_rework")
                 save(content, "doctor", "physician_revision")
                 self.result["artifacts"]["note_reviews"][-1]["revision_saved"] = True
+                if finalization and review.get('finalized') is True:
+                    accepted = True
+                    self.event('physician_corrected_note_finalized', version=version,
+                               content_hash=digest(content), source='explicit_physician_finalization')
+                    break
             if not accepted:
                 raise WorkflowFailure("note review limit exhausted without acceptance")
         self.note_state = {"version": version, "content": deepcopy(content)}
@@ -1566,6 +2098,7 @@ class _Execution:
         self.result["artifacts"]["settlement"] = {"bill": bill, "payment": paid, "simulated": True}
 
     def execute(self, function, *, conditions, complete=True):
+        from .continuation import EncounterDeferred
         start = time.monotonic()
         self.result["conditions"] = conditions
         self.result["evaluation_unit"] = "complete_encounter" if complete else "fixed_input_task"
@@ -1587,12 +2120,18 @@ class _Execution:
             raise
         except Exception as exc:
             # Account/budget stops do not establish a clinical decision.
-            status = ("stopped_budget" if type(exc).__name__ == "BudgetExceeded" else
+            status = ('waiting_retry' if isinstance(exc, EncounterDeferred) else
+                      "stopped_budget" if type(exc).__name__ == "BudgetExceeded" else
                       "stopped_provider" if type(exc).__name__ == "ProviderUnavailable" else
                       "incomplete_clinical_decision" if isinstance(exc, ClinicalDecisionIncomplete) else "failed")
             self.result.update(status=status, workflow_complete=False,
                                error_type=type(exc).__name__, failure_reason=str(exc)[:1000])
-            self.event("run_failed", error_type=type(exc).__name__, reason=str(exc)[:1000])
+            if isinstance(exc, EncounterDeferred):
+                self.result['provider_interruption'] = deepcopy(exc.issue)
+                self.event('provider_retry_queued', issue=deepcopy(exc.issue), same_encounter=True,
+                           verified_complete=False, queue_position='tail')
+            else:
+                self.event("run_failed", error_type=type(exc).__name__, reason=str(exc)[:1000])
         finally:
             followthrough=self.result['artifacts'].get('prescription_followthrough')
             if followthrough and followthrough.get('status')=='running':
@@ -1600,6 +2139,22 @@ class _Execution:
                     drug_payment_completed=False)
             self.result.update(ended_at=_utc(), wall_seconds=time.monotonic()-start,
                                call_count=len(self.calls), activity_count=len(self.activities))
+            if self.runner.continuation:
+                self.result['continuation'] = {key: deepcopy(self.runner.continuation.data[key])
+                    for key in ('policy', 'segments', 'interruptions', 'started_at')}
+                self.result['wall_seconds'] = (datetime.now(timezone.utc)-datetime.fromisoformat(
+                    self.runner.continuation.data['started_at'])).total_seconds()
+                issues = self.result.setdefault('workflow_issues', [])
+                for interruption in self.runner.continuation.data['interruptions']:
+                    issue_id = digest([self.context['run_id'], 'provider', interruption['number']])[:24]
+                    existing = next((i for i in issues if i['issue_id'] == issue_id), None)
+                    if existing is None:
+                        existing = {'issue_id': issue_id, **deepcopy(self.context),
+                            'event_class':'model_execution', 'code':'provider_interruption', 'owner':'dispatcher',
+                            'review_status':'not_reviewed', 'clinical_validity_inferred':False}
+                        issues.append(existing)
+                    existing.update({k: deepcopy(interruption[k]) for k in
+                        ('status', 'reason_code', 'request_id', 'occurred_at', 'resolved_at', 'entry_position')})
             self.result["history_query_counts"] = deepcopy(self.history_query_counts)
             if self.history is not None:
                 self.result["history_coverage"] = {
@@ -1607,8 +2162,8 @@ class _Execution:
                     "queried_page_count": len(self.history["queried_pages"]),
                     "retained_record_refs": sorted({record["record_ref"]
                         for entry in self.history["queried_pages"] for record in entry["page"]["records"]}),
-                    "budget_exhausted_phases": [phase for phase in self.history_query_counts
-                                               if self.history_queries_remaining(phase) == 0],
+                    "budget_exhausted_phases": [phase for phase, used in self.history_query_counts.items()
+                                               if not self.continuous and used >= self.runner.limits['history_queries_per_phase']],
                     "unread_page_cursors": [{"section": entry["page"]["section"],
                         "next_offset": entry["page"]["next_offset"]} for entry in self.history["queried_pages"]
                         if entry["page"].get("next_offset") is not None],
@@ -1617,6 +2172,10 @@ class _Execution:
             self.result["activities"] = deepcopy(self.activities)
             self.result["events"] = deepcopy(self.events)
             self.result["calls"] = deepcopy(self.calls)
+            from .workflow_events import summarize
+            self.result['workflow_event_summary'] = summarize(self.result.get('workflow_issues', []), self.events)
+            if self.scenario_conditions:
+                self.result['measurements'] = scenario_design.measurements(self.result)
             self.write()
         return deepcopy(self.result)
 
@@ -1634,6 +2193,15 @@ class _Execution:
                    "config_id", "conditions", "status", "evaluation_unit", "native_complete", "call_count",
                    "wall_seconds", "timing_source")}
         summary["clinical_quality"] = self.result["clinical_quality"]
+        summary['workflow_event_summary'] = deepcopy(self.result['workflow_event_summary'])
+        summary['workflow_issues'] = [{k: v for k, v in issue.items() if k in {
+            'issue_id', 'event_class', 'code', 'owner', 'status', 'review_status',
+            'source_event_sequence', 'source_execution_segment', 'resolution_event_sequence',
+            'resolution_execution_segment', 'workflow_endpoint_observed'}}
+            for issue in self.result.get('workflow_issues', [])]
+        if self.scenario_conditions:
+            summary['scenario_design'] = scenario_design.VERSION
+            summary['measurements'] = deepcopy(self.result['measurements'])
         summary["note_review_policy"] = self.result["note_review_policy"]
         summary["current_measurement_policy"] = self.result["current_measurement_policy"]
         summary["response_contract_policy"] = self.result["response_contract_policy"]

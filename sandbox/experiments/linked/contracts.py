@@ -6,13 +6,23 @@ import json
 
 
 MODEL_FAMILIES = ("deepseek", "glm")
+RUNTIME_CASE_FIELDS = ("case_id", "patient_key", "group", "data_kind", "split",
+                       "patient_initial", "his_initial", "formulary")
+RUNTIME_CASE_REQUIRED_FIELDS = ("case_id", "patient_key", "data_kind", "patient_initial",
+                                "his_initial", "formulary")
+PRESCRIPTION_ITEM_REQUIRED_FIELDS = ("drug_code", "dose", "dose_unit", "route", "frequency",
+                                     "quantity", "quantity_unit")
 SUPPORTED_MODEL_CONDITIONS = MODEL_FAMILIES + ('glm51','glm52','panguflash','pangupro','qwen32b','qwen30b','kimi26','tool_a','tool_b')
-WORKFLOWS = {
+LEGACY_WORKFLOWS = {
     "preconsult": ("nurse_only", "ai_only", "ai_nurse_review"),
     "prescription": ("pprs_baseline", "sequential", "parallel"),
     "documentation": ("manual_documentation", "realtime", "postvisit"),
 }
-BASELINES = {"nurse_only", "pprs_baseline", "manual_documentation"}
+from .scenario_design import WORKFLOWS as SCENARIO_WORKFLOWS, BASELINES as SCENARIO_BASELINES
+
+WORKFLOWS = {task: tuple(dict.fromkeys((*flows, *SCENARIO_WORKFLOWS[task])))
+             for task, flows in LEGACY_WORKFLOWS.items()}
+BASELINES = {"nurse_only", "pprs_baseline", "manual_documentation"} | SCENARIO_BASELINES
 
 
 def digest(value):
@@ -49,7 +59,7 @@ def paper_conditions(task=None, model_families=None):
     if len(families) not in (1,2) or len(set(families))!=len(families) or any(f not in SUPPORTED_MODEL_CONDITIONS for f in families):
         raise ValueError('Declare one fixed AI tool or two distinct legacy tool conditions')
     conditions = []
-    for name, flows in WORKFLOWS.items():
+    for name, flows in LEGACY_WORKFLOWS.items():
         conditions.append(TaskCondition(name, flows[0]))
         conditions.extend(TaskCondition(name, flow, family)
                           for flow in flows[1:] for family in families)
@@ -57,7 +67,7 @@ def paper_conditions(task=None, model_families=None):
 
 
 def baseline_conditions():
-    return {task: TaskCondition(task, flows[0]) for task, flows in WORKFLOWS.items()}
+    return {task: TaskCondition(task, flows[0]) for task, flows in LEGACY_WORKFLOWS.items()}
 
 
 def linked_config_id(conditions):
@@ -67,10 +77,8 @@ def linked_config_id(conditions):
 
 def runtime_case(value):
     """The clinical runner never takes an evaluator/provenance object as an observation."""
-    keys = ("case_id", "patient_key", "group", "data_kind", "split",
-            "patient_initial", "his_initial", "formulary")
-    result = {key: deepcopy(value[key]) for key in keys if key in value}
-    for key in ("case_id", "patient_key", "data_kind", "patient_initial", "his_initial", "formulary"):
+    result = {key: deepcopy(value[key]) for key in RUNTIME_CASE_FIELDS if key in value}
+    for key in RUNTIME_CASE_REQUIRED_FIELDS:
         if key not in result:
             raise ValueError("case missing " + key)
     if not isinstance(result["patient_initial"].get("patient_facts"), list):
@@ -103,7 +111,7 @@ def validate_prescription(value):
     for item in value["items"]:
         if not isinstance(item, dict) or not item.get("drug_code"):
             raise WorkflowFailure("prescription item requires an explicit drug_code")
-        for key in ("dose", "dose_unit", "route", "frequency", "quantity", "quantity_unit"):
+        for key in PRESCRIPTION_ITEM_REQUIRED_FIELDS[1:]:
             if key not in item or item[key] in (None, ""):
                 raise WorkflowFailure("prescription item missing " + key)
     # Clinical dose correctness belongs to the review/independent evaluator, not this parser.

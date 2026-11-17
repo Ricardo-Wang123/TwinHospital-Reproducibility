@@ -4,6 +4,7 @@ from itertools import chain, product
 
 from .cases import GROUPS
 from .contracts import baseline_conditions, linked_config_id, paper_conditions
+from . import scenario_design as scenarios
 
 
 BASELINE_LABEL = 'linked_baseline_anchor'
@@ -22,13 +23,16 @@ QUICK_WORKFLOWS = {
 }
 
 
-def linked_profiles(tool_models, *, factorial=False):
+def linked_profiles(tool_models, *, factorial=False, scenario_design=scenarios.LEGACY_VERSION):
     if set(tool_models) != {'tool_a'} or not tool_models['tool_a']:
         raise ValueError('linked acceptance requires the declared single AI tool')
-    baseline = baseline_conditions()
+    if scenario_design not in {scenarios.VERSION, scenarios.LEGACY_VERSION}:
+        raise ValueError('Unsupported scenario design')
+    baseline = scenarios.baselines() if scenario_design == scenarios.VERSION else baseline_conditions()
     profiles = {BASELINE_LABEL: baseline}
     cell_profiles = {}
-    conditions = paper_conditions(model_families=tool_models)
+    conditions = (scenarios.conditions(tool_models) if scenario_design == scenarios.VERSION
+                  else paper_conditions(model_families=tool_models))
     for condition in conditions:
         label = BASELINE_LABEL
         if condition != baseline[condition.task]:
@@ -46,7 +50,8 @@ def linked_profiles(tool_models, *, factorial=False):
 
 
 def freeze_design(cases, tool_models, *, patients_per_group=PATIENTS_PER_GROUP, workers=1,
-                  max_attempts=None, factorial=False, independent=False, reader=False, quick=False):
+                  max_attempts=None, factorial=False, independent=False, reader=False, quick=False,
+                  scenario_design=scenarios.LEGACY_VERSION):
     """Keep the declared distinct source patients in each disease denominator."""
     if quick and not reader:
         raise ValueError('A quick comparison requires the reader design')
@@ -74,16 +79,19 @@ def freeze_design(cases, tool_models, *, patients_per_group=PATIENTS_PER_GROUP, 
     if not reader and any(case.get('data_kind') != 'mimic_derived' or case.get('split') != split
                           for case in cases):
         raise ValueError(f'This crossed design requires MIMIC-derived cases in the {split} partition')
-    profiles, cells = linked_profiles(tool_models, factorial=factorial)
+    profiles, cells = linked_profiles(tool_models, factorial=factorial, scenario_design=scenario_design)
     if quick:
+        quick_flows = (set(zip(*scenarios.WORKFLOWS.values()))
+                       if scenario_design == scenarios.VERSION else QUICK_WORKFLOWS)
         profiles = {label: conditions for label, conditions in profiles.items()
                     if tuple(conditions[task].workflow for task in
-                             ('preconsult', 'prescription', 'documentation')) in QUICK_WORKFLOWS}
-        if len(profiles) != len(QUICK_WORKFLOWS):
+                             ('preconsult', 'prescription', 'documentation')) in quick_flows}
+        if len(profiles) != len(quick_flows):
             raise ValueError('The selected conditions do not cover the declared quick design')
         cells = {}
     return {
         'version': READER_DESIGN_VERSION if reader else 'linked_acceptance_v1',
+        **({'scenario_design': scenario_design} if scenario_design == scenarios.VERSION else {}),
         'schedule_policy': (ASSIGNMENT_SCHEDULE_POLICY if factorial and workers > len(cases)
                             else PARALLEL_SCHEDULE_POLICY if workers > 1 else SCHEDULE_POLICY),
         'factorial': factorial,
@@ -163,6 +171,8 @@ def documented_unpaid_stop(run):
 def execution_checks(run, profile, models):
     """Check which workflow actually ran, including live vs final drafting."""
     conditions = profile['conditions']
+    if run.get('scenario_design') == scenarios.VERSION:
+        return scenarios.execution_checks(run, profile, models)
     calls = [call for call in run.get('calls', []) if call.get('status') == 'completed']
     events = run.get('events', [])
     role_model, tool_models = models['role_model'], models['tool_models']

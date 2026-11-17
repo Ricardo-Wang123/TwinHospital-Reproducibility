@@ -16,8 +16,9 @@ import re
 INITIAL_BYTE_LIMIT = 40_000
 PAGE_BYTE_LIMIT = 30_000
 MAX_PAGE_RECORDS = 20
-POLICY = "clinical_chart_whitelist_v9_reported_dose_timing"
+POLICY = "clinical_chart_whitelist_v10_historical_diagnoses"
 DOSE_TIMING_BYTE_LIMIT = 3600
+DIAGNOSIS_OVERVIEW_BYTE_LIMIT = 10000
 
 # A fixed EHR display selection, identical for every disease/configuration.
 # It selects by analyte and time, never by whether a value looks reassuring.
@@ -334,11 +335,12 @@ class HistoryChart:
 
     def initial_view(self):
         result = {**self._base(), "view_type": "bounded_history_directory",
-            "selection_rule": "Complete section counts; current-use and last reported dose timing; newest three encounter headers; bounded historical laboratory overview. Query other full records explicitly.",
+            "selection_rule": "Complete section counts; current-use and last reported dose timing; newest three encounter headers and their source-recorded diagnoses; bounded historical laboratory overview. Query other full records explicitly.",
             "sections": {name: {"total_count": len(rows), "expanded_record_count": 0,
                 "query_section": name} for name, rows in self._sections.items()},
             "reading_guide": {
                 "current_observations": "Current-visit observations, if counted above, must be queried to read their values and source_kind; absence from this directory is not absence of measurements.",
+                "diagnoses": "historical_diagnosis_overview shows source-recorded diagnoses from the displayed historical encounters. These differ from a constructed prior working diagnosis and do not establish current disease activity. Other diagnoses remain queryable.",
                 "historical_observations": "The historical_laboratory_overview expands recent available source records for a fixed set of analytes. It is dated historical evidence, never a new test. Query further records by clinical label, e.g. Creatinine or Potassium; unshown records are not absent.",
                 "current_use_items": "Current reported medication items and any brought prior plan: query current_use_items (or current_use_record for scope/status). Plan start/review, actual-use window and uncertainty are separate. Historical orders do not establish current use.",
                 "term_search": "Literal clinical values only; no semantic search. 'discharge' is not a filter for discharge prescriptions. Use encounter_key for a stay and inspect the returned original records."},
@@ -364,6 +366,30 @@ class HistoryChart:
             "initial_byte_limit": INITIAL_BYTE_LIMIT, "query_page_byte_limit": PAGE_BYTE_LIMIT,
             "query_max_records": MAX_PAGE_RECORDS, "complete_history_retained_locally": True}
         result['recent_reported_dose_timing'] = self._dose_timing_overview()
+        visit = self.time_basis.get('new_visit_offset_hours')
+        encounter_refs = {row['record'].get('encounter_ref')
+            for row in result['recent_encounters']['records']
+            if type(visit) in (int, float)
+            and type(row['record'].get('discharge_offset_hours')) in (int, float)
+            and row['record']['discharge_offset_hours'] <= visit}
+        diagnoses = {'version': 'recent_encounter_source_diagnoses_v1', 'records': [],
+            'selection': 'Original source order among displayed encounters discharged by the visit; no disease-label or outcome filter.',
+            'interpretation': 'Dated historical source diagnoses, not newly confirmed current diagnoses.',
+            'eligible_record_count': 0, 'returned_count': 0, 'omitted_for_byte_limit': 0,
+            'all_other_records_queryable': True}
+        for wrapped in self._sections['diagnoses']:
+            if wrapped['record'].get('source_encounter_ref') not in encounter_refs:
+                continue
+            diagnoses['eligible_record_count'] += 1
+            proposed = {**diagnoses, 'records': diagnoses['records'] + [wrapped]}
+            if (json_bytes(proposed) > DIAGNOSIS_OVERVIEW_BYTE_LIMIT
+                    or json_bytes({**result, 'historical_diagnosis_overview': proposed}) > INITIAL_BYTE_LIMIT-512):
+                diagnoses['omitted_for_byte_limit'] += 1
+                continue
+            diagnoses['records'].append(deepcopy(wrapped))
+        diagnoses['returned_count'] = len(diagnoses['records'])
+        result['historical_diagnosis_overview'] = diagnoses
+        result['sections']['diagnoses']['expanded_record_count'] = diagnoses['returned_count']
         overview = {'version': 'fixed_analyte_latest_two_v1', 'records': [],
             'selection': 'At most two latest known-time, source-cutoff-available records per exact analyte/specimen/unit; stable source order breaks ties. Selection does not inspect measured values or disease labels.',
             'time_interpretation': 'Original source-relative sampling and recording times are unchanged. These are historical records, not current-visit test results or evidence of present normality.',

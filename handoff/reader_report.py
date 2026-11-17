@@ -3,6 +3,7 @@
 from collections import Counter
 from hashlib import sha256
 import json
+from statistics import fmean
 
 from results.render_linked_manuscript import OPERATIONS, SAFE_FAULT_OUTCOMES, probe_results
 from results.summarize_paid_runs import read, summarize
@@ -10,6 +11,7 @@ from sandbox.experiments.linked.cases import GROUPS
 from sandbox.experiments.linked.linked_acceptance import READER_DESIGN_VERSION
 from sandbox.experiments.linked.assignment_repeat import VERSION as REPEAT_DESIGN_VERSION
 from sandbox.experiments.linked.source_operation_replay import FORMAL_REQUESTS_PER_CELL
+from sandbox.experiments.linked import scenario_design as scenarios
 
 
 WORKFLOWS = {
@@ -22,6 +24,13 @@ WORKFLOWS = {
     'manual_documentation': 'Physician',
     'realtime': 'During visit',
     'postvisit': 'After visit',
+    'direct_consultation': 'Direct consultation',
+    'report_before_consultation': 'Read AI report before consultation',
+    'report_during_consultation': 'Read AI report during consultation',
+    'physician_prescribing': 'Physician prescription',
+    'ai_first_prescribing': 'AI draft, physician finalization',
+    'physician_first_prescribing': 'Physician draft, AI advice, physician finalization',
+    'brief_to_note': 'Physician dictation, AI note, physician finalization',
 }
 
 
@@ -76,6 +85,8 @@ def comparison_data(batch, audit_path, manifest, clinical_catalogue, operation_p
             'workflows': {task: c['workflow'] for task, c in profile['conditions'].items()},
             **assignment_counts(selected),
         })
+    if specification.get('scenario_design') == scenarios.VERSION:
+        return scenario_data(batch, specification, audit, profiles), audit, None
     replay = None
     operations = None
     if operation_path.is_file():
@@ -138,6 +149,85 @@ def comparison_data(batch, audit_path, manifest, clinical_catalogue, operation_p
     return report, audit, replay
 
 
+def scenario_data(batch, specification, audit, profiles):
+    expected = {row['source_run_file_sha256'] for row in audit['runs']
+                if row.get('source_run_file_sha256')}
+    paid_hashes = {row['source_run_file_sha256'] for row in audit['runs'] if row.get('verified_paid') is True}
+    runs, paid_runs = [], []
+    observed = set()
+    for case in read(batch / 'batch_summary.json')['cases']:
+        for item in case['attempts'].values():
+            if not item.get('result_path'):
+                continue
+            path = (batch / item['result_path']).resolve()
+            if not path.is_relative_to(batch.resolve()):
+                raise ValueError('Run archive path is outside the specified batch.')
+            raw = path.read_bytes()
+            identity = sha256(raw).hexdigest()
+            if identity not in expected or identity in observed:
+                raise ValueError('Run archive does not match the independent state audit.')
+            run = json.loads(raw)
+            if run.get('scenario_design') != scenarios.VERSION or run.get('measurements') != scenarios.measurements(run):
+                raise ValueError('Scenario measurements differ from their actual run trace.')
+            observed.add(identity)
+            runs.append(run)
+            if identity in paid_hashes:
+                paid_runs.append(run)
+    if observed != expected:
+        raise ValueError('The report is missing an audited run trace.')
+    rows = []
+    for task, workflows in scenarios.WORKFLOWS.items():
+        for workflow in workflows:
+            selected = [run for run in runs if run['conditions'][task]['workflow'] == workflow]
+            def mean(field):
+                return fmean(run['measurements'][field] for run in selected) if selected else None
+            rows.append({'task': task, 'workflow': workflow, 'observed_traces': len(selected),
+                'runtime_completed': sum(run['status'] == 'completed' for run in selected),
+                'prescription_candidates': sum(bool(run['artifacts'].get('original_prescription', {}).get('items'))
+                                                for run in selected),
+                'signed_prescriptions': sum(run['artifacts'].get('prescription_business_state', {}).get('status') == 'signed'
+                                             for run in selected),
+                'locked_notes': sum(run['artifacts'].get('attested_note', {}).get('status') == 'locked' for run in selected),
+                'clinical_quality_status': dict(Counter(run['clinical_quality']['status'] for run in selected)),
+                'timing_sources': sorted({run['timing_source'] for run in selected}),
+                'mean_modeled_report_reading_seconds': mean('modeled_report_reading_seconds'),
+                'mean_modeled_prescribing_seconds': mean('modeled_prescribing_seconds'),
+                'mean_modeled_documentation_seconds': mean('modeled_documentation_seconds'),
+                'mean_patient_preconsult_answers': mean('patient_preconsult_answers'),
+                'mean_patient_consultation_answers': mean('patient_consultation_answers'),
+                'mean_note_revision_count': mean('note_revision_count'),
+                'mean_prescription_revision_count': mean('prescription_revision_count')})
+    return {'batch': specification['batch'], 'scenario_design': scenarios.VERSION,
+        'design': '27-profile full crossing' if not specification['linked_acceptance'].get('quick') else 'three-profile pilot',
+        'his_interface': specification.get('his_interface'),
+        'source_cases_by_group': dict(Counter(case['group'] for case in specification['cases'])),
+        'role_model': specification['models']['role_model'],
+        'tool_model': next(iter(specification['models']['tool_models'].values())),
+        'planned': len(audit['runs']), 'terminal_outcomes': dict(Counter(row['runtime_status'] for row in audit['runs'])),
+        'verified_paid': sum(row['verified_paid'] is True for row in audit['runs']),
+        'profiles': profiles, 'tasks': rows,
+        'matched_role_effort': (scenario_effort(paid_runs, specification['role_effort_analysis'])
+                                if specification.get('role_effort_analysis') else None)}
+
+
+def scenario_effort(runs, plan):
+    from results.summarize_paid_runs import matched_stage_effort
+    if plan != scenarios.effort_plan():
+        raise ValueError('Role effort analysis differs from the frozen scenario specification.')
+    kinds = {
+        'preconsult': {'report_reading', 'diagnostic', 'history_lookup'},
+        'prescription': {'prescription_drafting', 'prescribing_ai_review', 'prescription_revision',
+                         'prescription_review', 'prescription_adjudication'},
+        'documentation': {'documentation', 'brief_documentation', 'note_supplementation', 'note_review', 'note_rework', 'attestation'},
+    }
+    adapted = [{**run, 'stages': {task: {'qualifies': True, 'activities': [
+        (a['role'], a['activity_type'], a['active_seconds']) for a in run['activities']
+        if a['activity_type'] in types and (task != 'preconsult' or a['role'] == 'doctor')]}
+        for task, types in kinds.items()}} for run in runs]
+    return {task: matched_stage_effort(adapted, task, flows[0], analysis_plan=plan)
+            for task, flows in scenarios.WORKFLOWS.items()}
+
+
 def comparison_summary(batch, audit_path, manifest, clinical_catalogue, operation_path):
     report, _, _ = comparison_data(batch, audit_path, manifest, clinical_catalogue, operation_path)
     return report
@@ -148,6 +238,8 @@ def number(value):
 
 
 def render(report):
+    if report.get('scenario_design') == scenarios.VERSION:
+        return render_scenarios(report)
     lines = [
         '# TwinHospital comparison', '',
         f"Batch `{report['batch']}` uses the {report['design']} with "
@@ -235,10 +327,52 @@ def render(report):
     return '\n'.join(lines) + '\n'
 
 
+def render_scenarios(report):
+    labels = {**WORKFLOWS, 'postvisit': 'Encounter dialogue and physician addendum'}
+    lines = ['# TwinHospital comparison', '',
+        f"Batch `{report['batch']}` · `{report['scenario_design']}` · {report['design']}", '',
+        f"Role model: `{report['role_model']}`. AI tool model: `{report['tool_model']}`.", '',
+        '## Application I · Clinical artifacts', '',
+        '| Task | Condition | Traces | Signed prescriptions | Locked notes |',
+        '| --- | --- | ---: | ---: | ---: |']
+    for row in report['tasks']:
+        lines.append(f"| {row['task']} | {labels[row['workflow']]} | {row['observed_traces']} | "
+                     f"{row['signed_prescriptions']} | {row['locked_notes']} |")
+    lines.extend(['', 'These are artifact counts. Content correctness uses the case-specific evaluation reference.', '',
+        '## Application II · Role workload', '',
+        '| Condition | Report reading (s) | Prescribing (s) | Documentation (s) | Patient answers: intake / consultation |',
+        '| --- | ---: | ---: | ---: | ---: |'])
+    for row in report['tasks']:
+        lines.append(f"| {labels[row['workflow']]} | {number(row['mean_modeled_report_reading_seconds'])} | "
+            f"{number(row['mean_modeled_prescribing_seconds'])} | {number(row['mean_modeled_documentation_seconds'])} | "
+            f"{number(row['mean_patient_preconsult_answers'])} / {number(row['mean_patient_consultation_answers'])} |")
+    lines.extend(['', 'Activity-weight estimates, dialogue counts, and API elapsed time are separate measurements.', '',
+        ])
+    if report.get('matched_role_effort'):
+        lines.extend(['| Matched contrast | Source histories | Difference (modeled min) | 95% CI |',
+                      '| --- | ---: | ---: | ---: |'])
+        for task, contrasts in report['matched_role_effort'].items():
+            for workflow, row in contrasts.items():
+                ci = row['bootstrap']['ci']
+                limits = ' to '.join(map(number, ci)) if ci is not None else '—'
+                lines.append(f"| {labels[workflow]} minus {labels[scenarios.WORKFLOWS[task][0]]} | "
+                    f"{row['source_histories']} | {number(row['mean_difference_minutes'])} | {limits} |")
+        lines.extend(['', 'Contrasts use matched verified-paid encounters with the other stages held fixed. '
+                      'Intervals resample source histories within disease strata.', ''])
+    lines.extend(['## Application III · Complete encounters', '',
+        f"{report['verified_paid']}/{report['planned']} assigned encounters have verified native payment.", '',
+        '| Intake | Prescribing | Documentation | Assigned | Verified paid |',
+        '| --- | --- | --- | ---: | ---: |'])
+    for row in report['profiles']:
+        names = [labels[row['workflows'][task]] for task in scenarios.WORKFLOWS]
+        lines.append(f"| {' | '.join(names)} | {row['planned']} | {row['verified_paid']} |")
+    return '\n'.join(lines) + '\n'
+
+
 def write_report(batch, audit_path, manifest, clinical_catalogue, operation_path, output, *, human_review=None):
     report, audit, replay = comparison_data(batch, audit_path, manifest, clinical_catalogue, operation_path)
     latex = None
-    if report.get('evaluation_partition') == 'test':
+    if report.get('evaluation_partition') == 'test' and report.get('scenario_design') != scenarios.VERSION:
         from results.render_heldout_tables import render as render_heldout
 
         latex = render_heldout(report, audit, replay, read(human_review) if human_review is not None else None)

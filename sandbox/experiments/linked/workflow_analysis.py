@@ -12,7 +12,7 @@ import hashlib
 import json
 import math
 
-VERSION = 'independent-workflow-analysis-4'
+VERSION = 'independent-workflow-analysis-5'
 POLICY_VERSION = 'prospective-workflow-window/1'
 CONSTRAINTS = ('patient_encounter_linkage', 'queue_linkage_before_consultation',
                'locked_note_immutability', 'authorized_signatory_before_payment',
@@ -297,8 +297,37 @@ def audit_run(run, spec, *, expected_case=None, binding=None, protocol=None,
         x.get('content_hash') == digest(versions[x['reviewed_version']].get('content')) for x in nr) if nr else None,
         'Each review refers to the exact retained note version.', 'runtime_artifacts')
     attested = artifacts.get('attested_note') or {}
-    put('final_note_review_accepted', nr[-1].get('decision') == 'accept' and nr[-1].get('reviewed_version') == attested.get('version') == nv[-1].get('version') and attested.get('content') == nv[-1].get('content') if nr and nv and attested else None,
-        'Recorded agent acceptance is not independent clinician quality review.', 'runtime_artifacts')
+    confirmation = None
+    if nr and nv and attested:
+        last = nr[-1]
+        signed_content_matches = (attested.get('version') == nv[-1].get('version')
+                                  and attested.get('content') == nv[-1].get('content'))
+        confirmation = (signed_content_matches and last.get('decision') == 'accept'
+                        and last.get('reviewed_version') == attested.get('version'))
+        response = last.get('response') or {}
+        reviewed_version = last.get('reviewed_version')
+        if (run.get('scenario_design') == 'outpatient-v2'
+                and run.get('note_review_policy', {}).get('version') == 'physician_edit_and_finalize_v1'
+                and last.get('decision') == 'revise' and type(reviewed_version) is int):
+            confirmation = bool(signed_content_matches and last.get('finalized') is True
+                and last.get('revision_saved') is True and response.get('decision') == 'revise'
+                and response.get('finalized') is True and response.get('content') == attested.get('content')
+                and attested.get('version') == reviewed_version + 1
+                and nv[-1].get('author_role') == 'doctor' and nv[-1].get('reason') == 'physician_revision'
+                and any(c.get('role') == 'doctor' and c.get('status') == 'completed'
+                    and c.get('observation', {}).get('action') == 'finalize_note'
+                    and c['observation'].get('version') == reviewed_version
+                    and c['observation'].get('content') == versions.get(reviewed_version, {}).get('content')
+                    and c.get('response') == response for c in run.get('calls', []))
+                and any(e.get('event') == 'physician_corrected_note_finalized'
+                    and e.get('source') == 'explicit_physician_finalization'
+                    and e.get('version') == attested.get('version')
+                    and e.get('content_hash') == digest(attested.get('content'))
+                    and latest('note.attest') is not None
+                    and e.get('sequence', 0) < latest('note.attest')['sequence'] for e in events))
+    put('final_note_review_accepted', confirmation,
+        'The physician accepted the current note or explicitly finalized its saved correction; '
+        'this is not independent clinician quality review.', 'runtime_artifacts')
     note_event = latest('note.attest')
     doc = (note_event or {}).get('response', {}).get('readback') or {}
     note_ok = doc.get('status') == 'LOCKED' and pair in _pairs(doc) and _document_content(doc.get('content')) == _wanted_note(attested.get('content')) if doc and attested else None
@@ -359,7 +388,10 @@ def audit_run(run, spec, *, expected_case=None, binding=None, protocol=None,
         'Observed gateway signature check before the target payment, with native author/state readback.', 'gateway_and_native_readback')
     stage_values = {
         'registration': checks['registration_readback']['value'], 'queue_entry': checks['queue_binding']['value'],
-        'preconsultation': True if any(e.get('event') == 'preconsult_completed' for e in events) and artifacts.get('final_handoff') else absent(),
+        'preconsultation': True if (any(e.get('event') == 'preconsult_completed' for e in events) and artifacts.get('final_handoff')
+            or run.get('scenario_design') == 'outpatient-v2'
+            and run.get('conditions', {}).get('preconsult', {}).get('workflow') == 'direct_consultation'
+            and any(e.get('event') == 'preconsult_skipped' for e in events)) else absent(),
         'consultation': bool(consult['response'].get('readback', {}).get('native_diagnoses')) if consult else absent(),
         'prescription_review': rv[-1].get('review', {}).get('decision') == 'approve' if rv else absent(),
         'prescription_signature': signed_ok if signed else absent(),

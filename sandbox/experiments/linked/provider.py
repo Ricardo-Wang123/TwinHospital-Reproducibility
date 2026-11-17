@@ -168,13 +168,18 @@ class DataPolicyError(RuntimeError):
 
 
 class ModelCallError(RuntimeError):
-    def __init__(self, message, *, request_id=None):
+    def __init__(self, message, *, request_id=None, retryable=False, reason_code=None):
         super().__init__(message)
         self.request_id = request_id
+        self.retryable = retryable
+        self.reason_code = reason_code
 
 
 class ProviderUnavailable(ModelCallError):
     """Required model service unavailable; not proof of an account-wide outage."""
+    def __init__(self, message, *, request_id=None):
+        super().__init__(message, request_id=request_id, retryable=True,
+                         reason_code='provider_unavailable')
 
 
 PROVIDER_FROZEN_CODE = 'ModelArts.81006'
@@ -770,7 +775,9 @@ class BudgetedTransport:
                 record['retry_planned'] = retry and attempt < attempts
                 if not record['retry_planned']:
                     record.pop('retry_delay_seconds', None)
-                    raise ModelCallError('model call failed; request_id='+request_id,request_id=request_id) from None
+                    raise ModelCallError('model call failed; request_id='+request_id, request_id=request_id,
+                        retryable=retry, reason_code=record.get('failure_reason_code') or record.get('retry_reason')
+                            or ('http_' + str(record['http_status']) if 'http_status' in record else 'provider_response_invalid')) from None
             finally:
                 record['elapsed_seconds'] = time.monotonic()-started
                 # Some gateways echo submitted headers in errors. Redact the exact
