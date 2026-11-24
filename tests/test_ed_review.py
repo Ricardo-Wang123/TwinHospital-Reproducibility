@@ -139,6 +139,21 @@ def test_prescribing_scope_retry_addresses_all_selected_options():
     assert all(item["properties"]["affected_treatments"]["maxItems"] == 0 for item in alternatives)
 
 
+def test_route_encoding_retry_keeps_product_and_accepted_route_together():
+    schema = signed_order_format({
+        "signed_order_lines": [], "single_prescription": True, "orderable_drug_codes": ["a", "b"],
+        "required_treatment_options": {"treatment": {}}, "required_prescribing_checks": {},
+        "allowed_response_actions": [], "review_state": "encoding_correction",
+        "business_validation": {"findings": [
+            {"code": "unmapped_route", "drug_code": "a", "accepted_field_values": ["NG"]}]},
+    })
+    lines = schema["properties"]["treatments"]["properties"]["treatment"]
+    branches = lines["properties"]["items"]["items"]["oneOf"]
+    assert branches[0]["properties"]["drug_code"]["enum"] == ["a"]
+    assert branches[0]["properties"]["route"]["enum"] == ["NG"]
+    assert branches[1]["properties"]["drug_code"]["enum"] == ["b"]
+
+
 def test_known_ips_medications_need_no_source_quote():
     questions = {"medicines": "What medicines are documented?"}
     findings = {"medicines": {"status": "verified", "source": "ips",

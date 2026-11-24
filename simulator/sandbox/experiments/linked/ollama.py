@@ -140,7 +140,24 @@ def signed_order_format(observation):
                 device=string, administration_instructions=string,
                 intended_course=closed_object({'start_offset_hours': {'type': 'number'},
                                                'duration_days': {'type': 'number'}, 'basis': string}))
-    item_format = closed_object(item, [*PRESCRIPTION_ITEM_REQUIRED_FIELDS, 'indication'])
+    item_required = [*PRESCRIPTION_ITEM_REQUIRED_FIELDS, 'indication']
+    item_format = closed_object(item, item_required)
+    if single_prescription and observation.get('review_state') == 'encoding_correction':
+        orderable = item.get('drug_code', {}).get('enum', [])
+        route_limits = {
+            finding['drug_code']: finding['accepted_field_values']
+            for finding in observation.get('business_validation', {}).get('findings', [])
+            if finding['code'] == 'unmapped_route' and finding.get('drug_code') in orderable
+            and finding.get('accepted_field_values')
+        }
+        if route_limits:
+            choices = [
+                closed_object({**item, 'drug_code': {'enum': [code]}, 'route': {'enum': routes}}, item_required)
+                for code, routes in route_limits.items()]
+            remaining = [code for code in orderable if code not in route_limits]
+            if remaining:
+                choices.append(closed_object({**item, 'drug_code': {'enum': remaining}}, item_required))
+            item_format = {'oneOf': choices} if len(choices) > 1 else choices[0]
     actions = [closed_object({'kind': {'enum': ['new', 'repeat']}, 'item': item_format})]
     active_ids = [row['request_id'] for row in observation['signed_order_lines']]
     stop_action = None
