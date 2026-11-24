@@ -228,7 +228,10 @@ def chart_excerpt_present(quote, tables, *, medication_only=False):
                 if value not in (None,''):
                     values.update(segments(f'{name} {value}'))
                     if row.get('unit_raw'):
-                        values.update(segments(f"{name} {value} {row['unit_raw']}"))
+                        unit = row['unit_raw']
+                        values.update(segments(f'{name} {value} {unit}'))
+                        values.update(segments(f'{value} {unit}'))
+                        values.update(segments(f'{value}{unit}'))
         return values
 
     expected = segments(quote)

@@ -4,7 +4,8 @@ from types import SimpleNamespace
 
 import pytest
 
-from sandbox.experiments.linked.emergency import NOTE_HEADINGS, check_findings, render_soap_sections, soap_sections
+from sandbox.experiments.linked.emergency import (NOTE_HEADINGS, chart_excerpt_present, check_findings,
+                                                 render_soap_sections, soap_sections)
 from sandbox.experiments.linked.clinical import _Execution, _response_shape_errors
 from sandbox.experiments.linked.chart import HistoryChart, NO_MEDICATION_RECORD
 from sandbox.experiments.linked.contracts import TaskCondition
@@ -194,6 +195,14 @@ def test_committed_ingredient_can_be_present_in_a_signed_combination():
     assert missing_committed_products({"formulary": products}, response) == set()
     response["order_actions"] = []
     assert {"ipratropium", "albuterol"} <= missing_committed_products({"formulary": products}, response)
+
+
+def test_numeric_chart_quote_can_include_its_unit_without_repeating_the_test_name():
+    table = {"section": "ed_diagnostic_reports", "common": {"name": "Oxygen saturation"},
+             "columns": ["value_raw", "unit_raw"], "rows": [["98.0000", "%"]]}
+    assert chart_excerpt_present("98.0000%", [table])
+    assert chart_excerpt_present("98.0000 %", [table])
+    assert not chart_excerpt_present("98.0000 mg/dL", [table])
 
 
 def test_chart_lookup_without_results_preserves_unknown():
