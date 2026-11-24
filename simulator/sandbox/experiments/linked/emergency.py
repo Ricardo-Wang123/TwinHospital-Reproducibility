@@ -257,6 +257,29 @@ def check_findings(required, findings, sources, sources_consulted, *, allow_ques
             open_checks[key] = question
             continue
         status = row.get('status')
+        source = row.get('source')
+        quote = row.get('quote')
+        if ('ips' in sources and isinstance(source, str) and source in {'ips', 'original_chart_unknown'}
+                and not key.startswith('allergy_chart_')):
+            finding = row.get('finding')
+            limits = (status == 'reviewed_with_limits' and isinstance(row.get('decision_basis'), str)
+                      and bool(row['decision_basis'].strip()))
+            if not isinstance(finding, str) or not finding.strip():
+                open_checks[key] = question
+                continue
+            if source == 'ips':
+                section = sources['ips'].get({'medicines': 'medications', 'allergies': 'allergies'}.get(key))
+                documented = (section is None or bool(section.get('entries')) or section.get('status') in
+                              {'none_reported', 'none_known', 'confirmed_no_current_use', 'no_known_allergies'})
+                if limits or (status == 'verified' and documented):
+                    continue
+            elif limits and isinstance(quote, str) and any(
+                    receipt['status'] == 'no_recorded_result'
+                    and receipt['term'].strip().casefold() == quote.strip().casefold()
+                    for receipt in sources.get('chart_search_receipts', [])):
+                continue
+            open_checks[key] = question
+            continue
         if status == 'reviewed_with_limits':
             allows_limits = key in PRESCRIBING_CHECKS or (allow_question_limits and not key.startswith('allergy_'))
             if (not allows_limits or key not in sources_consulted
@@ -266,17 +289,16 @@ def check_findings(required, findings, sources, sources_consulted, *, allow_ques
         elif status != 'verified':
             open_checks[key] = question
             continue
-        source = row.get('source')
-        quote = row.get('quote')
         if (not isinstance(source, str) or not isinstance(quote, str) or not quote.strip()
                 or not isinstance(row.get('finding'), str) or not row['finding'].strip()):
             open_checks[key] = question
             continue
         limited_med_history = (key=='medicines' and status=='reviewed_with_limits' and allow_question_limits
                                and source in {'medication_history','medication_records'})
+        ips_patient = 'ips' in sources and source == 'patient'
         if (key == 'allergies' and source != ('allergy_history' if status == 'reviewed_with_limits' else 'current_allergy')
                 or key == 'medicines' and not limited_med_history
-                and source != ('medication_records' if status == 'reviewed_with_limits' else 'medication_history')):
+                and source != ('medication_records' if status == 'reviewed_with_limits' else 'medication_history')) and not ips_patient:
             open_checks[key] = question
             continue
         quote = ' '.join(quote.split()).casefold()

@@ -322,6 +322,8 @@ def execution_checks(run, profile, models):
 
     pre, rx, doc = (selected[task] for task in WORKFLOWS)
     reads = [e for e in events if e.get('event') == 'preconsult_report_read']
+    preconsult_read_calls = [c for c in actions('doctor', 'prepare_consultation')
+                             if not c['observation'].get('opening_summary')]
     starts = [e['sequence'] for e in events if e.get('operation') == 'encounter.begin_consultation'
               and e.get('event') == 'business_operation']
     opening = [e for e in events if e.get('event') == 'standard_consultation_opening_completed']
@@ -348,7 +350,7 @@ def execution_checks(run, profile, models):
                      and bool(reads) and shared['report_hash'] == reads[0]['report_hash'])
     pre_ok = (not reads and not actions('preconsult_ai', 'collect')
               and not answers and not shared and artifacts.get('final_handoff') is None) if direct else (
-        len(reads) == 1 and len(actions('doctor', 'prepare_consultation')) == 1
+        len(reads) == 1 and len(preconsult_read_calls) == 1
         and collected and bool(starts)
         and (reads[0]['sequence'] < starts[0] if pre['workflow'] == 'report_before_consultation'
              else bool(opening) and opening[0]['sequence'] < reads[0]['sequence']))
@@ -363,6 +365,11 @@ def execution_checks(run, profile, models):
                   and questions[0]['observation'].get('handoff') == report
                   and (reads[0]['sequence'] < starts[0] if before
                        else followups[0]['sequence'] < reads[0]['sequence']))
+    if ips := artifacts.get('physician_opening_ips'):
+        ips_reads = [e for e in events if e.get('event') == 'opening_ips_read']
+        pre_ok = (pre_ok and len(ips_reads) == 1 and bool(starts)
+                  and ips_reads[0]['physician_call'] == ips['physician_call']
+                  and ips_reads[0]['sequence'] < min(starts[0], reads[0]['sequence'] if reads else starts[0]))
     attempts = artifacts.get('prescribing_attempts', [])
     reviews = [e for e in events if e.get('event') == 'prescription_reviewed']
     ai_action = {'ai_first_prescribing': 'draft_prescription',
@@ -627,7 +634,8 @@ def measurements(run, *, version=None):
                                           and s.get('phase') == 'preconsult_collection' for s in transcript),
         'patient_consultation_answers': sum(s.get('speaker_role') == 'patient'
                                            and s.get('phase') == 'consultation' for s in transcript),
-        'report_reading_calls': sum(c.get('observation', {}).get('action') == 'prepare_consultation' for c in calls),
+        'report_reading_calls': sum(c.get('observation', {}).get('action') == 'prepare_consultation'
+                                    and not c['observation'].get('opening_summary') for c in calls),
         'prescribing_ai_calls': sum(c.get('observation', {}).get('action') in
                                     {'draft_prescription', 'advise_prescription'} for c in calls),
         'note_revision_count': sum(v.get('reason') == 'physician_revision'

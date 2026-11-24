@@ -23,7 +23,7 @@ from .contracts import (TaskCondition, WorkflowFailure, ClinicalDecisionIncomple
                         digest, linked_config_id, runtime_case, validate_prescription)
 from .chart import (ED_SCOPE_ERROR, INDEX_ED_SECTIONS, INITIAL_BYTE_LIMIT, MAX_PAGE_RECORDS, NO_MEDICATION_RECORD,
                     PAGE_BYTE_LIMIT, json_bytes, reported_before)
-from .chart_projection import (PROJECTION_POLICY, project_history_page, verify_projection,
+from .chart_projection import (PROJECTION_POLICY, expand_projected_record, project_history_page, verify_projection,
                                deduplicate_projected_page, ProjectionBudgetExceeded)
 from .response_contracts import (POLICY as RESPONSE_CONTRACT_POLICY, contract_for, shape_errors,
                                 schema_correction_allowed, normalize_structure,
@@ -540,6 +540,10 @@ class _Execution:
         return self.prescribing_required and self.independent_order_actions
 
     @property
+    def ips_on_demand(self):
+        return self.prescribing_required and self.single_prescription
+
+    @property
     def first_medication_required(self):
         return (self.prescribing_required and self.independent_order_actions and
                 getattr(self.runner, 'require_first_signed_medication', False) is True)
@@ -649,6 +653,22 @@ class _Execution:
                 "allowed_response_actions": contract.get("response_actions", []),
                 "allowed_decisions": contract.get("allowed_decisions", []),
                 "response_contract_version": RESPONSE_CONTRACT_POLICY["version"]}
+        if role == 'doctor' and self.ips_on_demand:
+            base['ips_on_demand'] = True
+            if base.get('opening_summary'):
+                base['required_response']['shape_description'] = (
+                    "Read the verified IPS and return only {action:'report_read'}.")
+            elif base['action'] in {'consult', 'assess', 'reassess_ed_prescription', 'revise_prescription',
+                                    'locate_ed_prescribing_source', 'decide_ed_disposition', 'document',
+                                    'finalize_note'}:
+                base['evidence_use'] = (
+                    'Use the opening IPS as trusted evidence. Search the current chart with a specific term '
+                    'only when a missing fact could affect your decision. Use a patient question for things '
+                    'the patient can report. In the assessment, decision reason and medication rationale '
+                    'label the basis as IPS, patient report or original chart search. If a real search returned '
+                    'no match, record the searched term and that the fact remains unknown. Use the other '
+                    'available evidence for your current decision.')
+                base['chart_search_receipts'] = self.chart_search_receipts()
         if self.longitudinal_allergy and role == 'doctor' and base['action'] in {'assess', 'consult'}:
             base['fixed_allergy_history'] = True
             base['required_response']['shape_description'] = base['required_response']['shape_description'].replace(
@@ -994,6 +1014,15 @@ class _Execution:
                     'affect those actions. Later documented allergy updates require explicit verified review.')
             if self.primary_treatment_only:
                 check_format = therapy.CHECK_FORMAT
+            if self.ips_on_demand:
+                check_format = (
+                    ' Address each required check with status, finding and source. Use source=ips for facts '
+                    'in the trusted IPS, with no quote needed. For a patient or matched chart fact name the '
+                    'source and use a short supporting phrase in quote. If a real chart search returned no '
+                    'match, use reviewed_with_limits, source=original_chart_unknown, and put the searched term '
+                    'in quote. State what remains unknown and why the selected treatment can proceed in '
+                    'decision_basis. List any affected_treatments. Use unresolved for a question that still '
+                    'blocks your proposed treatment.')
             if self.longitudinal_allergy:
                 check_format += ' Allergy history is supplied by the chart. Do not add a separate allergy status check.'
         if self.emergency and getattr(self, 'history', None) and self.history.get('ed_allergy_updates') and role != 'patient':
@@ -1540,6 +1569,21 @@ class _Execution:
             raise WorkflowFailure("bounded hospital history directory missing")
         if json_bytes(initial) > INITIAL_BYTE_LIMIT:
             raise WorkflowFailure("hospital history directory exceeds its byte limit")
+        if self.ips_on_demand:
+            initial = {key: initial[key] for key in ('view_type', 'opening_summary', 'demographics',
+                                                     'sections', 'time_basis', 'query_max_records')}
+            allergy = initial['opening_summary']['allergies']
+            if allergy['entry_count'] > len(allergy['entries']):
+                page = self.perform('history.query', {'section': 'allergy_record', 'offset': 0, 'limit': 1},
+                                    'doctor', write=False)['page']
+                (row,) = page['records']
+                items = row['record']['items']
+                if len(items) != allergy['entry_count']:
+                    raise WorkflowFailure('The fixed allergy list differs from the opening chart index.')
+                allergy['entries'] = deepcopy(items)
+            initial['reading_guide'] = (
+                'Use the verified opening summary directly. The section list is an index. '
+                'Search a section with a specific term only if a decision needs a missing fact.')
         self.history = {"initial_view": initial, "queried_pages": [], "last_query_feedback": None,
                         "visible_history_byte_limit": HISTORY_CONTEXT_BYTE_LIMIT,
                         "unshown_is_not_absent": True}
@@ -1591,7 +1635,16 @@ class _Execution:
         referral_record = self.prescribing_required and section == 'ed_referral_record'
         exam_record = self.prescribing_required and section == 'ed_examination_record'
         encounter_record = order_record or referral_record or exam_record
+        if actor_role == 'doctor' and self.ips_on_demand:
+            if not isinstance(term, str) or not term.strip():
+                validation_errors.append('Use term with the specific fact or test you need.')
+            if referral_record or exam_record:
+                validation_errors.append('Search ed_workup or ed_reassessment_workup with a specific term.')
+        searchable_workup = (self.ips_on_demand and directory and section in
+                             {emergency.WORKUP_SECTIONS[wave] for wave, rows in emergency.REPORT_SECTIONS.items()
+                              if rows in released})
         active_ed_section = (encounter_record or (section == 'ed_workup' and section in self.history) or
+                             searchable_workup or
                              (section in released and actor_role == 'doctor') or
                              any(wave in self.ed_review and section == workup and section in self.case['his_initial']
                                  for wave, workup in emergency.WORKUP_SECTIONS.items()))
@@ -1629,7 +1682,8 @@ class _Execution:
                 result_status='invalid_request', validation_errors=validation_errors,
                 native_read_attempted=False, wall_seconds=0)
             return
-        if (self.prescribing_required and actor_role == 'doctor' and section in released and isinstance(term, str)
+        if (self.prescribing_required and not self.ips_on_demand and actor_role == 'doctor'
+                and section in released and isinstance(term, str)
                 and term.casefold() in {n.casefold() for n in directory['tests_by_section'][section]}):
             expected = [row for row in self.ed_chart_rows(section)
                         if row['record'].get('name', '').casefold() == term.casefold()]
@@ -1983,6 +2037,15 @@ class _Execution:
         self.event('shared_intake_prepared', **artifact)
 
     def preconsult(self, condition):
+        if self.ips_on_demand:
+            summary = self.history['initial_view']['opening_summary']
+            self.respond('doctor', {'action': 'prepare_consultation', 'opening_summary': deepcopy(summary),
+                'instruction': 'Read this verified International Patient Summary (IPS) first. '
+                               'Use its recorded facts directly. Acknowledge reading it without quoting or '
+                               'rechecking its entries.'}, phase='opening_ips_reading')
+            proof = {'physician_call': self.calls[-1]['sequence'], 'summary_hash': digest(summary)}
+            self.result['artifacts']['physician_opening_ips'] = proof
+            self.event('opening_ips_read', **proof)
         if condition.workflow == 'direct_consultation':
             self.handoff = None
             self.result['artifacts']['final_handoff'] = None
@@ -2102,9 +2165,9 @@ class _Execution:
 
     def open_consultation(self):
         self.consultation_interactions_used = 0
-        if self.ed_source_review_required and 'prior' not in self.ed_review:
+        if self.ed_source_review_required and not self.ips_on_demand and 'prior' not in self.ed_review:
             self.review_ed_chart('prior', emergency.PRIOR_REVIEW_SECTIONS)
-        self.begin_consultation()
+        self.begin_consultation(load_measurement_panel=not self.ips_on_demand)
         self.activity('doctor', 'diagnostic')
         self.ask_patient('doctor', CONSULTATION_DIALOGUE_POLICY['opening_question'], 'consultation')
         self.event('standard_consultation_opening_completed', policy=CONSULTATION_DIALOGUE_POLICY['version'])
@@ -2128,11 +2191,12 @@ class _Execution:
             self.open_consultation()
         if self.emergency and 'ed_diagnostic_reports' in self.case['his_initial'] and 'ed_diagnostic_directory' not in self.history:
             self.open_ed_diagnostic_directory()
-        if not resume and self.emergency and 'ed_workup' in self.case['his_initial']:
+        if not resume and not self.ips_on_demand and self.emergency and 'ed_workup' in self.case['his_initial']:
             self.release_ed_workup()
-        if not resume and self.emergency and 'ed_lab_reports' in self.case['his_initial']:
+        if not resume and not self.ips_on_demand and self.emergency and 'ed_lab_reports' in self.case['his_initial']:
             self.release_ed_labs('initial_prescribing')
-        if self.emergency and 'ed_diagnostic_directory' in self.history and 'presentation' not in self.ed_review:
+        if (self.emergency and not self.ips_on_demand and 'ed_diagnostic_directory' in self.history
+                and 'presentation' not in self.ed_review):
             if 'prior' not in self.ed_review:
                 self.review_ed_chart('prior', emergency.PRIOR_REVIEW_SECTIONS)
             self.review_ed_chart('presentation', emergency.PRESENTATION_SECTIONS)
@@ -2339,6 +2403,9 @@ class _Execution:
 
     def open_ed_diagnostic_directory(self, stage='presentation'):
         def names(section):
+            if self.ips_on_demand:
+                return list(dict.fromkeys(str(row['name']) for row in self.ed_available_rows(section)
+                                          if row.get('name')))
             if not self.prescribing_required:
                 return sorted({str(row[field]) for row in self.case['his_initial'].get(section, [])
                                for field in ('name', 'fluid') if row.get(field)})
@@ -2356,7 +2423,10 @@ class _Execution:
             'section': 'ed_diagnostic_reports', 'reassessment_section': 'ed_reassessment_reports',
             'initial_tests': initial, 'reassessment_tests': later,
             'available_tests': sorted({title for titles in sections.values() for title in titles}),
-            'access': ('These tests have released values, report text, or an attributed laboratory comment. '
+            'access': ('Search by test name to retrieve the relevant released value. '
+                       'Use ed_workup or ed_reassessment_workup for other released facts.'
+                       if self.ips_on_demand else
+                       'These tests have released values, report text, or an attributed laboratory comment. '
                        'A comment alone does not establish a measured value. All rows are included in chart review. '
                        'Query the displayed name and section to revisit a result.' if self.prescribing_required else
                        'Only results available at this review point are listed. Query a released section by test name.')}
@@ -2670,16 +2740,35 @@ class _Execution:
         return [row for table in tables if table['section'] in ('ed_reassessment_workup', 'ed_closing_workup')
                 for row in emergency.table_records(table) if row.get('kind') == 'home_medication_history']
 
+    def chart_search_receipts(self):
+        return [{'section': event['section'], 'term': event['request']['term'],
+                 'status': event['result_status'], 'record_refs': event.get('returned_refs', [])}
+                for event in self.events if event['event'] == 'history_lookup'
+                and event.get('accepted_into_context') and event.get('request', {}).get('term')]
+
     def prescribing_history_sources(self):
         """Sources actually available to this physician, at this decision point."""
         chart = self.history['initial_view']
-        presentation = self.ed_review['presentation'].get('results', [])
+        presentation = self.ed_review.get('presentation', {}).get('results', [])
         records = {}
         for table in presentation:
             records.setdefault(table['section'], []).extend(emergency.table_records(table))
+        queried = {}
+        if getattr(self, 'ips_on_demand', False):
+            summary = chart['opening_summary']
+            for section, field in (('current_use_record', 'medications'), ('allergy_record', 'allergies')):
+                ips_section = summary[field]
+                records[section] = [{**ips_section, 'items': ips_section['entries']}]
+            for entry in self.history['queried_pages']:
+                page = entry['page']
+                for row in page['records']:
+                    queried.setdefault(page['section'], []).append(
+                        {'record_ref': row['record_ref'], 'record': expand_projected_record(page, row)})
+            for section, rows in queried.items():
+                records.setdefault(section, []).extend(row['record'] for row in rows)
         allergy = records.get('allergy_record', [])
         medicines = records.get('current_use_record', [])
-        workup = records.get('ed_workup', [])
+        workup = [*records.get('ed_workup', []), *records.get('ed_reassessment_workup', [])]
         home_list = [row['display'] for row in workup if row.get('kind') == 'home_medication_history']
         later_medications = self.released_medication_reconciliations()
         home_list.extend(row['display'] for row in later_medications)
@@ -2713,6 +2802,8 @@ class _Execution:
                     current_allergy.append(sentence.strip())
         med_names = [str(item.get('name') or item.get('drug_name') or '')
                      for row in medicines for item in row.get('items', [])]
+        med_names.extend(str(item.get('name') or item.get('drug_name') or '')
+                         for item in records.get('current_use_items', []))
         med_statements = [str(f['value']) for f in patient_facts
                           if f.get('topic') != PRIOR_MEDICATION and f.get('value')
                           and re.search(r'medic|last.dose|current.use|用药|服药|服用',
@@ -2741,7 +2832,8 @@ class _Execution:
         reported_prior_use = any(fact.get('topic') == PRIOR_MEDICATION and fact.get('value')
                                  and not re.search(unknown_pattern, str(fact['value']), re.I)
                                  for fact in patient_facts)
-        if (medicines and all(row.get('record_label') == NO_MEDICATION_RECORD for row in medicines)
+        if (not getattr(self, 'ips_on_demand', False) and medicines
+                and all(row.get('record_label') == NO_MEDICATION_RECORD for row in medicines)
                 and not (direct['medication_history'] or earlier_medication_record or reported_prior_use)):
             direct['medication_history'].append(NO_MEDICATION_RECORD)
         sources = {**direct, 'prior_chart':history_pages, 'ed_chart':[
@@ -2749,12 +2841,32 @@ class _Execution:
             'demographics':chart.get('demographics', {}),
             'current_orders':emergency.encounter_order_activity(self.events,self.context['patient_id'],self.context['encounter_id'])['order_versions'],
             'released_labs':[v.get('panels', []) for k,v in self.history.items() if k.startswith('ed_labs_')]}
+        if getattr(self, 'ips_on_demand', False):
+            direct['ips'] = summary
+            direct['chart_search_receipts'] = self.chart_search_receipts()
+            sources.update(ips=summary, chart_search_receipts=direct['chart_search_receipts'])
+            sources['ed_chart'].extend(table for tables, _ in emergency.chart_review_pages(list(queried.items()))
+                                       for table in tables)
         return direct, sources
 
     def verify_prescribing_coverage(self):
         if (self.ed_source_review_required and self.scenario_conditions['preconsult'].workflow != 'direct_consultation'
                 and self.handoff is None):
             raise WorkflowFailure('The physician has no verified reading of the intake summary.')
+        if self.ips_on_demand:
+            proof = self.result['artifacts'].get('physician_opening_ips')
+            summary = self.history['initial_view']['opening_summary']
+            if not proof or proof['summary_hash'] != digest(summary):
+                raise WorkflowFailure('The physician has no verified reading of the opening IPS.')
+            if self.longitudinal_allergy and 'fixed_allergy_history_readback' not in self.result['artifacts']:
+                allergy = summary['allergies']
+                self.result['artifacts']['fixed_allergy_history_readback'] = {
+                    'physician_call': proof['physician_call'],
+                    'reading_event': next(e['sequence'] for e in self.events if e['event'] == 'opening_ips_read'),
+                    'summary_hash': digest(allergy), 'source': 'ips'}
+                self.event('fixed_allergy_history_read_before_prescribing',
+                           **self.result['artifacts']['fixed_allergy_history_readback'])
+            return
         index = self.history['initial_view']['sections']
         for wave, sections in [('prior', emergency.PRIOR_REVIEW_SECTIONS),
                                ('presentation', emergency.PRESENTATION_SECTIONS),
@@ -2846,6 +2958,7 @@ class _Execution:
                 **source_limits,
                 'prescribing_check_sources': ['current_allergy','allergy_history','medication_history','medication_records','patient','collateral',
                     'prior_chart','ed_chart','released_labs','demographics','current_orders','pharmacy_reply',
+                    *(['ips','original_chart_unknown'] if 'ips' in sources else []),
                     *(key for key in direct if key.startswith('allergy_chart_'))],
                 'prescribing_check_scope': scope}
 
@@ -2956,6 +3069,12 @@ class _Execution:
         return False
 
     def consult_ed_check_sources(self, unasked, consultation, physician_call):
+        if self.ips_on_demand:
+            for key, question in unasked.items():
+                request = self.locate_ed_prescribing_source(question, {'items': []}, self.ed_prescribing_replies)
+                self.clarify_ed_prescription(request, consultation, {'items': []}, self.ed_prescribing_replies)
+                self.ed_checked_questions[key] = self.events[-1]['sequence']
+            return
         source_events_start = len(self.events)
         for section in ED_RECORD_SECTIONS.values():
             receipt = self.clarify_ed_prescription({'action':'read_history','section':section,'offset':0,'limit':1},
@@ -3007,7 +3126,11 @@ class _Execution:
             self.ed_prescribing_phase = 'reassessment'
         if (not initial_signing or self.single_prescription) and 'ed_reassessment_reports' in self.case['his_initial'] and (self.ed_checkpoints or 'reassessment' not in self.ed_review):
             self.open_ed_diagnostic_directory('reassessment')
-            self.review_ed_chart('reassessment', ('ed_reassessment_reports',))
+            if self.ips_on_demand:
+                self.patient_memory = with_medication_memory(self.case['case_id'], self.patient_memory,
+                    self.case['his_initial'], released_workup=self.ed_available_rows('ed_reassessment_workup'))
+            else:
+                self.review_ed_chart('reassessment', ('ed_reassessment_reports',))
         if not initial_signing and 'ed_lab_reports' in self.case['his_initial']:
             self.release_ed_labs('ed_reassessment')
         if self.prescribing_required:
@@ -3142,10 +3265,13 @@ class _Execution:
         return updated
 
     def primary_treatment_input(self, consultation, advice):
-        admission_history = [row.get('display', '') for table in self.ed_review['presentation'].get('results', ())
+        admission_history = [row.get('display', '') for table in self.ed_review.get('presentation', {}).get('results', ())
                              if table['section'] == 'ed_workup' for row in emergency.table_records(table)
                              if row.get('kind') == 'ed_collateral_history']
-        options = therapy.required_options(consultation.get('diagnoses', []), admission_history)
+        diagnoses = consultation.get('diagnoses', [])
+        if target := self.case.get('ed_prescribing_target'):
+            diagnoses = [{**target, 'primary': True}]
+        options = therapy.required_options(diagnoses, admission_history)
         if self.post_signature_review and not options:
             options = {'primary_problem': 'Assess treatment of the main presenting problem using the working diagnosis and current evidence.'}
         return {
@@ -3193,10 +3319,17 @@ class _Execution:
         return advice
 
     def locate_ed_prescribing_source(self, reason, proposal, replies):
+        context = self.clinical_context() if self.ips_on_demand else {}
+        sections = list(self.history['initial_view']['sections'])
+        if self.ips_on_demand:
+            directory = self.history.get('ed_diagnostic_directory', {})
+            sections.extend(directory.get('released_sections', []))
+            sections.extend(emergency.WORKUP_SECTIONS[wave] for wave, section in emergency.REPORT_SECTIONS.items()
+                            if section in directory.get('released_sections', []))
         return self.respond('doctor', {'action': 'locate_ed_prescribing_source',
             'question_to_resolve': reason, 'unsigned_proposal': proposal,
-            'available_chart_sections': list(self.history['initial_view']['sections']),
-            'clinical_context': {'prescribing_clarifications': list(replies.values())}},
+            'available_chart_sections': sections,
+            'clinical_context': {**context, 'prescribing_clarifications': list(replies.values())}},
             phase='ed_prescribing_source')
 
     def clarify_ed_prescription(self, request, consultation, proposal, replies):
@@ -4381,8 +4514,9 @@ class _Execution:
         self.activity_stage = 'documentation'
         if 'ed_closing_reports' in self.case['his_initial'] and 'closing' not in self.ed_review:
             self.open_ed_diagnostic_directory('closing')
-            sections = ('ed_closing_reports', 'ed_closing_workup') if self.single_prescription else ('ed_closing_reports',)
-            self.review_ed_chart('closing', sections)
+            if not self.ips_on_demand:
+                sections = ('ed_closing_reports', 'ed_closing_workup') if self.single_prescription else ('ed_closing_reports',)
+                self.review_ed_chart('closing', sections)
         if 'reassessment' in self.ed_review:
             self.history['ed_reassessment'] = deepcopy(self.ed_review['reassessment'])
         self.activity('doctor', 'diagnostic')

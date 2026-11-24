@@ -138,14 +138,29 @@ def prescribing_evidence(run, physician_call):
     boundary = next(event['sequence'] for event in run['events']
                     if event['event'] == 'role_call' and event['call_sequence'] == physician_call)
     available, delivered, read = set(), set(), set()
-    inventories, receipts = [], []
-    complete_inventory = True
+    inventories, receipts, chart_searches = [], [], []
+    on_demand = bool(run.get('artifacts', {}).get('physician_opening_ips'))
+    complete_inventory = not on_demand
 
     for event in run['events']:
         if event['sequence'] >= boundary:
             break
         kind = event['event']
-        if kind == 'ed_source_inventory_requested':
+        if kind == 'opening_ips_read':
+            call = calls.get(event['physician_call'])
+            if (call and call['role'] == 'doctor' and call.get('response', {}).get('action') == 'report_read'
+                    and digest(call['observation'].get('opening_summary')) == event['summary_hash']):
+                ref = ('opening_ips', event['summary_hash'])
+                delivered.add(ref)
+                read.add(ref)
+                receipts.append({'event_sequence': event['sequence'], 'physician_call': call['sequence'],
+                                 'source': 'ips'})
+        elif on_demand and kind == 'history_lookup' and event.get('request', {}).get('term'):
+            chart_searches.append({'event_sequence': event['sequence'], 'section': event['section'],
+                                   'term': event['request']['term'], 'status': event['result_status'],
+                                   'returned_refs': event.get('returned_refs', []),
+                                   'accepted_into_context': event.get('accepted_into_context', False)})
+        elif kind == 'ed_source_inventory_requested':
             inventories.append(event['sequence'])
             sources = event.get('sources')
             if sources is None:
@@ -175,6 +190,7 @@ def prescribing_evidence(run, physician_call):
     return {
         'inventory_events': inventories,
         'reading_receipts': receipts,
+        **({'chart_searches': chart_searches} if on_demand else {}),
         'available_rows': len(available) if complete_inventory and inventories else None,
         'delivered_rows': len(delivered),
         'read_rows': len(read),

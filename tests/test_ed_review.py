@@ -4,6 +4,7 @@ from types import SimpleNamespace
 
 import pytest
 
+from sandbox.experiments.linked.emergency import check_findings
 from sandbox.experiments.linked.clinical import _Execution
 from sandbox.experiments.linked.chart import HistoryChart, NO_MEDICATION_RECORD
 from sandbox.experiments.linked.contracts import TaskCondition
@@ -41,6 +42,27 @@ def test_local_document_format_bounds_citations_to_available_dialogue():
     properties = response_format(messages)["properties"]["content"]["properties"]
     assert properties["source_sequences"]["items"]["enum"] == [2, 3]
     assert properties["source_sequences"]["maxItems"] == 2
+
+
+def test_known_ips_medications_need_no_source_quote():
+    questions = {"medicines": "What medicines are documented?"}
+    findings = {"medicines": {"status": "verified", "source": "ips",
+                               "finding": "The opening medication list was reviewed."}}
+    sources = {"ips": {"medications": {"status": "reported", "entries": [{"name": "Fixture product"}]}}}
+    assert not check_findings(questions, findings, sources, {})
+    assert check_findings(questions, findings, {}, {}) == questions
+
+
+def test_chart_lookup_without_results_preserves_unknown():
+    questions = {"q1": "Does the record establish the last dose time?"}
+    findings = {"q1": {"status": "reviewed_with_limits", "source": "original_chart_unknown",
+                       "quote": "last dose", "finding": "Searched the chart. The last dose is unknown.",
+                       "decision_basis": "The selected order does not depend on this time.",
+                       "affected_treatments": []}}
+    sources = {"ips": {"medications": {}}, "chart_search_receipts": []}
+    assert check_findings(questions, findings, sources, {}) == questions
+    sources["chart_search_receipts"].append({"term": "last dose", "status": "no_recorded_result"})
+    assert not check_findings(questions, findings, sources, {})
 
 
 @pytest.mark.parametrize("later_record,earlier_record", [(False, False), (True, False), (False, True)])

@@ -122,8 +122,9 @@ def signed_order_format(observation):
     if option_ids:
         affected_treatments = {'type': 'array', 'items': {'enum': option_ids}, 'maxItems': len(option_ids)}
     def check_fields(affected, affected_by_check=None):
-        statuses = [('verified', ['source', 'quote']),
-                    ('reviewed_with_limits', ['source', 'quote', 'affected_treatments', 'decision_basis']),
+        quotes = [] if observation.get('ips_on_demand') else ['quote']
+        statuses = [('verified', ['source', *quotes]),
+                    ('reviewed_with_limits', ['source', *quotes, 'affected_treatments', 'decision_basis']),
                     ('unresolved', ['affected_treatments', 'decision_basis'])]
         checks = {}
         for key in observation['required_prescribing_checks']:
