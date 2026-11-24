@@ -18,4 +18,6 @@ PYTHONPATH=simulator python -m pytest -q tests
 
 Within the authorized data environment, run `python -m handoff.clinician_review` from the simulator directory with the prepared cohort, a fresh output directory and a private path for tabular inputs. The review pages show the principal-condition stratum, preprescription clinical evidence, medication history and the fixed allergy record. Tabular inputs list the same orderable products as the simulator.
 
+The opening medication section lists documented entries. An undocumented opening list is labeled `无用药记录` (no medication record). When the reviewed medication sources contain no documented medication entries, the simulator records the check as complete. Medication records released later are included at their recorded availability time.
+
 Reviewers independently enter whether medication is indicated, the necessary generic ingredients, complete reasonable alternatives, and the clinical basis or missing information. Preserve independent judgments for adjudication. Historical regimen agreement remains available as a separate outcome. Individual case packets and reviewer annotations use the same credentialed-data environment as the cohort.

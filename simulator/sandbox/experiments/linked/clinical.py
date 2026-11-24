@@ -21,7 +21,8 @@ from . import ed_treatment_review as therapy
 from ..visibility import assert_visible
 from .contracts import (TaskCondition, WorkflowFailure, ClinicalDecisionIncomplete,
                         digest, linked_config_id, runtime_case, validate_prescription)
-from .chart import reported_before, ED_SCOPE_ERROR, INDEX_ED_SECTIONS, INITIAL_BYTE_LIMIT, PAGE_BYTE_LIMIT, MAX_PAGE_RECORDS, json_bytes
+from .chart import (ED_SCOPE_ERROR, INDEX_ED_SECTIONS, INITIAL_BYTE_LIMIT, MAX_PAGE_RECORDS, NO_MEDICATION_RECORD,
+                    PAGE_BYTE_LIMIT, json_bytes, reported_before)
 from .chart_projection import (PROJECTION_POLICY, project_history_page, verify_projection,
                                deduplicate_projected_page, ProjectionBudgetExceeded)
 from .response_contracts import (POLICY as RESPONSE_CONTRACT_POLICY, contract_for, shape_errors,
@@ -51,6 +52,8 @@ DEFAULT_TIMING = {"information_collection": 30,
                   "prescription_drafting": 40, "prescribing_ai_review": 30,
                   "brief_documentation": 30, "note_supplementation": 30, "patient_answer": 30}
 PHYSICIAN_DIALOGUE_PHASES = frozenset({"consultation"})
+EMPTY_MEDICATION_CHECK = {'status': 'verified', 'finding': NO_MEDICATION_RECORD,
+                          'source': 'medication_history', 'quote': NO_MEDICATION_RECORD}
 ED_RECORD_SECTIONS = {'referral_record': 'ed_referral_record', 'examination_record': 'ed_examination_record',
                       'current_ed_order_record': 'current_ed_medication_activity'}
 CONSULTATION_DIALOGUE_POLICY = {
@@ -2720,6 +2723,15 @@ class _Execution:
         for row in medicines:
             if row.get('status') in {'none_reported', 'none_known', 'confirmed_no_current_use'}:
                 direct['medication_history'].append(row['status'])
+        earlier_medication_record = any(chart['sections'].get(section, {}).get('total_count', 0)
+                                        for section in ('historical_orders', 'historical_administrations',
+                                                        'historical_dispenses'))
+        reported_prior_use = any(fact.get('topic') == PRIOR_MEDICATION and fact.get('value')
+                                 and not re.search(unknown_pattern, str(fact['value']), re.I)
+                                 for fact in patient_facts)
+        if (medicines and all(row.get('record_label') == NO_MEDICATION_RECORD for row in medicines)
+                and not (direct['medication_history'] or earlier_medication_record or reported_prior_use)):
+            direct['medication_history'].append(NO_MEDICATION_RECORD)
         sources = {**direct, 'prior_chart':history_pages, 'ed_chart':[
             *presentation, *self.ed_review.get('reassessment', {}).get('results', [])],
             'demographics':chart.get('demographics', {}),
@@ -2806,7 +2818,16 @@ class _Execution:
                         ' For a rejected citation, use its matching read source if you keep that quotation. '
                         ' If no read source supports the finding, record it as unresolved. '
                         ' Keep the medication decision independent of the citation correction.')
-        return {'required_prescribing_checks': dict(self.ed_questions), 'checked_history_sources':direct,
+        required = dict(self.ed_questions)
+        scope = ('prior_chart and ed_chart refer to pages you read, including newly released '
+                 'results. Distinguish home medication lists from last doses and use your own signed orders '
+                 'as the medication state of this encounter.')
+        if direct['medication_history'] == [NO_MEDICATION_RECORD] and 'medicines' in required:
+            required.pop('medicines')
+            source_limits['completed_prescribing_checks'] = {'medicines': dict(EMPTY_MEDICATION_CHECK)}
+            scope += (' Use completed_prescribing_checks as recorded '
+                      'and supply findings for the remaining required_prescribing_checks.')
+        return {'required_prescribing_checks': required, 'checked_history_sources':direct,
                 'previous_check_findings': findings[-1]['findings'] if findings else {},
                 'questions_with_source_replies': list(self.ed_checked_questions),
                 'checks_returned_for_review': findings[-1].get('return_reason', {}) if findings else {},
@@ -2814,16 +2835,16 @@ class _Execution:
                 'prescribing_check_sources': ['current_allergy','allergy_history','medication_history','medication_records','patient','collateral',
                     'prior_chart','ed_chart','released_labs','demographics','current_orders','pharmacy_reply',
                     *(key for key in direct if key.startswith('allergy_chart_'))],
-                'prescribing_check_scope':'prior_chart and ed_chart refer to pages you read, including newly released '
-                    'results. Distinguish home medication lists from last doses and use your own signed orders '
-                    'as the medication state of this encounter.'}
+                'prescribing_check_scope': scope}
 
     def complete_prescribing_checks(self, decision, consultation, prescription):
         artifacts = self.result['artifacts']
         findings = decision.get('check_results')
         findings = findings if isinstance(findings, dict) else {}
-        _, sources = self.prescribing_history_sources()
         self.verify_prescribing_coverage()
+        _, sources = self.prescribing_history_sources()
+        if sources['medication_history'] == [NO_MEDICATION_RECORD] and 'medicines' in self.ed_questions:
+            findings = {**findings, 'medicines': dict(EMPTY_MEDICATION_CHECK)}
         if self.post_signature_review:
             source_review = next((event for event in reversed(self.events)
                 if event['event'] == 'ed_prescribing_sources_consulted'

@@ -21,6 +21,7 @@ INDEX_ED_SECTIONS = frozenset({'ed_workup', 'ed_reassessment_workup', 'ed_closin
 ED_SCOPE_ERROR = ('This section is bound to the current ED visit. To read its results, omit encounter_key. '
                   'To read a prior visit, choose a historical section with that visit\'s encounter_key.')
 POLICY = "clinical_chart_v11_ips_opening_summary"
+NO_MEDICATION_RECORD = "无用药记录"
 DOSE_TIMING_BYTE_LIMIT = 3600
 DIAGNOSIS_OVERVIEW_BYTE_LIMIT = 10000
 
@@ -105,7 +106,8 @@ _ITEM.update({"time": _TIME,
         "remaining_dose_equivalents", "meaning", "source_kind")}})
 _STATUS = {"status": _LEAF, "source_kind": _LEAF, "items": [_ITEM], "source_refs": [_LEAF]}
 _STATUS.update({k: _LEAF for k in ("as_of_offset_hours", "scope", "scope_status",
-    "source_record_status", "reconciliation_status", "coverage_caveat", "current_plan_item_count")})
+    "source_record_status", "reconciliation_status", "coverage_caveat", "current_plan_item_count",
+    "record_label")})
 _STATUS["patient_report"] = {k: _LEAF for k in ("status", "value", "as_of_offset_hours",
     "source_kind", "verification_status")}
 _STATUS["prior_visit"] = {k: _LEAF for k in ("source_kind", "document_kind", "event_offset_hours",
@@ -276,6 +278,12 @@ class HistoryChart:
             self._excluded_fields += omitted
             if section in ("allergy_record", "current_use_record", "problem_list"):
                 projected = self._opening_record(projected)
+            if section == "current_use_record":
+                projected.pop("record_label", None)
+                if (projected.get("status") in {"unknown", "not_documented", "not_supplied", "not_reconciled",
+                                               "not_available_at_opening"}
+                        and not (projected.get("items") or projected.get("patient_report"))):
+                    projected["record_label"] = NO_MEDICATION_RECORD
             records = projected if isinstance(schema, list) else [projected]
             self._sections[section] = self._wrap(section, sorted(records, key=_time_order, reverse=True))
         diagnoses, headers, order_refs, observation_refs = [], [], [], []
@@ -424,7 +432,8 @@ class HistoryChart:
                                    "query_section": "current_use_items", "scope_query_section": "current_use_record",
                                    **{key: deepcopy(self._sections["current_use_record"][0]["record"][key])
                                       for key in ("as_of_offset_hours", "scope", "scope_status", "source_record_status",
-                                                  "reconciliation_status", "current_plan_item_count", "prior_visit")
+                                                  "reconciliation_status", "current_plan_item_count", "prior_visit",
+                                                  "record_label")
                                       if key in self._sections["current_use_record"][0]["record"]}},
             "recent_encounters": self.query("encounter_headers", limit=3),
             "initial_byte_limit": INITIAL_BYTE_LIMIT, "query_page_byte_limit": PAGE_BYTE_LIMIT,

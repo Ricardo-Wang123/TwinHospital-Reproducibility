@@ -179,10 +179,12 @@ def clinical_page(case, *, allergy_source_status=None, workbook_available=False)
     if allergens:
         content += table(("过敏原", "反应", "来源"), allergens)
     content += "<h2>开诊用药记录</h2>"
-    if drugs.get("items"):
-        content += record_table(drugs["items"])
+    opening_medications = chart_records(history, "current_use_items")
+    if opening_medications:
+        content += record_table(opening_medications)
     else:
-        content += "<p>开诊用药栏无可列条目。既往用药与本次后续核对见下方。</p>"
+        label = drugs.get("record_label", "开诊用药栏无可列条目")
+        content += f"<p>{esc(label)}。既往用药与本次后续核对见下方。</p>"
     content += "<h2>本次急诊</h2>"
     counts = {}
     for section, name in ED_SECTIONS.items():

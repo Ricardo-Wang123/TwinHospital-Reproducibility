@@ -92,7 +92,7 @@ def code_fingerprint():
     root = Path(__file__).parent
     names = ('actors.py', 'camel_provider.py', 'chart.py', 'chart_projection.py', 'clinical.py', 'contracts.py',
              'ollama.py',
-             'intake.py', 'patient_medications.py', 'history_examples.py',
+             'intake.py', 'opening_summary.py', 'patient_medications.py', 'history_examples.py',
              'native_his.py', 'protocol_his.py', 'provider.py', 'provider_profile.py', 'regimen.py', 'response_contracts.py',
              'json_boundary.py', 'diagnosis_codes.py', 'order_encoding.py', 'medication_catalogue.py', 'formulary_search.py',
              'provider_content.py', 'provider_stream.py', 'fhir_his.py', 'cases.py', 'run_batch.py',

@@ -5,6 +5,7 @@ from types import SimpleNamespace
 import pytest
 
 from sandbox.experiments.linked.clinical import _Execution
+from sandbox.experiments.linked.chart import HistoryChart, NO_MEDICATION_RECORD
 from sandbox.experiments.linked.contracts import TaskCondition
 from sandbox.experiments.linked.ollama import response_format
 
@@ -40,3 +41,40 @@ def test_local_document_format_bounds_citations_to_available_dialogue():
     properties = response_format(messages)["properties"]["content"]["properties"]
     assert properties["source_sequences"]["items"]["enum"] == [2, 3]
     assert properties["source_sequences"]["maxItems"] == 2
+
+
+@pytest.mark.parametrize("later_record,earlier_record", [(False, False), (True, False), (False, True)])
+def test_empty_opening_list_only_completes_check_without_other_records(later_record, earlier_record):
+    chart = HistoryChart({
+        "current_use_record": {"status": "unknown", "items": []},
+        "historical_orders": [{"drug_name": "Fictional prior product"}] if earlier_record else [],
+    })
+    opening = chart.initial_view()
+    row = chart.query("current_use_record")["records"][0]["record"]
+    assert opening["current_use_record"]["record_label"] == row["record_label"] == NO_MEDICATION_RECORD
+    assert opening["opening_summary"]["medications"]["record_label"] == NO_MEDICATION_RECORD
+    assert row["status"] == "unknown"
+    workflow = SimpleNamespace(
+        history={"initial_view": opening},
+        ed_review={"presentation": {"results": [
+            {"section": "current_use_record", "common": row, "columns": [], "rows": [[]]},
+        ]}},
+        released_medication_reconciliations=lambda: [{"display": "Fictional reconciliation entry"}] if later_record else [],
+        calls=[{"sequence": 1, "role": "doctor", "status": "completed", "observation": {"action": "consult"}}],
+        events=[], context={"patient_id": "fiction", "encounter_id": "fiction:1"},
+        patient_memory={"patient_facts": []}, ed_prescribing_replies={}, ed_checked_questions={},
+        ed_questions={"medicines": "Review medication history."}, result={"artifacts": {}},
+        primary_treatment_only=False, post_signature_review=False, independent_order_actions=True,
+        verify_prescribing_coverage=lambda: None,
+    )
+    workflow.prescribing_history_sources = lambda: _Execution.prescribing_history_sources(workflow)
+    inputs = _Execution.prescribing_check_input(workflow)
+    if later_record or earlier_record:
+        assert "medicines" in inputs["required_prescribing_checks"]
+        assert "completed_prescribing_checks" not in inputs
+        return
+    assert "medicines" not in inputs["required_prescribing_checks"]
+    auto = inputs["completed_prescribing_checks"]["medicines"]
+    assert auto["quote"] == NO_MEDICATION_RECORD
+    assert _Execution.complete_prescribing_checks(workflow, {}, {}, {"items": []})
+    assert workflow.ed_checked_order["findings"]["medicines"] == auto

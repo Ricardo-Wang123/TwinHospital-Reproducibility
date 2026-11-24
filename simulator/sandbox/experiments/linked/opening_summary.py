@@ -29,7 +29,7 @@ def clinician_summary(sections, time_basis, discharged_encounters):
         record = sections[name][0]["record"]
         return {"status": record.get("status") or "unknown",
                 **_fields(record, ("source_record_status", "reconciliation_status", "source_kind",
-                                   "as_of_offset_hours"))}
+                                   "as_of_offset_hours", "record_label"))}
 
     problem = _section("11450-4", "Problem list", "problem_items", sections["problem_items"],
                        ("display", "coding", "status", "source_kind"), header=header("problem_list"))
