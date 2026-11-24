@@ -135,6 +135,10 @@ def _response_shape_errors(role, observation, response, earlier_calls=()):
             response = {**response, 'prescription': chosen}
     errors=shape_errors(role,observation['action'],response,
                         fixed_allergy_history=observation.get('fixed_allergy_history', False))
+    if role == 'doctor' and observation.get('ips_on_demand') and response.get('action') == 'read_history':
+        term = response.get('term')
+        if not isinstance(term, str) or not term.strip() or len(term) > 128:
+            errors.append('For read_history, supply a nonempty term of at most 128 characters naming the specific missing fact or test.')
     if observation['action'] in DOCUMENTATION_ACTIONS and isinstance(response.get('content'), dict):
         references = response['content'].get('source_sequences', [])
         allowed = documentation_sequences(observation)
@@ -964,7 +968,11 @@ class _Execution:
                     'referral_record':'Recorded ambulance and referring-facility information, including documented prehospital treatment.',
                     'examination_record':'Released bedside findings and repeat vital signs from this ED encounter.',
                     'current_ed_order_record':'Verified order activity in the current simulated ED registration.'}
-                shape['shape_description'] += ' For ask, include recipient. Direct documentary questions to the appropriate record.'
+                if role == 'doctor' and self.ips_on_demand:
+                    base['question_recipients'] = {'patient': base['question_recipients']['patient']}
+                    shape['shape_description'] += ' For ask, use recipient=patient. Search hospital records with read_history.'
+                else:
+                    shape['shape_description'] += ' For ask, include recipient. Direct documentary questions to the appropriate record.'
         if self.prescribing_required and base['action'] in {
                 'consult', 'assess', 'draft_prescription', 'advise_prescription', 'finalize_prescription',
                 'reassess_ed_prescription', 'revise_prescription', 'review_prescription'}:
@@ -1151,6 +1159,12 @@ class _Execution:
                 'Treat the assigned ED diagnosis in ed_prescribing_target. Use other conditions, '
                 'medication history and allergies when assessing safety. Select medication only for '
                 'the assigned diagnosis and use its display in indication.problem.')
+        if base.get('ips_on_demand') and 'read_history' in base['allowed_response_actions']:
+            shape = base['required_response']
+            shape['shape_description'] = shape['shape_description'].replace('term?:string', 'term:string')
+            shape['shape_description'] += (
+                ' For read_history, supply term with the specific missing fact or exact test name. '
+                'The chart directory lists search targets. A section name alone cannot retrieve results.')
         original_hash = digest(base)
         current = base
         corrections = []
@@ -2222,8 +2236,9 @@ class _Execution:
                     require_assessment = True
                     continue
                 self.read_history(response, "consultation")
-                if self.post_signature_review and (self.history.get('last_query_feedback') or {}).get('status') in {
-                        'already_visible', 'no_recorded_result'}:
+                query_status = (self.history.get('last_query_feedback') or {}).get('status')
+                if self.post_signature_review and (query_status in {'already_visible', 'no_recorded_result'}
+                        or (self.ips_on_demand and query_status == 'invalid_request')):
                     exhausted_history.add(key)
                 continue
             if response.get("action") == "consultation_complete":

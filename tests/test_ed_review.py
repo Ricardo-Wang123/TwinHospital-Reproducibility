@@ -5,7 +5,7 @@ from types import SimpleNamespace
 import pytest
 
 from sandbox.experiments.linked.emergency import check_findings
-from sandbox.experiments.linked.clinical import _Execution
+from sandbox.experiments.linked.clinical import _Execution, _response_shape_errors
 from sandbox.experiments.linked.chart import HistoryChart, NO_MEDICATION_RECORD
 from sandbox.experiments.linked.contracts import TaskCondition
 from sandbox.experiments.linked.ollama import response_format
@@ -42,6 +42,20 @@ def test_local_document_format_bounds_citations_to_available_dialogue():
     properties = response_format(messages)["properties"]["content"]["properties"]
     assert properties["source_sequences"]["items"]["enum"] == [2, 3]
     assert properties["source_sequences"]["maxItems"] == 2
+
+
+def test_ips_history_lookup_requires_a_specific_term():
+    observation = {"action": "assess", "ips_on_demand": True}
+    messages = [{"role": "user", "content": json.dumps(observation)}]
+    schema = response_format(messages)
+    query = next(branch for branch in schema["oneOf"]
+                 if branch["properties"]["action"]["enum"] == ["read_history"])
+    assert "term" in query["required"]
+    request = {"action": "read_history", "section": "ed_diagnostic_reports", "offset": 0, "limit": 5}
+    assert _response_shape_errors("doctor", observation, request)
+    assert _response_shape_errors("doctor", observation, {**request, "term": "   "})
+    assert not _response_shape_errors("doctor", observation, {**request, "term": "Chest X-ray"})
+    assert not _response_shape_errors("doctor", {"action": "assess"}, request)
 
 
 def test_known_ips_medications_need_no_source_quote():

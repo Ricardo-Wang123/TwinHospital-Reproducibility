@@ -24,6 +24,21 @@ def formulary_lookup_format():
                           'offset': {'type': 'integer', 'minimum': 0}}, ['action', 'queries'])
 
 
+def history_query_format(observation):
+    fields = {
+        'action': {'enum': ['read_history']},
+        'section': {'type': 'string', 'minLength': 1},
+        'offset': {'type': 'integer', 'minimum': 0},
+        'limit': {'type': 'integer', 'minimum': 1, 'maximum': 20},
+        'term': {'type': 'string', 'minLength': 1, 'maxLength': 128},
+        'encounter_key': {'type': 'string'},
+    }
+    required = ['action', 'section', 'offset', 'limit']
+    if observation.get('ips_on_demand'):
+        required.append('term')
+    return closed_object(fields, required)
+
+
 def chart_receipt_format(observation):
     quotes = []
     for table in observation['tables']:
@@ -78,7 +93,6 @@ def medication_advice_format(observation):
 def signed_order_format(observation):
     string = {'type': 'string', 'minLength': 1, 'maxLength': 1200}
     strings = {'type': 'array', 'items': string, 'maxItems': 24}
-    integer = {'type': 'integer', 'minimum': 0}
     item = dict.fromkeys(PRESCRIPTION_ITEM_REQUIRED_FIELDS, string)
     single_prescription = observation.get('single_prescription')
     if single_prescription and observation['orderable_drug_codes']:
@@ -193,9 +207,7 @@ def signed_order_format(observation):
             ask['recipient'] = {'enum': list(observation['question_recipients'])}
         choices.append(closed_object(ask))
     if 'read_history' in observation['allowed_response_actions']:
-        choices.append(closed_object({'action': {'enum': ['read_history']}, 'section': string, 'offset': integer,
-                                      'limit': {'type': 'integer', 'minimum': 1}, 'term': string, 'encounter_key': string},
-                                     ['action', 'section', 'offset', 'limit']))
+        choices.append(history_query_format(observation))
     if 'request_medication_reconciliation' in observation['allowed_response_actions']:
         choices.append(closed_object({'action': {'enum': ['request_medication_reconciliation']},
                                       'issues': strings, 'reason': string}))
@@ -225,7 +237,6 @@ def response_format(messages):
             return closed_object({'primary_diagnosis_index': {'type': 'integer',
                                   'enum': [row['index'] for row in choices]}})
         string = {'type': 'string'}
-        integer = {'type': 'integer', 'minimum': 0}
         strings = {'type': 'array', 'items': string}
         brief = string
         label = string
@@ -249,9 +260,7 @@ def response_format(messages):
             completed['required'].remove('allergy_assessment')
         if observation.get('require_working_assessment'):
             return completed
-        query = closed_object({'action': {'enum': ['read_history']}, 'section': string, 'offset': integer,
-            'limit': {'type': 'integer', 'minimum': 1, 'maximum': 20},
-            'term': string, 'encounter_key': string}, ['action', 'section', 'offset', 'limit'])
+        query = history_query_format(observation)
         ask = {'action': {'enum': ['ask']}, 'question': string, 'question_purpose': {'enum': ['diagnostic']}}
         if recipients := observation.get('question_recipients'):
             ask['recipient'] = {'enum': list(recipients)}
