@@ -2964,7 +2964,11 @@ class _Execution:
                 repeated_return = len(repeats) == 3 and all(
                         entry.get('outcome') == previous['outcome'] and entry.get('pending') == previous['pending']
                         and entry.get('source_rounds') == previous['source_rounds'] for entry in repeats)
-                fresh_review = previous.get('fresh_citation_review') or repeated_return
+                same_source_returns = findings[-4:]
+                repeated_sources = len(same_source_returns) == 4 and all(
+                    entry.get('outcome') == previous['outcome']
+                    and entry.get('source_rounds') == previous['source_rounds'] for entry in same_source_returns)
+                fresh_review = previous.get('fresh_citation_review') or repeated_return or repeated_sources
                 if self.ips_on_demand and fresh_review:
                     lookup_sources = set(sources) | sections
                     lookup_sources.discard('chart_search_receipts')

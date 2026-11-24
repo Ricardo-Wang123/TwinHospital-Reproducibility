@@ -122,6 +122,26 @@ def test_repeated_citation_return_can_use_a_fresh_read_source():
         ["I used my inhaler yesterday."], ["这部分我不清楚。", "I used my inhaler yesterday."]]
 
 
+def test_alternating_open_checks_do_not_reset_citation_recovery():
+    questions = {"medicines": "Review medicines.", "q2": "Review the last dose."}
+    evidence = {"medication_history": ["Listed medicine"], "ips": {}, "ed_chart": [], "chart_search_receipts": []}
+    turns = []
+    for pending in (questions, {"q2": questions["q2"]}, questions, {"q2": questions["q2"]}):
+        turns.append({
+            "checkpoint": 0, "outcome": "decide_after_source_review", "pending": pending,
+            "source_rounds": {"medicines": 1, "q2": 2}, "treatment_conflicts": {}, "findings": {},
+            "return_reason": dict.fromkeys(pending, "physician_reported_unresolved"),
+        })
+    workflow = SimpleNamespace(
+        prescribing_history_sources=lambda: (evidence, evidence),
+        result={"artifacts": {"ed_prescribing_checks": turns}},
+        primary_treatment_only=True, ed_checkpoint_index=0, post_signature_review=True, ips_on_demand=True,
+        ed_questions=questions, ed_checked_questions={"medicines": 1, "q2": 2},
+    )
+    observation = _Execution.prescribing_check_input(workflow)
+    assert "ips" in observation["source_limits_review"]["fresh_citation_sources"]
+
+
 def test_prescribing_scope_retry_addresses_all_selected_options():
     schema = signed_order_format({
         "signed_order_lines": [], "single_prescription": True, "orderable_drug_codes": [],
