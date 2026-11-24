@@ -183,8 +183,8 @@ def clinical_page(case, *, allergy_source_status=None, workbook_available=False)
     if opening_medications:
         content += record_table(opening_medications)
     else:
-        label = drugs.get("record_label", "开诊用药栏无可列条目")
-        content += f"<p>{esc(label)}。既往用药与本次后续核对见下方。</p>"
+        medication_label = drugs.get("record_label", "开诊用药栏无可列条目")
+        content += f"<p>{esc(medication_label)}。既往用药与本次后续核对见下方。</p>"
     content += "<h2>本次急诊</h2>"
     counts = {}
     for section, name in ED_SECTIONS.items():
@@ -231,7 +231,8 @@ def build(cohort, output, sheet_inputs, *, workbook_available=False):
         case_id, label, document, counts = clinical_page(
             case, allergy_source_status=allergy_sources.get(case["case_id"], {}).get("source_status"),
             workbook_available=workbook_available)
-        if case_id != entry["case_id"] or case_id in verify or case["group"] != entry["group"]:
+        if (case_id != entry["case_id"] or case_id in verify or case["group"] != entry["group"]
+                or label != GROUPS[entry["group"]]):
             raise ValueError("Case identity differs from the frozen manifest")
         (output / "病例" / f"{case_id}.html").write_text(document, encoding="utf-8")
         rows.append([case_id, label])
