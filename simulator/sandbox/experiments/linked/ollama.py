@@ -170,12 +170,29 @@ def signed_order_format(observation):
             fields = {'finding': string, 'source': string, 'quote': string, 'verification_status': string,
                       'affected_treatments': scoped, 'decision_basis': string}
             correction = limits.get('citation_corrections', {}).get(key)
+            fresh_sources = limits.get('fresh_citation_sources', [])
             candidates = correction['matching_read_sources'] if correction else None
             previous = observation.get('previous_check_findings', {}).get(key) or {}
             quote = previous.get('quote') if isinstance(previous, dict) else None
             choices = []
             for status, required in statuses:
                 values = {**fields, 'status': {'enum': [status]}}
+                if fresh_sources and status != 'unresolved':
+                    available = set(fresh_sources)
+                    if status == 'verified':
+                        available.discard('original_chart_unknown')
+                    if key == 'medicines':
+                        available &= {'ips', 'patient', 'medication_history', 'medication_records', 'original_chart_unknown'}
+                        if status == 'verified':
+                            available.discard('medication_records')
+                    if 'ips' in available:
+                        choices.append(closed_object({**values, 'source': {'enum': ['ips']}},
+                                                     ['status', 'finding', *required]))
+                    chart_sources = sorted(available - {'ips'})
+                    if chart_sources:
+                        choices.append(closed_object({**values, 'source': {'enum': chart_sources}},
+                                                     ['status', 'finding', *dict.fromkeys([*required, 'quote'])]))
+                    continue
                 if correction and status != 'unresolved':
                     if not candidates or not quote:
                         continue

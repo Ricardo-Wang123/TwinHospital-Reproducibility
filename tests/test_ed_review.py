@@ -8,7 +8,7 @@ from sandbox.experiments.linked.emergency import NOTE_HEADINGS, check_findings, 
 from sandbox.experiments.linked.clinical import _Execution, _response_shape_errors
 from sandbox.experiments.linked.chart import HistoryChart, NO_MEDICATION_RECORD
 from sandbox.experiments.linked.contracts import TaskCondition
-from sandbox.experiments.linked.ollama import response_format
+from sandbox.experiments.linked.ollama import response_format, signed_order_format
 
 
 @pytest.mark.parametrize("decision,expected", [("approve", "approve"), ("flag", "defer"), ("reject", "reject")])
@@ -84,6 +84,24 @@ def test_note_draft_retry_requires_all_four_authored_sections():
     assert soap_sections(render_soap_sections(sections)) == sections
     with pytest.raises(ValueError):
         render_soap_sections({"Subjective": "Only the first section."})
+
+
+def test_repeated_citation_return_can_use_a_fresh_read_source():
+    schema = signed_order_format({
+        "signed_order_lines": [], "required_treatment_options": {"treatment": {}},
+        "required_prescribing_checks": {"medicines": "Review documented medicines."},
+        "allowed_response_actions": [], "ips_on_demand": True,
+        "source_limits_review": {
+            "citation_corrections": {"medicines": {"matching_read_sources": []}},
+            "fresh_citation_sources": ["ips", "patient", "original_chart_unknown"],
+        },
+    })
+    branches = schema["properties"]["check_results"]["properties"]["medicines"]["oneOf"]
+    verified = [b for b in branches if b["properties"]["status"]["enum"] == ["verified"]]
+    by_source = {tuple(b["properties"]["source"]["enum"]): b["required"] for b in verified}
+    assert "quote" not in by_source[("ips",)]
+    assert "quote" in by_source[("patient",)]
+    assert ("original_chart_unknown",) not in by_source
 
 
 def test_known_ips_medications_need_no_source_quote():

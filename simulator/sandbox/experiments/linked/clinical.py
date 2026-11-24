@@ -2956,6 +2956,20 @@ class _Execution:
                     'source could supply the evidence.') }}
             if self.post_signature_review:
                 sections = {table['section'] for table in sources['ed_chart']}
+                repeats = findings[-3:]
+                if self.ips_on_demand and len(repeats) == 3 and all(
+                        entry.get('outcome') == previous['outcome'] and entry.get('pending') == previous['pending']
+                        and entry.get('source_rounds') == previous['source_rounds'] for entry in repeats):
+                    lookup_sources = set(sources) | sections
+                    lookup_sources.discard('chart_search_receipts')
+                    if any(receipt['status'] == 'no_recorded_result' for receipt in sources['chart_search_receipts']):
+                        lookup_sources.add('original_chart_unknown')
+                    source_limits['source_limits_review']['fresh_citation_sources'] = sorted(lookup_sources)
+                    source_limits['source_limits_review']['instruction'] += (
+                        ' Use a fresh citation for each finding from the sources you have read. '
+                        'Use source=patient for a patient statement with a short exact quote. '
+                        'Use source=ips for a fact supported by the IPS. For a chart result, cite its section '
+                        'and quote its actual finding. Record uncertainty where the reviewed evidence remains insufficient.')
                 citations = {}
                 for key, question in previous['pending'].items():
                     if previous['return_reason'][key] != 'insufficient_source_for_stated_finding':
