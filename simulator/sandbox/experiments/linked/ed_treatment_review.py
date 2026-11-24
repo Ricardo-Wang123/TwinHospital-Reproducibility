@@ -188,6 +188,10 @@ def missing_committed_products(observation, response):
             alias = item.get(field)
             if isinstance(alias, str) and alias.strip():
                 products.setdefault(alias.strip().casefold(), set()).add(code)
+                if field == 'ingredient':
+                    for ingredient in alias.split('+'):
+                        if ingredient.strip():
+                            products.setdefault(ingredient.strip().casefold(), set()).add(code)
         label = item.get('display_name_zh')
         if isinstance(label, str):
             for name in chinese_names:

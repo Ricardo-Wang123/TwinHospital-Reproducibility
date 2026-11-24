@@ -8,6 +8,7 @@ from sandbox.experiments.linked.emergency import NOTE_HEADINGS, check_findings, 
 from sandbox.experiments.linked.clinical import _Execution, _response_shape_errors
 from sandbox.experiments.linked.chart import HistoryChart, NO_MEDICATION_RECORD
 from sandbox.experiments.linked.contracts import TaskCondition
+from sandbox.experiments.linked.ed_treatment_review import missing_committed_products
 from sandbox.experiments.linked.ollama import response_format, signed_order_format
 
 
@@ -161,6 +162,18 @@ def test_known_ips_medications_need_no_source_quote():
     sources = {"ips": {"medications": {"status": "reported", "entries": [{"name": "Fixture product"}]}}}
     assert not check_findings(questions, findings, sources, {})
     assert check_findings(questions, findings, {}, {}) == questions
+
+
+def test_committed_ingredient_can_be_present_in_a_signed_combination():
+    products = [
+        {"drug_code": "single", "name": "Ipratropium", "ingredient": "ipratropium"},
+        {"drug_code": "combo", "name": "Ipratropium/albuterol inhaler", "ingredient": "ipratropium+albuterol"},
+    ]
+    response = {"reason": "I am prescribing ipratropium/albuterol for bronchodilation.",
+                "order_actions": [{"kind": "new", "item": {"drug_code": "combo"}}]}
+    assert missing_committed_products({"formulary": products}, response) == set()
+    response["order_actions"] = []
+    assert {"ipratropium", "albuterol"} <= missing_committed_products({"formulary": products}, response)
 
 
 def test_chart_lookup_without_results_preserves_unknown():
