@@ -236,8 +236,9 @@ def signed_order_format(observation):
     advised = [row['drug_code'] for row in observation.get('medication_advice', {}).get('items', [])]
     advice_option = {'enum': option_ids} if option_ids else string
     advice_review = closed_object(dict.fromkeys(advised, closed_object({'treatment_option': advice_option, 'reason': string})))
+    limit_checks = limits and not limits.get('encoding_correction')
     fields = {'decision': {'enum': ['sign']}, 'treatments': treatments, 'check_results': check_fields(affected_treatments),
-              'advice_review': advice_review, 'outstanding_checks': {'type': 'array', 'maxItems': 0} if limits else strings,
+              'advice_review': advice_review, 'outstanding_checks': {'type': 'array', 'maxItems': 0} if limit_checks else strings,
               'reason': string}
     signed = closed_object(fields)
     conflicts = limits.get('treatments_marked_as_both_selected_and_blocked') or {}

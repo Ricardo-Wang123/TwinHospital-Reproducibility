@@ -1098,7 +1098,8 @@ class _Execution:
                     "or [] if none. Explain products removed from the signed or returned medication list with "
                     "their drug_code in prior_codes. Discuss an unadopted advisory suggestion by ingredient or class "
                     "and cite the reviewed finding or information gap.")
-            if treatment_orders and base.get('source_limits_review'):
+            source_review = base.get('source_limits_review', {})
+            if treatment_orders and source_review and not source_review.get('encoding_correction'):
                 base['allowed_response_actions'] = [action for action in base['allowed_response_actions']
                                                     if action == 'search_formulary']
                 shape['shape_description'] += (
@@ -3650,7 +3651,9 @@ class _Execution:
     def revise_returned_ed_order(self, prescription, review, validation, order_actions=None):
         """Keep the reviewed version and its questions with the original prescriber."""
         replies = self.ed_prescribing_replies
+        confirmed = self.ed_checked_order
         self.ed_checked_order = None
+        encoding_evidence = {}
         closing_regimen = review['decision'] == 'final_medication_required'
         if closing_regimen:
             followup = ('Your proposed closing regimen has no active primary medication and remains unsigned. '
@@ -3661,6 +3664,15 @@ class _Execution:
             followup = ('The order-entry check found a coding or representation issue before signature. '
                         'Use the listed validation feedback and exact formulary fields. '
                         'Return the treatment decision and complete order you can support.')
+            if self.ips_on_demand and confirmed and confirmed.get('attributed_citation_review'):
+                prior = self.calls[confirmed['physician_call'] - 1]['observation']['source_limits_review']
+                encoding_evidence = {key: deepcopy(prior[key]) for key in (
+                    'patient_reply_passages', 'preconsult_report_passages', 'fresh_citation_sources') if key in prior}
+                encoding_evidence.update(encoding_correction=True,
+                    retained_check_results=deepcopy(confirmed['findings']),
+                    instruction=('Retain the verified findings from the same reviewed evidence. Correct the listed '
+                                 'representation fields. If a different regimen creates a new safety question, '
+                                 'state the question and use the available sources to resolve it.'))
             if any(finding['code'] == 'duplicate_order_lines' for finding in validation.get('findings', [])):
                 followup += (' Merge each duplicate group in business_validation.findings into one order. '
                              'Keep its combined clinical reasons in indication.rationale.')
@@ -3692,13 +3704,16 @@ class _Execution:
                        if self.primary_treatment_only else self.clinical_context())
             if replies:
                 context['prescribing_clarifications'] = list(replies.values())
+            checks = self.prescribing_check_input()
+            if encoding_evidence:
+                checks['source_limits_review'] = {**checks.get('source_limits_review', {}), **encoding_evidence}
             answer = self.respond('doctor', {'action': 'revise_prescription', 'prescription': prescription,
                 'clinical_context': context, 'reviews': review, 'business_validation': validation,
                 **({'returned_actions': deepcopy(order_actions)} if order_actions is not None and not self.single_prescription else {}),
                 **(self.primary_treatment_input(self.consultation_record,
                       self.result['artifacts'].get('ed_primary_medication_advice', {}).get(str(self.ed_checkpoint_index)))
                    if self.primary_treatment_only else {}),
-                **self.prescribing_check_input(),
+                **checks,
                 'formulary': self.case['formulary'], 'review_state': review['decision'],
                 'remaining_history_queries': self.history_queries_remaining('consultation'),
                 'remaining_interactions': self.work_limit('consultation_turns', self.consultation_interactions_used)
@@ -3710,6 +3725,7 @@ class _Execution:
                     or ('order_actions' in answer and (self.ed_prescription_signed or self.independent_order_actions))):
                 if self.complete_prescribing_checks(answer, self.consultation_record, answer['prescription']):
                     return answer
+                encoding_evidence = {}
                 continue
             request = answer
             if answer.get('action') not in {'ask', 'read_history', 'request_medication_reconciliation'}:
@@ -3720,6 +3736,7 @@ class _Execution:
                                         self.consultation_record, prescription)
                 continue
             self.clarify_ed_prescription(request, self.consultation_record, prescription, replies)
+            encoding_evidence = {}
 
     def finalize_ed_orders(self, consultation, condition, signed):
         active = signed
