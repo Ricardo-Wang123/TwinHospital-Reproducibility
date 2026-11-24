@@ -217,13 +217,20 @@ def signed_order_format(observation):
                     if 'ips' in available:
                         choices.append(closed_object({**values, 'source': {'enum': ['ips']}},
                                                      ['status', 'finding', *required]))
-                    selected_passages = {'patient': limits.get('patient_reply_passages', [])}
+                    selected_passages = {
+                        'patient': limits.get('patient_reply_passages', []),
+                        'original_chart_unknown': [
+                            receipt['term'] for receipt in observation.get('chart_search_receipts', [])
+                            if receipt['status'] == 'no_recorded_result'],
+                    }
                     if key != 'medicines':
                         selected_passages['preconsult_report'] = limits.get('preconsult_report_passages', [])
                     for source, passages in selected_passages.items():
                         if source not in available and source != 'preconsult_report':
                             continue
                         if not passages:
+                            if source == 'original_chart_unknown':
+                                available.discard(source)
                             continue
                         available.discard(source)
                         if status == 'verified' and source == 'patient':

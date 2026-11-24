@@ -173,6 +173,25 @@ def test_citation_only_retry_requests_only_the_open_check():
     assert schema["properties"]["check_results"]["required"] == ["q2"]
 
 
+def test_chart_unknown_citation_uses_a_recorded_search_term():
+    schema = signed_order_format({
+        "signed_order_lines": [], "required_treatment_options": {"treatment": {}},
+        "required_prescribing_checks": {"q2": "Check the last dose."},
+        "allowed_response_actions": [], "ips_on_demand": True,
+        "complete_prescribing_citations": {"pending": ["q2"]},
+        "source_limits_review": {"fresh_citation_sources": ["ips", "original_chart_unknown"]},
+        "chart_search_receipts": [
+            {"term": "last dose", "status": "no_recorded_result"},
+            {"term": "inhaler", "status": "visible"},
+        ],
+    })
+    choices = schema["properties"]["check_results"]["properties"]["q2"]["oneOf"]
+    unknown = next(choice for choice in choices if choice["properties"].get("source") == {
+        "enum": ["original_chart_unknown"]})
+    assert unknown["properties"]["quote"]["enum"] == ["last dose"]
+    assert unknown["properties"]["status"]["enum"] == ["reviewed_with_limits"]
+
+
 def test_route_encoding_retry_keeps_product_and_accepted_route_together():
     schema = signed_order_format({
         "signed_order_lines": [], "single_prescription": True, "orderable_drug_codes": ["a", "b"],
