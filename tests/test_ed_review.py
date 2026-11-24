@@ -58,6 +58,20 @@ def test_ips_history_lookup_requires_a_specific_term():
     assert not _response_shape_errors("doctor", {"action": "assess"}, request)
 
 
+def test_ips_prescribing_source_retry_uses_the_available_chart_sections():
+    observation = {"action": "locate_ed_prescribing_source", "ips_on_demand": True,
+                   "available_chart_sections": ["ed_diagnostic_reports", "current_use_record"],
+                   "schema_correction": {"attempt": 1}}
+    schema = response_format([{"role": "user", "content": json.dumps(observation)}])
+    lookup, ask, reconcile = schema["oneOf"]
+    assert "term" in lookup["required"]
+    assert lookup["properties"]["section"]["enum"] == observation["available_chart_sections"]
+    assert ask["properties"]["recipient"]["enum"] == ["patient"]
+    assert reconcile["properties"]["issues"]["minItems"] == 1
+    del observation["schema_correction"]
+    assert response_format([{"role": "user", "content": json.dumps(observation)}]) == "json"
+
+
 def test_known_ips_medications_need_no_source_quote():
     questions = {"medicines": "What medicines are documented?"}
     findings = {"medicines": {"status": "verified", "source": "ips",

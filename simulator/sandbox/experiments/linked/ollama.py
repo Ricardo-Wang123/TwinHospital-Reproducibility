@@ -39,6 +39,19 @@ def history_query_format(observation):
     return closed_object(fields, required)
 
 
+def prescribing_source_format(observation):
+    lookup = history_query_format(observation)
+    if sections := observation.get('available_chart_sections'):
+        lookup['properties']['section'] = {'enum': list(dict.fromkeys(sections))}
+    question = {'type': 'string', 'minLength': 1}
+    patient = closed_object({'action': {'enum': ['ask']}, 'recipient': {'enum': ['patient']},
+                             'question': question})
+    reconcile = closed_object({'action': {'enum': ['request_medication_reconciliation']},
+                               'issues': {'type': 'array', 'items': question, 'minItems': 1},
+                               'reason': question})
+    return {'oneOf': [lookup, patient, reconcile]}
+
+
 def chart_receipt_format(observation):
     quotes = []
     for table in observation['tables']:
@@ -223,6 +236,8 @@ def response_format(messages):
     observation = json.loads(user)
     action = observation.get('action')
     correction = observation.get('schema_correction', {})
+    if action == 'locate_ed_prescribing_source' and observation.get('ips_on_demand') and correction:
+        return prescribing_source_format(observation)
     if observation.get('formulary_search_required'):
         return formulary_lookup_format()
     if action == 'collect':
