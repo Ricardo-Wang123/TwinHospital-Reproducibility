@@ -161,6 +161,18 @@ def test_prescribing_scope_retry_addresses_all_selected_options():
     assert all(item["properties"]["affected_treatments"]["maxItems"] == 0 for item in alternatives)
 
 
+def test_citation_only_retry_requests_only_the_open_check():
+    schema = signed_order_format({
+        "signed_order_lines": [], "required_treatment_options": {"treatment": {}},
+        "required_prescribing_checks": {"medicines": "Review medicines.", "q2": "Check the last dose."},
+        "allowed_response_actions": [], "ips_on_demand": True,
+        "complete_prescribing_citations": {"pending": ["q2"]},
+        "source_limits_review": {"retained_check_results": {"medicines": {"status": "verified"}}},
+    })
+    assert schema["required"] == ["check_results"]
+    assert schema["properties"]["check_results"]["required"] == ["q2"]
+
+
 def test_route_encoding_retry_keeps_product_and_accepted_route_together():
     schema = signed_order_format({
         "signed_order_lines": [], "single_prescription": True, "orderable_drug_codes": ["a", "b"],

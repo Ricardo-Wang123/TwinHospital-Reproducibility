@@ -186,6 +186,7 @@ def signed_order_format(observation):
     if option_ids:
         affected_treatments = {'type': 'array', 'items': {'enum': option_ids}, 'maxItems': len(option_ids)}
     def check_fields(affected, affected_by_check=None):
+        short_finding = {**string, 'maxLength': 420} if observation.get('complete_prescribing_citations') else string
         quotes = [] if observation.get('ips_on_demand') else ['quote']
         statuses = [('verified', ['source', *quotes]),
                     ('reviewed_with_limits', ['source', *quotes, 'affected_treatments', 'decision_basis']),
@@ -195,8 +196,8 @@ def signed_order_format(observation):
             if key in limits.get('retained_check_results', {}):
                 continue
             scoped = (affected_by_check or {}).get(key, affected)
-            fields = {'finding': string, 'source': string, 'quote': string, 'verification_status': string,
-                      'affected_treatments': scoped, 'decision_basis': string}
+            fields = {'finding': short_finding, 'source': string, 'quote': string, 'verification_status': string,
+                      'affected_treatments': scoped, 'decision_basis': short_finding}
             correction = limits.get('citation_corrections', {}).get(key)
             fresh_sources = limits.get('fresh_citation_sources', [])
             candidates = correction['matching_read_sources'] if correction else None
@@ -247,6 +248,9 @@ def signed_order_format(observation):
                 choices.append(closed_object(values, ['status', 'finding', *required]))
             checks[key] = {'oneOf': choices} if len(choices) > 1 else choices[0]
         return closed_object(checks)
+
+    if observation.get('complete_prescribing_citations'):
+        return closed_object({'check_results': check_fields(affected_treatments)})
 
     preserve_no_actions = correction.get('preserve_no_order_actions')
     action_list = {'type': 'array', 'items': {'oneOf': actions}}

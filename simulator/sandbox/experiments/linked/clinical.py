@@ -1171,6 +1171,12 @@ class _Execution:
                 'Complete only the administration instructions for the returned line numbers. '
                 'Return {administration_instructions:{line_number:string}}. '
                 'Use the unchanged regimen you selected and the patient information you reviewed.')
+        if base.get('complete_prescribing_citations'):
+            base['required_response']['shape_description'] = (
+                'Return only {check_results:{check_id:{status,finding,source,quote,affected_treatments,decision_basis}}} '
+                'for the listed fields. Keep the selected regimen and the valid earlier findings. '
+                'Cite the same reviewed evidence. If an unanswered fact blocks a selected medication, mark that '
+                'option as affected so you can reconsider it before signing.')
         original_hash = digest(base)
         current = base
         corrections = []
@@ -1457,6 +1463,12 @@ class _Execution:
                 retained = observation.get('source_limits_review', {}).get('retained_check_results')
                 if completion := observation.get('complete_native_instructions'):
                     response = therapy.complete_administration_instructions(response, completion)
+                if completion := observation.get('complete_prescribing_citations'):
+                    submitted = response.get('check_results')
+                    if (set(response) != {'check_results'} or not isinstance(submitted, dict)
+                            or set(submitted) != set(completion['pending'])):
+                        raise ValueError('Supply only the returned prescribing check fields.')
+                    response = {**deepcopy(completion['prior_submission']), 'check_results': submitted}
                 if retained and isinstance(response.get('check_results'), dict):
                     response = {**response, 'check_results': {**deepcopy(retained), **response['check_results']}}
                 if observation.get('required_treatment_options'):
@@ -2987,7 +2999,10 @@ class _Execution:
                         'Use source=patient for a patient statement with a short exact quote. '
                         'Use source=ips for a fact supported by the IPS. For a chart result, cite its section '
                         'and quote its actual finding. Record uncertainty where the reviewed evidence remains insufficient.')
-                    if previous.get('fresh_citation_review'):
+                    citation_only = (not previous['treatment_conflicts'] and bool(previous['pending'])
+                        and all(previous['return_reason'][key] == 'insufficient_source_for_stated_finding'
+                                for key in previous['pending']))
+                    if previous.get('fresh_citation_review') or (repeated_sources and citation_only):
                         review = source_limits['source_limits_review']
                         observed_replies = [row['text'] for row in self.transcript
                                             if row['phase'] == 'consultation' and row['speaker_role'] == 'patient']
@@ -3027,6 +3042,15 @@ class _Execution:
                                 ' Provide check_results only for fields outside retained_check_results. '
                                 'The retained findings are your prior verified evidence. Continue making the '
                                 'medication decision independently from the complete reviewed evidence.')
+                        if citation_only:
+                            submitted = self.calls[previous['physician_call'] - 1].get('submitted_response', {})
+                            if submitted.get('treatments') and submitted.get('decision') == 'sign':
+                                review['retained_check_results'] = {key: deepcopy(row)
+                                    for key, row in previous['findings'].items()
+                                    if key in self.ed_questions and key not in previous['pending']}
+                                source_limits['complete_prescribing_citations'] = {
+                                    'prior_submission': deepcopy(submitted),
+                                    'pending': list(previous['pending'])}
                 citations = {}
                 for key, question in previous['pending'].items():
                     if previous['return_reason'][key] != 'insufficient_source_for_stated_finding':
