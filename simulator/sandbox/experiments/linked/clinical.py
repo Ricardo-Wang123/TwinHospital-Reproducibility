@@ -2976,6 +2976,20 @@ class _Execution:
                         'Use source=ips for a fact supported by the IPS. For a chart result, cite its section '
                         'and quote its actual finding. Record uncertainty where the reviewed evidence remains insufficient.')
                     if previous.get('fresh_citation_review'):
+                        review = source_limits['source_limits_review']
+                        observed_replies = [row['text'] for row in self.transcript
+                                            if row['phase'] == 'consultation' and row['speaker_role'] == 'patient']
+                        review['patient_reply_passages'] = list(dict.fromkeys([*sources['patient'], *observed_replies]))
+                        if self.handoff is not None:
+                            review['preconsult_report_passages'] = [self.handoff['text'], *(
+                                str(fact['value']) for fact in self.handoff.get('facts', []) if fact.get('value'))]
+                        review['prior_selected_prescription'] = deepcopy(
+                            self.calls[previous['physician_call'] - 1]['response'].get('prescription', {'items': []}))
+                        review['instruction'] += (
+                            ' The patient reply passages are statements the patient actually made during consultation. '
+                            'A statement that the patient does not know establishes an information limit. '
+                            'For that limit use reviewed_with_limits with the patient reply and your decision_basis. '
+                            'Use preconsult_report when citing a fact included in the intake report you read.')
                         retained = {}
                         for check in findings:
                             if check['source_rounds'] != previous['source_rounds']:
@@ -3031,6 +3045,11 @@ class _Execution:
         findings = findings if isinstance(findings, dict) else {}
         self.verify_prescribing_coverage()
         _, sources = self.prescribing_history_sources()
+        supplied_evidence = self.calls[-1]['observation'].get('source_limits_review', {})
+        if 'patient_reply_passages' in supplied_evidence:
+            sources['patient'] = supplied_evidence['patient_reply_passages']
+        if 'preconsult_report_passages' in supplied_evidence:
+            sources['preconsult_report'] = supplied_evidence['preconsult_report_passages']
         if sources['medication_history'] == [NO_MEDICATION_RECORD] and 'medicines' in self.ed_questions:
             findings = {**findings, 'medicines': dict(EMPTY_MEDICATION_CHECK)}
         if self.post_signature_review:

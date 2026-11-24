@@ -190,6 +190,22 @@ def signed_order_format(observation):
                     if 'ips' in available:
                         choices.append(closed_object({**values, 'source': {'enum': ['ips']}},
                                                      ['status', 'finding', *required]))
+                    selected_passages = {'patient': limits.get('patient_reply_passages', [])}
+                    if key != 'medicines':
+                        selected_passages['preconsult_report'] = limits.get('preconsult_report_passages', [])
+                    for source, passages in selected_passages.items():
+                        if source not in available and source != 'preconsult_report':
+                            continue
+                        if not passages:
+                            continue
+                        available.discard(source)
+                        if status == 'verified' and source == 'patient':
+                            passages = [part for part in passages if part.strip(' .。') not in {
+                                '这部分我不清楚', '不清楚', '不知道', 'I do not know', "I don't know"}]
+                        if passages:
+                            choices.append(closed_object({**values, 'source': {'enum': [source]},
+                                                          'quote': {'enum': list(dict.fromkeys(passages))}},
+                                                         ['status', 'finding', *dict.fromkeys([*required, 'quote'])]))
                     chart_sources = sorted(available - {'ips'})
                     if chart_sources:
                         choices.append(closed_object({**values, 'source': {'enum': chart_sources}},

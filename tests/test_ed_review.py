@@ -110,10 +110,15 @@ def test_repeated_citation_return_can_use_a_fresh_read_source():
         "source_limits_review": {
             "fresh_citation_sources": ["ips", "patient"],
             "retained_check_results": {"medicines": {"status": "verified", "source": "ips", "finding": "Reviewed."}},
+            "patient_reply_passages": ["这部分我不清楚。", "I used my inhaler yesterday."],
         },
     }
     checks = signed_order_format(retained)["properties"]["check_results"]
     assert checks["required"] == ["q2"]
+    patient = [branch for branch in checks["properties"]["q2"]["oneOf"]
+               if branch["properties"].get("source") == {"enum": ["patient"]}]
+    assert [b["properties"]["quote"]["enum"] for b in patient] == [
+        ["I used my inhaler yesterday."], ["这部分我不清楚。", "I used my inhaler yesterday."]]
 
 
 def test_known_ips_medications_need_no_source_quote():
