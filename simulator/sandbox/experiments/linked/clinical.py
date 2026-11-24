@@ -157,6 +157,7 @@ def _response_shape_errors(role, observation, response, earlier_calls=()):
         except ValueError as exc:
             errors.append(str(exc))
     if observation.get('ed_order_indication_policy') == INDICATION_POLICY:
+        target = observation.get('ed_prescribing_target')
         for key in ('prescription', 'suggested_prescription'):
             rx = response.get(key)
             if isinstance(rx, dict) and isinstance(rx.get('items'), list):
@@ -167,6 +168,8 @@ def _response_shape_errors(role, observation, response, earlier_calls=()):
                             errors.append('Use a drug_code returned by the current hospital formulary search.')
                         if observation.get('primary_treatment_only') and scope != 'primary':
                             errors.append('Select treatment for the main presenting problem. Keep other medicines in the history.')
+                        if target and item['indication']['problem'] != target['display']:
+                            errors.append(f"Set indication.problem to the assigned diagnosis: {target['display']}.")
                 except ValueError as exc:
                     errors.append(str(exc))
     if role == 'doctor':
@@ -1110,6 +1113,15 @@ class _Execution:
             base['required_response']['shape_description'] = (
                 'Return {action:"search_formulary",queries:[the medication name you selected],offset:0}. '
                 'Use a medication name to locate its orderable catalogue entries.')
+        target = self.case.get('ed_prescribing_target')
+        if self.single_prescription and target and base['action'] in {
+                'reassess_ed_prescription', 'revise_prescription', 'draft_prescription',
+                'advise_prescription', 'review_prescription'}:
+            base['ed_prescribing_target'] = deepcopy(target)
+            base['prescribing_scope'] = (
+                'Treat the assigned ED diagnosis in ed_prescribing_target. Use other conditions, '
+                'medication history and allergies when assessing safety. Select medication only for '
+                'the assigned diagnosis and use its display in indication.problem.')
         original_hash = digest(base)
         current = base
         corrections = []

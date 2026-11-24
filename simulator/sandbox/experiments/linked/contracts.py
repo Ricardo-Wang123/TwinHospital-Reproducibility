@@ -7,7 +7,8 @@ import json
 
 MODEL_FAMILIES = ("deepseek", "glm")
 RUNTIME_CASE_FIELDS = ("case_id", "patient_key", "group", "data_kind", "split", "encounter_setting",
-                       "patient_initial", "his_initial", "formulary", "formulary_directory")
+                       "patient_initial", "his_initial", "formulary", "formulary_directory",
+                       "ed_prescribing_target")
 RUNTIME_CASE_REQUIRED_FIELDS = ("case_id", "patient_key", "data_kind", "patient_initial",
                                 "his_initial", "formulary")
 PRESCRIPTION_ITEM_REQUIRED_FIELDS = ("drug_code", "dose", "dose_unit", "route", "frequency",
@@ -72,6 +73,12 @@ def runtime_case(value):
         raise ValueError("patient_initial.patient_facts must be a list")
     if not isinstance(result["his_initial"], dict) or not isinstance(result["formulary"], list):
         raise ValueError("invalid hospital initial view or formulary")
+    if "ed_prescribing_target" in result:
+        target = result["ed_prescribing_target"]
+        if (result.get("encounter_setting") != "emergency" or not isinstance(target, dict)
+                or set(target) != {"code", "system", "display"}
+                or any(not isinstance(value, str) or not value.strip() for value in target.values())):
+            raise ValueError("invalid assigned ED prescribing diagnosis")
     if result.get("encounter_setting") == "emergency" and result["data_kind"] in {"mimic_derived", "hospital_derived"}:
         from .emergency import hide_index_ed_choices
         hide_index_ed_choices(result["his_initial"])

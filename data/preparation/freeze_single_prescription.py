@@ -9,11 +9,12 @@ import os
 import shutil
 
 from freeze_ed_protocol import digest, file_sha256, read, runtime_case, save
+from handoff.mimic_ed_note import attach_index_note
 from sandbox.experiments.linked.chart import reported_before
 from sandbox.experiments.linked.ed_treatment_review import SINGLE_PRESCRIPTION
 
 
-def prepare_single_prescription(source, output):
+def prepare_single_prescription(source, output, *, align_source_notes=False):
     manifest = read(source / 'manifest.json')
     references = read(source / 'reference.private.json')
     audit = read(source / '病例核验.json')
@@ -55,6 +56,23 @@ def prepare_single_prescription(source, output):
                 chart[closing] = [item for item in ready if not reported_before(item, end)]
             if not chart.get('ed_diagnostic_reports') or not chart.get('current_observations'):
                 raise ValueError(f'{case_id}: missing documented acute-visit evidence')
+            index_path = destination / 'patients' / case_id / '原表索引.private.json'
+            index = read(index_path)
+            if align_source_notes:
+                diagnosis = reference['ed_primary_icd']
+                note = index['index_discharge_note']
+                if (str(diagnosis['seq_num']) != '1' or note['note_id'] != reference['source_note_id']
+                        or str(note['hadm_id']) != str(reference['source_hadm_id'])):
+                    raise ValueError(f'{case_id}: the first ED diagnosis or linked admission note differs')
+                case['ed_prescribing_target'] = {
+                    'code': diagnosis['code'], 'system': f"ICD-{diagnosis['icd_version']}-CM",
+                    'display': diagnosis['title']}
+                selected = attach_index_note(case, note)
+                intake_path = index_path.with_name('预问诊事实.private.json')
+                intake = read(intake_path)
+                intake['admission_history_sources'].extend(selected)
+                intake['opening_patient_facts'] = case['patient_initial']['patient_facts']
+                save(intake_path, intake)
             case_path = destination / row['path']
             save(case_path, case)
             runtime_hash = digest(runtime_case(case))
@@ -70,8 +88,6 @@ def prepare_single_prescription(source, output):
                 'reports_without_provable_predeparture_availability': len(chart['ed_closing_reports']),
                 'recorded_primary_new_orders': transactions['New'],
             }
-            index_path = destination / 'patients' / case_id / '原表索引.private.json'
-            index = read(index_path)
             index['report_inventory'] = {
                 section: [{key: value for key, value in item.items() if key in {'source_ref', 'source_kind', 'time'}}
                           for item in records]
@@ -96,6 +112,9 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('source', type=Path)
     parser.add_argument('output', type=Path)
+    parser.add_argument('--align-source-notes', action='store_true',
+                        help='Align prescribing evidence from the indexed MIMIC admission note.')
     args = parser.parse_args()
     os.umask(0o077)
-    prepare_single_prescription(args.source.resolve(), args.output.resolve())
+    prepare_single_prescription(args.source.resolve(), args.output.resolve(),
+                                align_source_notes=args.align_source_notes)

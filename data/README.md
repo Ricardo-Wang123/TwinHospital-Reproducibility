@@ -23,6 +23,8 @@ Obtain MIMIC-IV, MIMIC-IV-ED and MIMIC-IV-Note through PhysioNet. Keep the nativ
 
 Build the time-linked cohort with [source preparation](preparation/freeze_ed_protocol.py) and apply [single-prescription preparation](preparation/freeze_single_prescription.py). The source input to these programs is a locally indexed native archive with linked stay IDs. The reviewed cohort selection and patient-level linkage remain subject to the source access requirements. Use the resulting manifest and the corresponding reference for the experiment.
 
+For source-aligned ED replay, enable `--align-source-notes` during single-prescription preparation. Review the selected patient history and admission findings against the indexed MIMIC note before running. Dated records follow the source table order within the appropriate review phase. Undated admission findings follow their document order after the timed records and before prescribing. The physician receives the first ED diagnosis as the prescribing target and reads the findings as ordinary chart content. Original treatment and disposition remain on the evaluation side. Generate the clinician review materials from the same local cohort.
+
 | Path within the local package | Contents |
 | --- | --- |
 | `patients/<case_id>/就诊索引.html` | Opening summary and longitudinal encounter index with links to the original table rows. |

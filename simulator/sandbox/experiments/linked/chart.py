@@ -45,7 +45,8 @@ _DEMOGRAPHICS['age_population'] = {k: _LEAF for k in (
 _TIME = {k: _LEAF for k in (
     "basis", "event_offset_hours", "recorded_offset_hours", "available_by_source_cutoff",
     "availability_basis", "event_time_known", "event_offset_lower_hours", "event_offset_upper_hours",
-    "recorded_offset_lower_hours", "recorded_offset_upper_hours", "event_precision", "recorded_precision")}
+    "recorded_offset_lower_hours", "recorded_offset_upper_hours", "recorded_offset_upper_exclusive",
+    "event_precision", "recorded_precision", "replay_release_at_seconds")}
 _CODING = {k: _LEAF for k in ("system", "version", "code")}
 _DIAGNOSIS = {k: _LEAF for k in (
     "record_id", "source_ref", "source_encounter_ref", "status", "display",
@@ -231,7 +232,12 @@ def _time_order(record):
 def reported_before(record, boundary_seconds):
     timing = record.get('time', {})
     hours = timing.get('recorded_offset_upper_hours', timing.get('recorded_offset_hours'))
-    return hours is not None and round(hours * 3600) < boundary_seconds
+    if hours is None:
+        replay_release = timing.get('replay_release_at_seconds')
+        return type(replay_release) is int and 0 <= replay_release <= boundary_seconds
+    offset = round(hours * 3600)
+    return offset < boundary_seconds or (
+        offset == boundary_seconds and timing.get('recorded_offset_upper_exclusive') is True)
 
 
 class HistoryChart:
@@ -272,6 +278,7 @@ class HistoryChart:
             'ed_reassessment_workup':[_ED_WORKUP], 'ed_closing_workup':[_ED_WORKUP],
             'ed_lab_reports':[_ED_OBSERVATION], 'ed_diagnostic_reports':[_ED_OBSERVATION],
             'ed_reassessment_reports':[_ED_OBSERVATION], 'ed_closing_reports':[_ED_OBSERVATION]}.items() if key in his_initial})
+        self._ed_source_order = his_initial.get("time_basis", {}).get("ed_review_order") == "source_table"
         for section, schema in schemas.items():
             raw = his_initial.get(section, [] if isinstance(schema, list) else {"status": "not_supplied", "items": []})
             projected, omitted = _project(raw, schema)
@@ -285,7 +292,9 @@ class HistoryChart:
                         and not (projected.get("items") or projected.get("patient_report"))):
                     projected["record_label"] = NO_MEDICATION_RECORD
             records = projected if isinstance(schema, list) else [projected]
-            self._sections[section] = self._wrap(section, sorted(records, key=_time_order, reverse=True))
+            if not (self._ed_source_order and (section in INDEX_ED_SECTIONS or section == "current_observations")):
+                records = sorted(records, key=_time_order, reverse=True)
+            self._sections[section] = self._wrap(section, records)
         diagnoses, headers, order_refs, observation_refs = [], [], [], []
         for entry in self._sections["historical_encounters"]:
             enc = entry["record"]
@@ -377,12 +386,18 @@ class HistoryChart:
             "returned_count": 0, "next_offset": None, "unexpanded_matching_count": len(matches),
             "page_byte_limit": PAGE_BYTE_LIMIT, "size_policy": "complete records only; never slice strings or nested clinical records"}
         consumed = 0
+        if self._ed_source_order and (section in INDEX_ED_SECTIONS or section == "current_observations"):
+            for key in ("ordering", "time_order", "equal_time_order", "missing_time_order"):
+                output["selection"].pop(key)
         for item in matches[offset:offset + limit]:
+            visible = deepcopy(item)
+            if "replay_release_at_seconds" in visible["record"].get("time", {}):
+                visible["record"].pop("time")
             trial = deepcopy(output)
-            trial["records"].append(item)
+            trial["records"].append(visible)
             # Reserve space for count/cursor metadata after selecting the page.
             if json_bytes(trial) <= PAGE_BYTE_LIMIT - 256:
-                output["records"].append(deepcopy(item))
+                output["records"].append(visible)
                 consumed += 1
             elif not consumed:
                 output["requires_expansion"].append({"record_ref": item["record_ref"],

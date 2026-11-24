@@ -57,7 +57,8 @@ def medication_advice_format(observation):
     item = dict.fromkeys(PRESCRIPTION_ITEM_REQUIRED_FIELDS, string)
     if observation.get('single_prescription') and observation['orderable_drug_codes']:
         item['drug_code'] = {'enum': observation['orderable_drug_codes']}
-    indication = {'scope': {'enum': scopes}, 'problem': string}
+    target = observation.get('ed_prescribing_target')
+    indication = {'scope': {'enum': scopes}, 'problem': {'enum': [target['display']]} if target else string}
     if observation.get('single_prescription'):
         indication['rationale'] = string
     item.update(indication=closed_object(indication, ['scope', 'problem']), device=string,
@@ -93,7 +94,8 @@ def signed_order_format(observation):
     for key in ('dose', 'quantity'):
         item[key] = ({'type': 'number', 'exclusiveMinimum': 0} if single_prescription
                      else {'anyOf': [string, {'type': 'number'}]})
-    indication = {'scope': {'enum': ['primary']}, 'problem': string}
+    target = observation.get('ed_prescribing_target')
+    indication = {'scope': {'enum': ['primary']}, 'problem': {'enum': [target['display']]} if target else string}
     if single_prescription:
         indication['rationale'] = string
     item.update(indication=closed_object(indication, ['scope', 'problem']),

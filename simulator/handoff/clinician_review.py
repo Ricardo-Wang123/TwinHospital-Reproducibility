@@ -33,16 +33,16 @@ HISTORY = {
 ED_SECTIONS = {
     "current_observations": "分诊生命体征",
     "ed_workup": "本次开方前记录",
-    "ed_reassessment_workup": "后续回报的病史和用药记录",
     "ed_diagnostic_reports": "本次检查结果",
     "ed_reassessment_reports": "后续回报的检查结果",
+    "ed_reassessment_workup": "开方前复测与补充记录",
 }
 SOURCE_SCOPE = (
     "以该次急诊的开方时点为界。时钟从到达急诊起算，既往记录标为负时间。"
     "检查以回报或入档时间为准。已准备的固定过敏史按模拟设定从开诊可查。"
 )
 INSTRUCTIONS = (
-    "逐例核对急诊主病的用药需求。用通用名填写确有必要的成分。"
+    "逐例核对病例页所示急诊第一顺位诊断的用药需求。用通用名填写确有必要的成分。"
     "若多种方案均合适，在同一格内分行列出完整方案，并写清适用条件。",
     "伴随疾病、既往用药、过敏和检查用于判断适应证和安全性。标注以成分为单位，规格、剂量和疗程可作为依据。",
     "根据现有证据选择「需用药」「无需用药」或「资料不足」，并简写最关键的依据。各评审者独立填写一份。",
@@ -66,14 +66,39 @@ def page(title, content, relative=""):
     )
 
 
-def table(headers, rows):
+def table(headers, rows, *, sources=None):
+    if sources is not None:
+        headers = (*headers, "来源字段")
     heading = "".join(f'<th scope="col">{esc(col)}</th>' for col in headers)
-    body = "".join("<tr>" + "".join(f"<td>{esc(col)}</td>" for col in row) + "</tr>" for row in rows)
+    cells = ["".join(f"<td>{esc(col)}</td>" for col in row) for row in rows]
+    if sources is not None:
+        cells = [values + "<td>" + source_details(source) + "</td>"
+                 for values, source in zip(cells, sources, strict=True)]
+    body = "".join(f"<tr>{row}</tr>" for row in cells)
     return f'<div class="table"><table><thead><tr>{heading}</tr></thead><tbody>{body}</tbody></table></div>'
 
 
 def details(title, content, *, opened=False):
     return f'<details{" open" if opened else ""}><summary>{esc(title)}</summary>{content}</details>'
+
+
+def source_text(value, path=""):
+    """Show each projected source field without internal record identifiers."""
+    if isinstance(value, dict):
+        fields = (
+            source_text(item, f"{path}.{key}" if path else key)
+            for key, item in value.items()
+            if key not in {"record_id", "source_ref", "source_refs", "encounter_ref",
+                           "source_encounter_ref", "dictionary_source_ref"}
+        )
+        return "\n".join(item for item in fields if item)
+    if isinstance(value, list):
+        return "\n".join(source_text(item, f"{path}[{i}]") for i, item in enumerate(value, 1))
+    return f"{path}  {value}" if value is not None and value != "" else ""
+
+
+def source_details(record, title="查看"):
+    return details(title, f'<pre class="source-fields">{esc(source_text(record))}</pre>')
 
 
 def present(*values):
@@ -113,10 +138,14 @@ def item_text(row):
           row.get("dose_unit", regimen.get("dose_unit_rx")), row.get("route", regimen.get("route")),
           row.get("frequency", regimen.get("frequency"))) if v not in (None, ""))
     diagnoses = ", ".join(item["display"] for item in row.get("diagnoses", []) if item.get("display"))
-    return (str(name), " · ".join(i for i in (result, dosing, diagnoses) if i) or "—")
+    observations = ", ".join(
+        " ".join(str(v) for v in (item.get("name"), item.get("value"), item.get("unit")) if v is not None and v != "")
+        for item in row.get("measurements", [])
+    )
+    return (str(name), " · ".join(i for i in (result, dosing, diagnoses, observations) if i) or "—")
 
 
-def record_table(rows):
+def record_table(rows, *, visits=None):
     result = []
     for row in rows:
         time = row.get("time") or {}
@@ -126,12 +155,18 @@ def record_table(rows):
         comment = present(row.get("lab_comment_raw"), row.get("flag_raw"))
         if comment != "—" and str(comment) not in value:
             value = f"{value}\n{comment}"
-        status = present(row.get("status"), row.get("evidence_type"))
+        status = present(row.get("event_status_raw"), row.get("status"), row.get("evidence_type"))
         coding = row.get("coding") or {}
         if coding.get("code"):
             name = f"{name} ({coding['code']})"
-        result.append((seen, observed, name, value, status, present(row.get("source_kind"))))
-    return table(("回报或离院", "发生或入院", "记录", "内容", "原始状态", "来源"), result)
+        cells = (seen, observed, name, value, status, present(row.get("source_kind")))
+        if visits is not None:
+            cells += (visits.get(row.get("source_encounter_ref"), "—"),)
+        result.append(cells)
+    headers = ("回报或离院", "发生或入院", "记录", "内容", "原始状态", "来源")
+    if visits is not None:
+        headers += ("所属既往就诊",)
+    return table(headers, result, sources=rows)
 
 
 def clinical_page(case, *, allergy_source_status=None, workbook_available=False):
@@ -152,25 +187,34 @@ def clinical_page(case, *, allergy_source_status=None, workbook_available=False)
     patient = [fact for fact in c["patient_initial"]["patient_facts"]
                if not is_triage_reason(fact) and fact.get("status") != "unknown"]
     assert_visible(patient)
-    flags = view["allergy_record"]
+    flags, = chart_records(history, "allergy_record")
     drugs = view["current_use_record"]
     age = present(personal.get("age"))
     documented_allergies = flags.get("items", [])
     allergy_status = {"none_known": "无已知过敏", "allergy_reported": "有已知过敏",
                       "unknown": "未记录过敏史"}.get(flags.get("status"), flags.get("status"))
-    intros = table(("主病分类", "年龄", "记录性别", "开方资料截止"), [
-        (label, age, present(personal.get("sex")), relative_time(cutoff / 3600)),
-    ])
+    target = c.get("ed_prescribing_target")
+    if target:
+        diagnosis = f"{target['display']} ({target['system']} {target['code']})"
+        intros = table(("本次指定主病", "主病分类", "年龄", "记录性别", "开方资料截止"), [
+            (diagnosis, label, age, present(personal.get("sex")), relative_time(cutoff / 3600)),
+        ])
+    else:
+        intros = table(("主病分类", "年龄", "记录性别", "开方资料截止"), [
+            (label, age, present(personal.get("sex")), relative_time(cutoff / 3600)),
+        ])
     workbook = '<a href="../医生标注.xlsx">标注表与药品目录</a>' if workbook_available else ""
     content = '<nav><a href="../从这里打开.html">病例索引</a>' + workbook + '</nav>'
     content += intros + f'<p class="scope">{esc(SOURCE_SCOPE)}</p>'
+    content += source_details(personal, "年龄及记录性别的来源")
     content += '<h2>分诊主诉</h2><p class="lead">' + esc(" / ".join(complaints)) + "</p>"
     if patient:
         facts = [(present(f.get("topic")), f["value"], present(f.get("source_kind"))) for f in patient]
         content += details("患者可提供的陈述", table(("主题", "陈述", "来源"), facts))
-    problems = [item_text(row)[0] for row in view["opening_summary"]["problem_list"].get("items", [])]
+    problems = [item_text(row)[0] for row in view["opening_summary"]["problem_list"].get("entries", [])]
     if problems:
         content += "<h2>开诊病史摘要</h2><p>" + esc(" · ".join(problems)) + "</p>"
+    content += source_details(chart_records(history, "problem_list")[0], "核对历史问题")
     allergens = [(present(row.get("name"), row.get("substance"), row.get("display")),
                   present(row.get("reaction")), present(row.get("source_kind"))) for row in documented_allergies]
     content += f'<h2>过敏史</h2><p>{esc(present(allergy_status))} · {esc(present(flags.get("source_kind")))}</p>'
@@ -178,30 +222,36 @@ def clinical_page(case, *, allergy_source_status=None, workbook_available=False)
         content += "<p class=\"scope\">原始资料缺少明确记录。本场景按无已知过敏提供给医生。</p>"
     if allergens:
         content += table(("过敏原", "反应", "来源"), allergens)
+    content += source_details(flags, "核对过敏史来源字段")
     content += "<h2>开诊用药记录</h2>"
     opening_medications = chart_records(history, "current_use_items")
     if opening_medications:
         content += record_table(opening_medications)
     else:
         medication_label = drugs.get("record_label", "开诊用药栏无可列条目")
-        content += f"<p>{esc(medication_label)}。既往用药与本次后续核对见下方。</p>"
+        content += f"<p>开诊时{esc(medication_label)}。既往用药与本次核对见下方。</p>"
+    content += source_details(chart_records(history, "current_use_record")[0], "核对开诊用药来源字段")
     content += "<h2>本次急诊</h2>"
-    counts = {}
-    for section, name in ED_SECTIONS.items():
-        if section not in chart:
-            continue
-        records = chart_records(history, section, cutoff if section.startswith("ed_reassessment") else None)
-        counts[section] = len(records)
+    available = {section: chart_records(history, section, cutoff if section.startswith("ed_reassessment") else None)
+                 for section in ED_SECTIONS if section in chart}
+    counts = {section: len(rows) for section, rows in available.items()}
+    for section, records in available.items():
         if records:
-            content += details(f"{name}（{len(records)}）", record_table(records),
+            content += details(f"{ED_SECTIONS[section]}（{len(records)}）", record_table(records),
                                opened=section in {"current_observations", "ed_diagnostic_reports", "ed_reassessment_reports"})
     content += "<h2>既往记录</h2>"
+    prior_visits = chart_records(history, "encounter_headers")
+    visits = {row["encounter_ref"]: " 至 ".join(relative_time(row.get(field)) for field in
+              ("admission_offset_hours", "discharge_offset_hours")) for row in prior_visits if row.get("encounter_ref")}
+    if not prior_visits and not view["sections"].get("diagnoses", {}).get("total_count"):
+        content += "<p>现有资料中无既往就诊或诊断记录。</p>"
     for section in PRIOR_REVIEW_SECTIONS:
         if not view["sections"].get(section, {}).get("total_count"):
             continue
-        records = chart_records(history, section)
+        records = prior_visits if section == "encounter_headers" else chart_records(history, section)
         counts[section] = len(records)
-        content += details(f"{HISTORY[section]}（{len(records)}）", record_table(records))
+        content += details(f"{HISTORY[section]}（{len(records)}）",
+                           record_table(records, visits=visits if section != "encounter_headers" else None))
     return (case_id, label, page(case_id, content, "../"), counts)
 
 
@@ -214,6 +264,7 @@ a{color:#10558c;text-underline-offset:3px}nav{display:flex;gap:20px;flex-wrap:wr
 th{background:#e2eaf3;color:#1b344d;white-space:nowrap}td{border-top:1px solid #e8edf2;white-space:pre-wrap;overflow-wrap:anywhere}
 td:nth-child(1),td:nth-child(2){min-width:85px}details{margin:8px 0;border:1px solid #d8e2ec;border-radius:4px;background:white}
 summary{cursor:pointer;padding:8px 12px;font-weight:650;color:#1b344d}details .table{border:0}
+.source-fields{white-space:pre-wrap;overflow-wrap:anywhere;font:inherit;padding:0 12px;margin-top:0}
 ol{padding-left:24px}li{margin:.35em 0}
 """
 
