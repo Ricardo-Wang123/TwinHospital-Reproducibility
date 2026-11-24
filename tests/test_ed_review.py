@@ -103,6 +103,18 @@ def test_repeated_citation_return_can_use_a_fresh_read_source():
     assert "quote" in by_source[("patient",)]
     assert ("original_chart_unknown",) not in by_source
 
+    retained = {
+        "signed_order_lines": [], "required_treatment_options": {"treatment": {}},
+        "required_prescribing_checks": {"medicines": "Review documented medicines.", "q2": "Check the last dose time."},
+        "allowed_response_actions": [], "ips_on_demand": True,
+        "source_limits_review": {
+            "fresh_citation_sources": ["ips", "patient"],
+            "retained_check_results": {"medicines": {"status": "verified", "source": "ips", "finding": "Reviewed."}},
+        },
+    }
+    checks = signed_order_format(retained)["properties"]["check_results"]
+    assert checks["required"] == ["q2"]
+
 
 def test_known_ips_medications_need_no_source_quote():
     questions = {"medicines": "What medicines are documented?"}

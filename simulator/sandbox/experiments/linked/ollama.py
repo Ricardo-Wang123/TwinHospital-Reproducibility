@@ -166,6 +166,8 @@ def signed_order_format(observation):
                     ('unresolved', ['affected_treatments', 'decision_basis'])]
         checks = {}
         for key in observation['required_prescribing_checks']:
+            if key in limits.get('retained_check_results', {}):
+                continue
             scoped = (affected_by_check or {}).get(key, affected)
             fields = {'finding': string, 'source': string, 'quote': string, 'verification_status': string,
                       'affected_treatments': scoped, 'decision_basis': string}

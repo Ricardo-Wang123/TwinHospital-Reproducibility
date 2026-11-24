@@ -1448,6 +1448,9 @@ class _Execution:
                     response = therapy.complete_advice_review(response, correction_request)
                 if observation['action'] == 'review_ed_chart_page' and observation.get('source_quote_required'):
                     response = emergency.normalize_chart_receipt(response, observation)
+                retained = observation.get('source_limits_review', {}).get('retained_check_results')
+                if retained and isinstance(response.get('check_results'), dict):
+                    response = {**response, 'check_results': {**deepcopy(retained), **response['check_results']}}
                 if observation.get('required_treatment_options'):
                     response = therapy.normalize_check_ids(response, observation.get('required_prescribing_checks', {}))
                 questions = response.get('outstanding_checks')
@@ -2957,9 +2960,11 @@ class _Execution:
             if self.post_signature_review:
                 sections = {table['section'] for table in sources['ed_chart']}
                 repeats = findings[-3:]
-                if self.ips_on_demand and len(repeats) == 3 and all(
+                repeated_return = len(repeats) == 3 and all(
                         entry.get('outcome') == previous['outcome'] and entry.get('pending') == previous['pending']
-                        and entry.get('source_rounds') == previous['source_rounds'] for entry in repeats):
+                        and entry.get('source_rounds') == previous['source_rounds'] for entry in repeats)
+                fresh_review = previous.get('fresh_citation_review') or repeated_return
+                if self.ips_on_demand and fresh_review:
                     lookup_sources = set(sources) | sections
                     lookup_sources.discard('chart_search_receipts')
                     if any(receipt['status'] == 'no_recorded_result' for receipt in sources['chart_search_receipts']):
@@ -2970,6 +2975,21 @@ class _Execution:
                         'Use source=patient for a patient statement with a short exact quote. '
                         'Use source=ips for a fact supported by the IPS. For a chart result, cite its section '
                         'and quote its actual finding. Record uncertainty where the reviewed evidence remains insufficient.')
+                    if previous.get('fresh_citation_review'):
+                        retained = {}
+                        for check in findings:
+                            if check['source_rounds'] != previous['source_rounds']:
+                                continue
+                            for key, row in check['findings'].items():
+                                if (key in self.ed_questions and key not in check['pending']
+                                        and isinstance(row, dict) and row.get('status') == 'verified'):
+                                    retained[key] = deepcopy(row)
+                        if retained:
+                            source_limits['source_limits_review']['retained_check_results'] = retained
+                            source_limits['source_limits_review']['instruction'] += (
+                                ' Provide check_results only for fields outside retained_check_results. '
+                                'The retained findings are your prior verified evidence. Continue making the '
+                                'medication decision independently from the complete reviewed evidence.')
                 citations = {}
                 for key, question in previous['pending'].items():
                     if previous['return_reason'][key] != 'insufficient_source_for_stated_finding':
@@ -3031,6 +3051,8 @@ class _Execution:
         checked = {'physician_call':self.calls[-1]['sequence'], 'questions':dict(self.ed_questions),
                    'findings':deepcopy(findings), 'pending':dict(pending), 'order_hash':digest(prescription),
                    'source_rounds':dict(self.ed_checked_questions)}
+        if self.calls[-1]['observation'].get('source_limits_review', {}).get('fresh_citation_sources'):
+            checked['fresh_citation_review'] = True
         reviews = artifacts.setdefault('ed_prescribing_checks', [])
         previous_review = reviews[-1] if reviews else {}
         reviews.append(checked)
