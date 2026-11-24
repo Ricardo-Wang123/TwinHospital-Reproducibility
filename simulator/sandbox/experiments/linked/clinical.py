@@ -1166,6 +1166,11 @@ class _Execution:
             shape['shape_description'] += (
                 ' For read_history, supply term with the specific missing fact or exact test name. '
                 'The chart directory lists search targets. A section name alone cannot retrieve results.')
+        if base.get('complete_native_instructions'):
+            base['required_response']['shape_description'] = (
+                'Complete only the administration instructions for the returned line numbers. '
+                'Return {administration_instructions:{line_number:string}}. '
+                'Use the unchanged regimen you selected and the patient information you reviewed.')
         original_hash = digest(base)
         current = base
         corrections = []
@@ -1450,6 +1455,8 @@ class _Execution:
                 if observation['action'] == 'review_ed_chart_page' and observation.get('source_quote_required'):
                     response = emergency.normalize_chart_receipt(response, observation)
                 retained = observation.get('source_limits_review', {}).get('retained_check_results')
+                if completion := observation.get('complete_native_instructions'):
+                    response = therapy.complete_administration_instructions(response, completion)
                 if retained and isinstance(response.get('check_results'), dict):
                     response = {**response, 'check_results': {**deepcopy(retained), **response['check_results']}}
                 if observation.get('required_treatment_options'):
@@ -3658,6 +3665,7 @@ class _Execution:
         confirmed = self.ed_checked_order
         self.ed_checked_order = None
         encoding_evidence = {}
+        instruction_completion = {}
         closing_regimen = review['decision'] == 'final_medication_required'
         if closing_regimen:
             followup = ('Your proposed closing regimen has no active primary medication and remains unsigned. '
@@ -3669,7 +3677,8 @@ class _Execution:
                         'Use the listed validation feedback and exact formulary fields. '
                         'Return the treatment decision and complete order you can support.')
             if self.ips_on_demand and confirmed and confirmed.get('attributed_citation_review'):
-                prior = self.calls[confirmed['physician_call'] - 1]['observation']['source_limits_review']
+                prior_call = self.calls[confirmed['physician_call'] - 1]
+                prior = prior_call['observation']['source_limits_review']
                 encoding_evidence = {key: deepcopy(prior[key]) for key in (
                     'patient_reply_passages', 'preconsult_report_passages', 'fresh_citation_sources') if key in prior}
                 encoding_evidence.update(encoding_correction=True,
@@ -3677,6 +3686,16 @@ class _Execution:
                     instruction=('Retain the verified findings from the same reviewed evidence. Correct the listed '
                                  'representation fields. If a different regimen creates a new safety question, '
                                  'state the question and use the available sources to resolve it.'))
+                findings = validation.get('findings', [])
+                submission = prior_call.get('submitted_response', {})
+                options = submission.get('treatments', {})
+                if (self.single_prescription and not self.ed_prescription_signed and options and findings
+                        and all(finding['code'] in {'prn_instructions_missing', 'invalid_administration_instructions'}
+                                for finding in findings)
+                        and [item for option in options.values() for item in option['items']] == prescription['items']):
+                    instruction_completion = {'complete_native_instructions': {
+                        'prior_submission': deepcopy(submission),
+                        'lines': [str(finding['item_index'] + 1) for finding in findings]}}
             if any(finding['code'] == 'duplicate_order_lines' for finding in validation.get('findings', [])):
                 followup += (' Merge each duplicate group in business_validation.findings into one order. '
                              'Keep its combined clinical reasons in indication.rationale.')
@@ -3718,6 +3737,7 @@ class _Execution:
                       self.result['artifacts'].get('ed_primary_medication_advice', {}).get(str(self.ed_checkpoint_index)))
                    if self.primary_treatment_only else {}),
                 **checks,
+                **instruction_completion,
                 'formulary': self.case['formulary'], 'review_state': review['decision'],
                 'remaining_history_queries': self.history_queries_remaining('consultation'),
                 'remaining_interactions': self.work_limit('consultation_turns', self.consultation_interactions_used)
@@ -3730,6 +3750,7 @@ class _Execution:
                 if self.complete_prescribing_checks(answer, self.consultation_record, answer['prescription']):
                     return answer
                 encoding_evidence = {}
+                instruction_completion = {}
                 continue
             request = answer
             if answer.get('action') not in {'ask', 'read_history', 'request_medication_reconciliation'}:
@@ -3741,6 +3762,7 @@ class _Execution:
                 continue
             self.clarify_ed_prescription(request, self.consultation_record, prescription, replies)
             encoding_evidence = {}
+            instruction_completion = {}
 
     def finalize_ed_orders(self, consultation, condition, signed):
         active = signed

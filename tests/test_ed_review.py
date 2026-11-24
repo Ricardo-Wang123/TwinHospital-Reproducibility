@@ -9,7 +9,7 @@ from sandbox.experiments.linked.emergency import (NOTE_HEADINGS, chart_excerpt_p
 from sandbox.experiments.linked.clinical import _Execution, _response_shape_errors
 from sandbox.experiments.linked.chart import HistoryChart, NO_MEDICATION_RECORD
 from sandbox.experiments.linked.contracts import TaskCondition
-from sandbox.experiments.linked.ed_treatment_review import missing_committed_products
+from sandbox.experiments.linked.ed_treatment_review import complete_administration_instructions, missing_committed_products
 from sandbox.experiments.linked.ollama import response_format, signed_order_format
 
 
@@ -206,6 +206,20 @@ def test_numeric_chart_quote_can_include_its_unit_without_repeating_the_test_nam
     assert chart_excerpt_present("98.0000%", [table])
     assert chart_excerpt_present("98.0000 %", [table])
     assert not chart_excerpt_present("98.0000 mg/dL", [table])
+
+
+def test_instruction_only_retry_preserves_existing_order_fields():
+    item = {"drug_code": "fixture", "frequency": "PRN", "dose": 1}
+    prior = {"treatments": {"example": {"items": [item], "reason": "Prescriber selected this order."}}}
+    completion = {"prior_submission": prior, "lines": ["1"]}
+    response = {"administration_instructions": {"1": "Use for the reason documented in this order."}}
+    corrected = complete_administration_instructions(response, completion)
+    assert corrected["treatments"]["example"]["items"] == [
+        {**item, "administration_instructions": response["administration_instructions"]["1"]}]
+    assert "administration_instructions" not in item
+    schema = response_format([{"role": "user", "content": json.dumps({
+        "action": "revise_prescription", "complete_native_instructions": completion})}])
+    assert schema["properties"]["administration_instructions"]["required"] == ["1"]
 
 
 def test_chart_lookup_without_results_preserves_unknown():

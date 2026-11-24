@@ -311,6 +311,10 @@ def response_format(messages):
     observation = json.loads(user)
     action = observation.get('action')
     correction = observation.get('schema_correction', {})
+    if completion := observation.get('complete_native_instructions'):
+        text = {'type': 'string', 'minLength': 1, 'maxLength': 400}
+        instructions = closed_object(dict.fromkeys(completion['lines'], text))
+        return closed_object({'administration_instructions': instructions})
     if action == 'locate_ed_prescribing_source' and observation.get('ips_on_demand') and correction:
         return prescribing_source_format(observation)
     if observation.get('formulary_search_required'):

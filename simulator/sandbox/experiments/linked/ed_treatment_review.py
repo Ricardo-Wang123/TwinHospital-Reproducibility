@@ -360,6 +360,19 @@ def single_prescription_actions(submitted, signed_lines):
     return {**submitted, 'treatments': treatments}
 
 
+def complete_administration_instructions(response, completion):
+    instructions = response.get('administration_instructions')
+    if (set(response) != {'administration_instructions'} or not isinstance(instructions, dict)
+            or set(instructions) != set(completion['lines'])
+            or not _string_list(list(instructions.values()))):
+        raise ValueError('Supply an administration instruction for each returned order line.')
+    corrected = deepcopy(completion['prior_submission'])
+    items = [item for option in corrected['treatments'].values() for item in option['items']]
+    for line, instruction in instructions.items():
+        items[int(line) - 1]['administration_instructions'] = instruction
+    return corrected
+
+
 def advice_decisions(observation, response):
     suggested = observation.get('medication_advice', {}).get('items', [])
     decisions = []
