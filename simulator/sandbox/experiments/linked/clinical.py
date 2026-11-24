@@ -2985,6 +2985,17 @@ class _Execution:
                                 str(fact['value']) for fact in self.handoff.get('facts', []) if fact.get('value'))]
                         review['prior_selected_prescription'] = deepcopy(
                             self.calls[previous['physician_call'] - 1]['response'].get('prescription', {'items': []}))
+                        if previous.get('attributed_citation_review') and previous['treatment_conflicts']:
+                            signed_response = self.calls[previous['physician_call'] - 1]['response']
+                            review['prior_selected_treatment_options'] = [
+                                key for key, choice in signed_response['treatment_review'].items()
+                                if choice['decision'] in {'order', 'maintain'}]
+                            review['instruction'] += (
+                                ' Resolve the contradiction between the intended orders and affected_treatments. '
+                                'List an option in affected_treatments only if you are withholding it because of '
+                                'that unanswered question. An unknown fact or a monitoring recommendation that '
+                                'does not prevent the treatment belongs in decision_basis. Either keep the treatment '
+                                'with your rationale or withhold it and revise the prescription.')
                         review['instruction'] += (
                             ' The patient reply passages are statements the patient actually made during consultation. '
                             'A statement that the patient does not know establishes an information limit. '
@@ -3072,6 +3083,8 @@ class _Execution:
                    'source_rounds':dict(self.ed_checked_questions)}
         if self.calls[-1]['observation'].get('source_limits_review', {}).get('fresh_citation_sources'):
             checked['fresh_citation_review'] = True
+        if 'patient_reply_passages' in supplied_evidence:
+            checked['attributed_citation_review'] = True
         reviews = artifacts.setdefault('ed_prescribing_checks', [])
         previous_review = reviews[-1] if reviews else {}
         reviews.append(checked)

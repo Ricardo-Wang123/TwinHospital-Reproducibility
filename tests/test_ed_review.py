@@ -121,6 +121,24 @@ def test_repeated_citation_return_can_use_a_fresh_read_source():
         ["I used my inhaler yesterday."], ["这部分我不清楚。", "I used my inhaler yesterday."]]
 
 
+def test_prescribing_scope_retry_addresses_all_selected_options():
+    schema = signed_order_format({
+        "signed_order_lines": [], "single_prescription": True, "orderable_drug_codes": [],
+        "required_treatment_options": {"one": {}, "two": {}},
+        "required_prescribing_checks": {"q2": "Review the available facts."},
+        "allowed_response_actions": [], "ips_on_demand": True,
+        "source_limits_review": {
+            "treatments_marked_as_both_selected_and_blocked": {"q2": ["one", "two"]},
+            "prior_selected_treatment_options": ["one", "two"],
+        },
+    })
+    withdraw, keep = schema["anyOf"]
+    treatments = withdraw["properties"]["treatments"]["properties"]
+    assert all(treatments[k]["properties"]["items"]["maxItems"] == 0 for k in ("one", "two"))
+    alternatives = keep["properties"]["check_results"]["properties"]["q2"]["oneOf"]
+    assert all(item["properties"]["affected_treatments"]["maxItems"] == 0 for item in alternatives)
+
+
 def test_known_ips_medications_need_no_source_quote():
     questions = {"medicines": "What medicines are documented?"}
     findings = {"medicines": {"status": "verified", "source": "ips",

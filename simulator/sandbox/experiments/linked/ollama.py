@@ -243,17 +243,19 @@ def signed_order_format(observation):
     conflicts = limits.get('treatments_marked_as_both_selected_and_blocked') or {}
     if conflicts and not preserve_no_actions and not correction.get('complete_declared_order'):
         known_conflicts = {option for involved in conflicts.values() for option in involved}
-        subject = min(known_conflicts)
-        alternatives = sorted((known_conflicts | observation['required_treatment_options'].keys()) - {subject})
+        selected = limits.get('prior_selected_treatment_options')
+        withdrawn = known_conflicts if selected else {min(known_conflicts)}
+        excluded = set(selected) if selected else withdrawn
+        alternatives = sorted((known_conflicts | observation['required_treatment_options'].keys()) - excluded)
         links = {'type': 'array', 'items': {'enum': alternatives}, 'maxItems': len(alternatives)} if alternatives else {
             'type': 'array', 'maxItems': 0}
-        scope = {key: links for key, options in conflicts.items() if subject in options}
+        scope = {key: links for key, options in conflicts.items() if withdrawn.intersection(options)}
         empty = {'type': 'array', 'maxItems': 0}
         withdrawal = {'type': 'array', 'items': stop_action} if stop_action else empty
         inactive = closed_object({'orders': withdrawal, 'maintained_order_ids': empty, 'reason': string})
         if single_prescription:
             inactive = closed_object({'items': empty, 'reason': string})
-        changes = {**treatments, 'properties': {**treatments['properties'], subject: inactive}}
+        changes = {**treatments, 'properties': {**treatments['properties'], **dict.fromkeys(withdrawn, inactive)}}
         signed = {'anyOf': [closed_object({**fields, 'treatments': changes}),
                            closed_object({**fields, 'check_results': check_fields(affected_treatments, scope)})]}
     if preserve_no_actions:
