@@ -242,7 +242,7 @@ def _response_shape_errors(role, observation, response, earlier_calls=()):
     if observation.get('ed_note_template') and (observation['action'] == 'document' or response.get('decision') == 'revise'):
         content = response.get('content')
         if not isinstance(content, dict) or not emergency.soap_sections(content.get('text')):
-            errors.append('Use the four ED note headings on separate lines in order. A section may state that its facts are undocumented.')
+            errors.append(emergency.NOTE_HEADING_ERROR)
     note_state = observation.get('ed_note_final_state')
     if note_state and observation['action'] == 'finalize_note' and (
             response.get('decision') == 'accept' or response.get('finalized') is True):
@@ -1334,6 +1334,14 @@ class _Execution:
                 "previous_invalid_response": deepcopy(response), "contract_errors": errors,
                 "original_clinical_input_hash": original_hash,
                 "instruction": "Correct only the role/action/JSON structure using the unchanged clinical inputs. Preserve facts, decisions and uncertainty. Do not invent clinical content, infer missing facts, or claim an application action. Return the requested artifact; an old draft is not automatically accepted."}}
+            if base['action'] == 'document' and emergency.NOTE_HEADING_ERROR in errors:
+                current['schema_correction']['ed_note_sections_required'] = True
+                current['required_response']['shape_description'] = (
+                    "Return {action:'draft',content:{sections:{Subjective:string,Objective:string,"
+                    "Assessment:string,Plan:string},source_sequences:[integer]}}. "
+                    'Write all four sections using the supplied sources and the ED note template. '
+                    'Use undocumented for unavailable facts. Preserve your authored findings and order decisions. '
+                    'Use only supplied dialogue sequence IDs, or [] for chart-only content.')
             if base['action'] == 'assess' and errors == [PRIMARY_DIAGNOSIS_ERROR]:
                 diagnoses = response.get('diagnoses', [])
                 if diagnoses and all(row.get('certainty') in {'working', 'confirmed'} for row in diagnoses):
@@ -1467,6 +1475,12 @@ class _Execution:
                         reassessment=observation['action'] == 'reassess_ed_prescription')
                 if observation.get('ed_note_template') and isinstance(response.get('content'), dict):
                     content = response['content']
+                    if (correction_request.get('ed_note_sections_required')
+                            and set(content) == {'sections', 'source_sequences'}):
+                        response = {**response, 'content': {
+                            'text': emergency.render_soap_sections(content['sections']),
+                            'source_sequences': content['source_sequences']}}
+                        content = response['content']
                     formatted = emergency.format_soap_headings(content.get('text'))
                     if formatted != content.get('text'):
                         response = {**response, 'content': {**content, 'text': formatted}}

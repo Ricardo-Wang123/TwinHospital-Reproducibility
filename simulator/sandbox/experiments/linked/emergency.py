@@ -15,6 +15,7 @@ WORK_POLICY = {'completion': ENDPOINT,
                'no_reference_in_clinical_loop': True}
 
 NOTE_HEADINGS = ('Subjective', 'Objective', 'Assessment', 'Plan')
+NOTE_HEADING_ERROR = 'Use the four ED note headings on separate lines in order. A section may state that its facts are undocumented.'
 NOTE_RECONCILIATION_POLICY = 'authored_ed_plan_v1'
 NOTE_MEDICATION_LABEL = 'Final ED orders'
 NOTE_DISPOSITION_LABEL = 'ED disposition'
@@ -573,6 +574,14 @@ def soap_sections(text):
             blocks[current].append(line)
     result = {name: '\n'.join(lines).strip() for name, lines in blocks.items()}
     return result if tuple(result) == NOTE_HEADINGS and all(result.values()) else {}
+
+
+def render_soap_sections(sections):
+    """Render the author's section text without changing any clinical content."""
+    if (not isinstance(sections, dict) or set(sections) != set(NOTE_HEADINGS)
+            or any(not isinstance(text, str) or not text.strip() for text in sections.values())):
+        raise ValueError(NOTE_HEADING_ERROR)
+    return '\n'.join(f'{heading}: {sections[heading]}' for heading in NOTE_HEADINGS)
 
 
 def format_soap_headings(text):

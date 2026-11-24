@@ -52,6 +52,17 @@ def prescribing_source_format(observation):
     return {'oneOf': [lookup, patient, reconcile]}
 
 
+def documentation_content_format(action, references, correction):
+    if correction.get('ed_note_sections_required'):
+        section = {'type': 'string', 'minLength': 1, 'maxLength': 3000}
+        return closed_object({'sections': closed_object(dict.fromkeys(emergency.NOTE_HEADINGS, section)),
+                              'source_sequences': references})
+    text = {'type': 'string'}
+    if action in {'document', 'finalize_note'}:
+        text['maxLength'] = 12000
+    return closed_object({'text': text, 'source_sequences': references})
+
+
 def chart_receipt_format(observation):
     quotes = []
     for table in observation['tables']:
@@ -306,11 +317,7 @@ def response_format(messages):
             references['maxItems'] = len(allowed)
         else:
             references['maxItems'] = 0
-        note_text = {'type': 'string'}
-        if action in {'document', 'finalize_note'}:
-            note_text['maxLength'] = 12000
-        content = {'type': 'object', 'properties': {'text': note_text, 'source_sequences': references},
-                   'required': ['text', 'source_sequences'], 'additionalProperties': False}
+        content = documentation_content_format(action, references, correction)
         if action == 'finalize_note':
             fields = {'decision': {'enum': CONTRACTS[action]['allowed_decisions']}, 'reason': {'type': 'string'},
                       'content': content, 'finalized': {'type': 'boolean'},

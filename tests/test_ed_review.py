@@ -4,7 +4,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from sandbox.experiments.linked.emergency import check_findings
+from sandbox.experiments.linked.emergency import NOTE_HEADINGS, check_findings, render_soap_sections, soap_sections
 from sandbox.experiments.linked.clinical import _Execution, _response_shape_errors
 from sandbox.experiments.linked.chart import HistoryChart, NO_MEDICATION_RECORD
 from sandbox.experiments.linked.contracts import TaskCondition
@@ -70,6 +70,20 @@ def test_ips_prescribing_source_retry_uses_the_available_chart_sections():
     assert reconcile["properties"]["issues"]["minItems"] == 1
     del observation["schema_correction"]
     assert response_format([{"role": "user", "content": json.dumps(observation)}]) == "json"
+
+
+def test_note_draft_retry_requires_all_four_authored_sections():
+    messages = [{"role": "user", "content": json.dumps({
+        "action": "document", "allowed_source_scope": {"source_sequences": [2]},
+        "schema_correction": {"ed_note_sections_required": True},
+    })}]
+    fields = response_format(messages)["properties"]["content"]["properties"]
+    assert fields["sections"]["required"] == list(NOTE_HEADINGS)
+    assert fields["source_sequences"]["items"]["enum"] == [2]
+    sections = {heading: f"Authored {heading}." for heading in reversed(NOTE_HEADINGS)}
+    assert soap_sections(render_soap_sections(sections)) == sections
+    with pytest.raises(ValueError):
+        render_soap_sections({"Subjective": "Only the first section."})
 
 
 def test_known_ips_medications_need_no_source_quote():
