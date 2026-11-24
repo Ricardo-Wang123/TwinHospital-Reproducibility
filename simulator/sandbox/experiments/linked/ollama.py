@@ -144,17 +144,26 @@ def signed_order_format(observation):
     item_format = closed_object(item, item_required)
     if single_prescription and observation.get('review_state') == 'encoding_correction':
         orderable = item.get('drug_code', {}).get('enum', [])
-        route_limits = {
-            finding['drug_code']: finding['accepted_field_values']
-            for finding in observation.get('business_validation', {}).get('findings', [])
-            if finding['code'] == 'unmapped_route' and finding.get('drug_code') in orderable
-            and finding.get('accepted_field_values')
-        }
-        if route_limits:
+        field_limits = {}
+        instructions_required = set()
+        for finding in observation.get('business_validation', {}).get('findings', []):
+            code = finding.get('drug_code')
+            if code not in orderable:
+                continue
+            field = finding.get('field')
+            accepted = finding.get('accepted_field_values')
+            if accepted and field in {'route', 'frequency', 'dose_unit', 'quantity_unit'}:
+                field_limits.setdefault(code, {})[field] = {'enum': accepted}
+            if finding['code'] in {'prn_instructions_missing', 'invalid_administration_instructions'}:
+                field_limits.setdefault(code, {})['administration_instructions'] = string
+                instructions_required.add(code)
+        if field_limits:
             choices = [
-                closed_object({**item, 'drug_code': {'enum': [code]}, 'route': {'enum': routes}}, item_required)
-                for code, routes in route_limits.items()]
-            remaining = [code for code in orderable if code not in route_limits]
+                closed_object({**item, 'drug_code': {'enum': [code]}, **fields},
+                              [*item_required, 'administration_instructions'] if code in instructions_required
+                              else item_required)
+                for code, fields in field_limits.items()]
+            remaining = [code for code in orderable if code not in field_limits]
             if remaining:
                 choices.append(closed_object({**item, 'drug_code': {'enum': remaining}}, item_required))
             item_format = {'oneOf': choices} if len(choices) > 1 else choices[0]

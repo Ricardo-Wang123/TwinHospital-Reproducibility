@@ -167,13 +167,16 @@ def test_route_encoding_retry_keeps_product_and_accepted_route_together():
         "required_treatment_options": {"treatment": {}}, "required_prescribing_checks": {},
         "allowed_response_actions": [], "review_state": "encoding_correction",
         "business_validation": {"findings": [
-            {"code": "unmapped_route", "drug_code": "a", "accepted_field_values": ["NG"]}]},
+            {"code": "unmapped_route", "field": "route", "drug_code": "a", "accepted_field_values": ["NG"]},
+            {"code": "prn_instructions_missing", "field": "administration_instructions", "drug_code": "a"}]},
     })
     lines = schema["properties"]["treatments"]["properties"]["treatment"]
     branches = lines["properties"]["items"]["items"]["oneOf"]
     assert branches[0]["properties"]["drug_code"]["enum"] == ["a"]
     assert branches[0]["properties"]["route"]["enum"] == ["NG"]
+    assert "administration_instructions" in branches[0]["required"]
     assert branches[1]["properties"]["drug_code"]["enum"] == ["b"]
+    assert "administration_instructions" not in branches[1]["required"]
 
 
 def test_known_ips_medications_need_no_source_quote():
