@@ -5,6 +5,7 @@ blindly: request intent is journalled before dispatch. Native effects and runtim
 sidecar protections are reported separately. Application LOCKED is not a CA signature.
 """
 from __future__ import annotations
+import base64
 import copy, datetime as dt, fcntl, hashlib, json, os, secrets, threading, calendar
 from decimal import Decimal
 from pathlib import Path
@@ -58,6 +59,11 @@ class OpenHISClient:
         if u.scheme!='http' or u.hostname not in ('127.0.0.1','localhost','::1') or u.port!=isolated_port() or u.path.rstrip('/')!='/api/app' or u.query or u.fragment or u.username:
             raise NativeBlocked('Native adapter accepts only the isolated loopback /api/app endpoint')
         self.base=base_url.rstrip('/'); self.timeout=timeout; self.session=session or requests.Session(); self.session.trust_env=False; self.token=None; self.identity={}
+        self.session_expires_at = None
+
+    def session_needs_renewal(self):
+        return (self.session_expires_at is not None
+                and dt.datetime.now(dt.timezone.utc).timestamp() + 60 >= self.session_expires_at)
     def post(self,path,payload=None):
         if path not in ALLOWED:raise NativeBlocked('Operation not allowlisted: '+path)
         headers={'Content-Type':'application/json'}
@@ -83,6 +89,16 @@ class OpenHISClient:
             self.post('/auth/selectTenant',{'tenantId':str(tenant)})
             self.post('/auth/selectHospital',{'hospitalId':str(hospital)})
             if organization:self.post('/auth/selectOrganizationUnit',{'organizationUnitId':str(organization)})
+        # The expiry claim schedules renewal. OpenHIS still authenticates every request.
+        self.session_expires_at = None
+        try:
+            encoded = self.token.split('.')[1]
+            claims = json.loads(base64.urlsafe_b64decode(encoded + '=' * (-len(encoded) % 4)))
+            expiry = claims.get('exp') if isinstance(claims, dict) else None
+            if type(expiry) in (int, float):
+                self.session_expires_at = expiry
+        except (IndexError, ValueError):
+            pass
         return {'authenticated':True,'user_id':str(self.identity.get('id')),'practitioner_id':str(self.identity.get('practitionerId') or '')}
 
 ROLE_SETTINGS={
@@ -106,7 +122,8 @@ class NativeOpenHISPort:
         self.defer_consultation_start=defer_consultation_start
         self.base_url=base_url;self.catalog_mapping=catalog_mapping or {};self.document_type=document_type;self._lock=threading.RLock()
     def _client(self,role):
-        if role not in self.clients:
+        cached = self.clients.get(role)
+        if cached is None or (isinstance(cached, OpenHISClient) and cached.session_needs_renewal()):
             if self.credentials_path.stat().st_mode & 0o077:raise NativeBlocked('Credentials must have mode 0600')
             credentials=json.loads(self.credentials_path.read_text());username,org,pid=ROLE_SETTINGS[role]
             c=OpenHISClient(self.base_url); c.login(username,credentials[username],organization=org);self.clients[role]=c
@@ -139,7 +156,8 @@ class NativeOpenHISPort:
                         result=copy.deepcopy(old['result']);result['status']='replayed';return result
                     order=self._binding(ctx).get('orders',{}).get(payload.get('order_id'),{}) if op in {'order.attest', 'order.review'} else {}
                     resumable = {'order.attest': 'prepared', 'order.review': 'signed'}
-                    if not order.get('course') or order.get('status') != resumable.get(op):
+                    observe_note = op == old.get('operation') == 'note.attest'
+                    if not observe_note and (not order.get('course') or order.get('status') != resumable.get(op)):
                         raise NativeBlocked('Previous request is unresolved; reconcile native state before retry')
                 role=ctx.get('role','')
                 if op in ('order.save','order.attest','order.history','note.attest','consultation.save','encounter.begin_consultation') and role not in ('doctor','physician','attending_physician'):
@@ -231,12 +249,7 @@ class NativeOpenHISPort:
             return self._result(value,value,native=False,source='persistent_runtime_sidecar')
         if op in ('note.save','note.revise'):return self._save_note(p,ctx,b,pair)
         if op=='note.attest':
-            note=b.get('note');
-            if not note or p.get('note_id')!=note['logical_id'] or p.get('version')!=note['version']:raise NativeBlocked('Note version/identity mismatch')
-            c=self._client('doctor');c.post('/document/submit',{'documentId':note['native_id']});c.post('/document/changeLockState',{'documentId':note['native_id'],'action':'LOCK'})
-            rb=c.post('/document/getContent',{'documentId':note['native_id']})
-            if rb.get('status')!='LOCKED':raise NativeError('Native note lock not observed')
-            note['status']='locked';self._save();return self._result({'status':'locked','version':note['version'],'document_id':note['native_id'],'attestation_kind':'physician_role_application_lock'},rb)
+            return self._attest_note(p, b, pair)
         if op in {'order.save','order.attest','order.history','order.review'}:
             from . import ed_order_history
             if op=='order.review':return ed_order_history.review(self,p,ctx,b,pair)
@@ -428,6 +441,40 @@ class NativeOpenHISPort:
         if got!=content or str(rb.get('patientId'))!=pair['patientId'] or str(rb.get('encounterId'))!=pair['encounterId']:raise NativeError('Document content/binding read-back mismatch')
         note['version']+=1;note['content_hash']=digest(p['content']);note['status']='draft'
         return self._result({'note_id':logical,'document_id':note['native_id'],'version':note['version'],'status':'draft','version_protection':'runtime_gateway','native_writer_role':'doctor','content_author_role':ctx.get('role')},rb)
+
+    def _attest_note(self, payload, binding, pair):
+        from .ed_order_history import document_body
+
+        note = binding.get('note')
+        if not note or payload.get('note_id') != note['logical_id'] or payload.get('version') != note['version']:
+            raise NativeBlocked('Note version/identity mismatch')
+
+        client = self._client('doctor')
+        identity = {'documentId': note['native_id']}
+
+        def read_note():
+            actual = client.post('/document/getContent', identity)
+            if (str(actual['id']) != note['native_id']
+                    or any(str(actual[key]) != value for key, value in pair.items())
+                    or digest(document_body(actual)) != note['content_hash']):
+                raise NativeBlocked('Persisted note content or encounter differs from the version to sign')
+            return actual
+
+        readback = read_note()
+        status = readback.get('status')
+        if status not in {'DRAFT', 'SUBMITTED', 'LOCKED'}:
+            raise NativeBlocked('Unexpected native document state before signing')
+        if status == 'DRAFT':
+            client.post('/document/submit', identity)
+        if status != 'LOCKED':
+            client.post('/document/changeLockState', {**identity, 'action': 'LOCK'})
+            readback = read_note()
+        if readback.get('status') != 'LOCKED':
+            raise NativeError('Native note lock not observed')
+        note['status'] = 'locked'
+        self._save()
+        return self._result({'status': 'locked', 'version': note['version'], 'document_id': note['native_id'],
+                             'attestation_kind': 'physician_role_application_lock'}, readback)
     def preflight_order(self,prescription,*,require_unique=False):
         """Read-only local encoding check; does not authenticate or call HIS."""
         return preflight_encoding(prescription,self.catalog_mapping,require_unique=require_unique)
