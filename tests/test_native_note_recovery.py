@@ -77,3 +77,50 @@ def test_unresolved_note_attestation_recovers_by_observed_state(tmp_path, status
     assert port.execute(operation, payload, context)["readback"]["status"] == "LOCKED"
     assert port.execute(operation, payload, context)["status"] == "replayed"
     assert writes == expected_writes
+
+
+@pytest.mark.parametrize(("persisted", "expected_writes"), [
+    ("Parent version.", 1), ("Revised version.", 0), ("Different version.", 0),
+])
+def test_interrupted_revision_compares_the_actual_document_before_saving(tmp_path, persisted, expected_writes):
+    parent = {"text": "Parent version."}
+    revision = {"text": "Revised version."}
+
+    def native_content(body):
+        return {"type": "doc", "content": [
+            {"type": "paragraph", "content": [{"type": "text", "text": json.dumps(body, sort_keys=True)}]}]}
+
+    record = {"id": "doc", "patientId": "patient", "encounterId": "encounter", "status": "DRAFT",
+              "content": native_content({"text": persisted})}
+    writes = []
+
+    class DocumentClient:
+        def post(self, path, payload):
+            assert payload["documentId"] == "doc"
+            if path == "/document/getContent":
+                return dict(record)
+            assert path == "/document/save" and payload["saveVersion"] is True
+            record["content"] = json.loads(payload["content"])
+            writes.append(path)
+
+    port = NativeOpenHISPort(tmp_path, clients={"doctor": DocumentClient()}, diagnosis_mapping={})
+    port.state["bindings"]["run:case"] = {
+        "patient_id": "patient", "encounter_id": "encounter",
+        "note": {"native_id": "doc", "logical_id": "note", "version": 1, "status": "draft",
+                 "content_hash": digest(parent)},
+    }
+    payload = {"note_id": "note", "expected_version": 1, "content": revision}
+    context = {"run_id": "run", "case_id": "case", "role": "doctor", "patient_id": "patient",
+               "encounter_id": "encounter", "idempotency_key": "revise"}
+    port.state["idempotency"]["revise"] = {
+        "state": "unresolved", "operation": "note.revise",
+        "fingerprint": digest(["note.revise", payload, "patient", "encounter", "doctor"]),
+    }
+    if persisted == "Different version.":
+        with pytest.raises(NativeBlocked):
+            port.execute("note.revise", payload, context)
+    else:
+        assert port.execute("note.revise", payload, context)["data"]["version"] == 2
+        assert port.execute("note.revise", payload, context)["status"] == "replayed"
+        assert record["content"] == native_content(revision)
+    assert len(writes) == expected_writes

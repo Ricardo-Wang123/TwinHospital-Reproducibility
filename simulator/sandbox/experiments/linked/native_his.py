@@ -156,7 +156,7 @@ class NativeOpenHISPort:
                         result=copy.deepcopy(old['result']);result['status']='replayed';return result
                     order=self._binding(ctx).get('orders',{}).get(payload.get('order_id'),{}) if op in {'order.attest', 'order.review'} else {}
                     resumable = {'order.attest': 'prepared', 'order.review': 'signed'}
-                    observe_note = op == old.get('operation') == 'note.attest'
+                    observe_note = op == old.get('operation') and op in {'note.attest', 'note.revise'}
                     if not observe_note and (not order.get('course') or order.get('status') != resumable.get(op)):
                         raise NativeBlocked('Previous request is unresolved; reconcile native state before retry')
                 role=ctx.get('role','')
@@ -175,7 +175,7 @@ class NativeOpenHISPort:
                 if op!='registration.create':self._binding(ctx)
                 self.state['idempotency'][key]={'state':'in_flight','fingerprint':finger,'operation':op};self._save()
                 try:
-                    result=self._dispatch(op,payload,ctx)
+                    result=self._dispatch(op,payload,ctx,recovering=old is not None)
                     self.state['idempotency'][key].update(state='complete',result=result);self._save()
                 except Exception as e:
                     self.state['idempotency'][key].update(state='unresolved',error=type(e).__name__);self._save()
@@ -200,7 +200,7 @@ class NativeOpenHISPort:
                 str(row.get('authoredById'))!=principal or (row.get('signedById') and str(row['signedById'])!=principal)):
                 raise NativeBlocked('Native request is not in an authorized payable signed state')
         return selected
-    def _dispatch(self,op,p,ctx):
+    def _dispatch(self,op,p,ctx,*,recovering=False):
         if op=='registration.create':return self._register(p,ctx)
         b=self._binding(ctx); pair={'patientId':b['patient_id'],'encounterId':b['encounter_id']}; store=b.setdefault('artifacts',{})
         if op=='encounter.begin_consultation':
@@ -247,7 +247,8 @@ class NativeOpenHISPort:
                 return self._result({'history': chart}, {'artifact': 'history', 'read_from_persisted_sidecar': True},
                                     native=False, source='persistent_runtime_sidecar')
             return self._result(value,value,native=False,source='persistent_runtime_sidecar')
-        if op in ('note.save','note.revise'):return self._save_note(p,ctx,b,pair)
+        if op in ('note.save','note.revise'):
+            return self._save_note(p, ctx, b, pair, recover_revision=recovering and op == 'note.revise')
         if op=='note.attest':
             return self._attest_note(p, b, pair)
         if op in {'order.save','order.attest','order.history','order.review'}:
@@ -424,22 +425,46 @@ class NativeOpenHISPort:
         b.setdefault('artifacts',{})['consultation']=copy.deepcopy(p);self._save()
         sidecar=json.loads(self.state_path.read_text())['bindings'][ctx['run_id']+':'+ctx['case_id']]['artifacts']['consultation']
         return self._result({**sidecar,'native_fields':['diagnoses'],'sidecar_fields':['content','transcript']},{'native_diagnoses':rb,'sidecar_content_hash':digest(sidecar)})
-    def _save_note(self,p,ctx,b,pair):
+    def _read_bound_note(self, client, note, pair):
+        actual = client.post('/document/getContent', {'documentId': note['native_id']})
+        if (str(actual['id']) != note['native_id'] or
+                any(str(actual[key]) != value for key, value in pair.items())):
+            raise NativeBlocked('Native document identity or encounter mismatch')
+        return actual
+
+    def _save_note(self,p,ctx,b,pair,*,recover_revision=False):
         c=self._client('doctor');note=b.get('note');logical=p['note_id']
         if note:
             if logical!=note['logical_id'] or note['status']=='locked':raise NativeBlocked('Cannot overwrite locked/other note')
             if p.get('expected_version')!=note['version']:raise NativeBlocked('Stale note version')
         else:
+            if recover_revision:
+                raise NativeBlocked('No known document for the interrupted revision')
             types=c.post('/documentType/getList',{'enabled':True});eligible=[x for x in types if x.get('categoryCode')=='OUTPATIENT']
             selected=next((x for x in eligible if x.get('code')==self.document_type),eligible[0] if eligible else None)
             if not selected:raise NativeBlocked('No outpatient document type')
             made=c.post('/document/create',{**pair,'documentTypeCode':selected['code']});note={'logical_id':logical,'native_id':str(made['id']),'version':0,'status':'draft'};b['note']=note
         content={'type':'doc','content':[{'type':'paragraph','content':[{'type':'text','text':json.dumps(p['content'],ensure_ascii=False,sort_keys=True)}]}]}
-        text=json.dumps(content,ensure_ascii=False,sort_keys=True);c.post('/document/save',{'documentId':note['native_id'],'content':text,'saveVersion':True})
-        rb=c.post('/document/getContent',{'documentId':note['native_id']})
+        target_hash = digest(p['content'])
+        rb = None
+        if recover_revision:
+            from .ed_order_history import document_body
+
+            observed = self._read_bound_note(c, note, pair)
+            parent_hash = note['content_hash']
+            actual_hash = digest(document_body(observed))
+            if (observed.get('status') != 'DRAFT' or parent_hash == target_hash
+                    or actual_hash not in {parent_hash, target_hash}):
+                raise NativeBlocked('Cannot reconcile the interrupted note revision against its saved content')
+            if actual_hash == target_hash:
+                rb = observed
+        if rb is None:
+            text=json.dumps(content,ensure_ascii=False,sort_keys=True)
+            c.post('/document/save',{'documentId':note['native_id'],'content':text,'saveVersion':True})
+            rb=self._read_bound_note(c,note,pair)
         got=rb.get('content');got=json.loads(got) if isinstance(got,str) else got
-        if got!=content or str(rb.get('patientId'))!=pair['patientId'] or str(rb.get('encounterId'))!=pair['encounterId']:raise NativeError('Document content/binding read-back mismatch')
-        note['version']+=1;note['content_hash']=digest(p['content']);note['status']='draft'
+        if got!=content:raise NativeError('Document content read-back mismatch')
+        note['version']+=1;note['content_hash']=target_hash;note['status']='draft'
         return self._result({'note_id':logical,'document_id':note['native_id'],'version':note['version'],'status':'draft','version_protection':'runtime_gateway','native_writer_role':'doctor','content_author_role':ctx.get('role')},rb)
 
     def _attest_note(self, payload, binding, pair):
@@ -453,11 +478,9 @@ class NativeOpenHISPort:
         identity = {'documentId': note['native_id']}
 
         def read_note():
-            actual = client.post('/document/getContent', identity)
-            if (str(actual['id']) != note['native_id']
-                    or any(str(actual[key]) != value for key, value in pair.items())
-                    or digest(document_body(actual)) != note['content_hash']):
-                raise NativeBlocked('Persisted note content or encounter differs from the version to sign')
+            actual = self._read_bound_note(client, note, pair)
+            if digest(document_body(actual)) != note['content_hash']:
+                raise NativeBlocked('Persisted note content differs from the version to sign')
             return actual
 
         readback = read_note()
