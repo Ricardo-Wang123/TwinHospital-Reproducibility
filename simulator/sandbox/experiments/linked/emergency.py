@@ -258,6 +258,28 @@ def ips_documents_check(ips, key):
             {'none_reported', 'none_known', 'confirmed_no_current_use', 'no_known_allergies'})
 
 
+def chart_citation_candidates(tables, quote):
+    """Find short, already delivered measurements or passages for a returned quotation."""
+    attempted = ' '.join(quote.casefold().split())
+    keywords = set(re.findall(r'\w+', attempted))
+    fragments = re.split(r'\.{3}|…|;|,', quote)
+    candidates = list(review_measurements({'tables': tables}))
+    for table in tables:
+        for row in table_records(table):
+            for field in ('display', 'lab_comment_raw'):
+                if isinstance(value := row.get(field), str):
+                    candidates.extend(re.split(r'(?<=[.!?。！？;])\s+', value))
+    ranked = {}
+    for candidate in [*fragments, *candidates]:
+        candidate = ' '.join(candidate.split())
+        if 4 <= len(candidate) <= 420:
+            normalized = candidate.casefold()
+            shared = keywords.intersection(re.findall(r'\w+', normalized))
+            if normalized in attempted or len(shared) > 1:
+                ranked[candidate] = (normalized in attempted, len(shared))
+    return sorted(ranked, key=ranked.get, reverse=True)
+
+
 def check_findings(required, findings, sources, sources_consulted, *, allow_question_limits=False):
     """Return the still-open questions. A claimed finding needs an observed source passage."""
     open_checks = {}

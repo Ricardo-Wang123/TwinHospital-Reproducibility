@@ -182,12 +182,17 @@ def test_ips_citation_retry_matches_the_documented_medication_status(status, ver
     assert (not check_findings(required, finding, {"ips": ips}, {})) is verified_allowed
 
 
-def test_citation_retry_offers_only_supported_fragments_of_a_composite_chart_quote():
+@pytest.mark.parametrize("quotation", [
+    "Test result 4 mmol/L... Unrecorded interpretation",
+    "Test result 4 mmol/L, unreported comparison",
+    "Test result 4 mmol/L (lab) vs 9 mmol/L (bedside)",
+])
+def test_citation_retry_offers_only_supported_fragments_of_a_composite_chart_quote(quotation):
     question = "Review the reported laboratory result."
     passage = "Test result 4 mmol/L"
     section = "ed_reassessment_reports"
     finding = {"status": "verified", "source": section, "finding": "Reviewed the measured result.",
-               "quote": passage + "... Unrecorded interpretation"}
+               "quote": quotation}
     sources = {"medication_history": [], "ips": {}, "chart_search_receipts": [], "patient": [],
                "ed_chart": [{"section": section, "common": {}, "columns": ["name", "value_raw", "unit_raw"],
                              "rows": [["Test result", "4", "mmol/L"]]}]}

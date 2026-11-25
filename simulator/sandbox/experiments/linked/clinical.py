@@ -3064,13 +3064,13 @@ class _Execution:
                     quote = finding.get('quote')
                     if ('complete_prescribing_citations' in source_limits and isinstance(source, str)
                             and source in sections | {'ed_chart'} and isinstance(quote, str)):
-                        fragments = [part.strip() for part in re.split(r'\.{3}|…|;', quote) if part.strip()]
-                        if len(fragments) > 1:
-                            verified = [part for part in dict.fromkeys(fragments) if not emergency.check_findings(
-                                {key: question}, {key: {**finding, 'quote': part}},
-                                sources, previous['source_rounds'], allow_question_limits=True)]
-                            if verified:
-                                citations[key]['chart_passages'] = {source: verified}
+                        tables = [table for table in sources['ed_chart']
+                                  if source in {'ed_chart', table['section']}]
+                        candidates = emergency.chart_citation_candidates(tables, quote)
+                        verified = [part for part in candidates if not emergency.check_findings(
+                            {key: question}, {key: {**finding, 'quote': part}},
+                            sources, previous['source_rounds'], allow_question_limits=True)]
+                        citations[key]['chart_passages'] = {source: verified[:8]}
                 if citations:
                     source_limits['source_limits_review']['citation_corrections'] = citations
                     source_limits['source_limits_review']['instruction'] += (

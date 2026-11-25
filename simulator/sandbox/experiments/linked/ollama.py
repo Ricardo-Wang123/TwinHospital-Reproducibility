@@ -228,13 +228,13 @@ def signed_order_format(observation):
                     }
                     if key != 'medicines':
                         selected_passages['preconsult_report'] = limits.get('preconsult_report_passages', [])
-                    if correction:
-                        selected_passages.update(correction.get('chart_passages', {}))
+                    chart_passages = (correction or {}).get('chart_passages', {})
+                    selected_passages.update(chart_passages)
                     for source, passages in selected_passages.items():
                         if source not in available and source != 'preconsult_report':
                             continue
                         if not passages:
-                            if source == 'original_chart_unknown':
+                            if source == 'original_chart_unknown' or source in chart_passages:
                                 available.discard(source)
                             continue
                         available.discard(source)
