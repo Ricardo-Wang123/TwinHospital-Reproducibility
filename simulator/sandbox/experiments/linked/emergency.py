@@ -252,6 +252,12 @@ def chart_excerpt_present(quote, tables, *, medication_only=False):
     return any(expected <= values for values in timed.values())
 
 
+def ips_documents_check(ips, key):
+    section = ips.get({'medicines': 'medications', 'allergies': 'allergies'}.get(key))
+    return (section is None or bool(section.get('entries')) or section.get('status') in
+            {'none_reported', 'none_known', 'confirmed_no_current_use', 'no_known_allergies'})
+
+
 def check_findings(required, findings, sources, sources_consulted, *, allow_question_limits=False):
     """Return the still-open questions. A claimed finding needs an observed source passage."""
     open_checks = {}
@@ -272,10 +278,7 @@ def check_findings(required, findings, sources, sources_consulted, *, allow_ques
                 open_checks[key] = question
                 continue
             if source == 'ips':
-                section = sources['ips'].get({'medicines': 'medications', 'allergies': 'allergies'}.get(key))
-                documented = (section is None or bool(section.get('entries')) or section.get('status') in
-                              {'none_reported', 'none_known', 'confirmed_no_current_use', 'no_known_allergies'})
-                if limits or (status == 'verified' and documented):
+                if limits or (status == 'verified' and ips_documents_check(sources['ips'], key)):
                     continue
             elif limits and isinstance(quote, str) and any(
                     receipt['status'] == 'no_recorded_result'

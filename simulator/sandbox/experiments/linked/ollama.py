@@ -210,6 +210,9 @@ def signed_order_format(observation):
                     available = set(fresh_sources)
                     if status == 'verified':
                         available.discard('original_chart_unknown')
+                        ips = observation.get('checked_history_sources', {}).get('ips')
+                        if ips is not None and not emergency.ips_documents_check(ips, key):
+                            available.discard('ips')
                     if key == 'medicines':
                         available &= {'ips', 'patient', 'medication_history', 'medication_records', 'original_chart_unknown'}
                         if status == 'verified':

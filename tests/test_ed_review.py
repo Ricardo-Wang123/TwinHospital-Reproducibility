@@ -161,6 +161,27 @@ def test_repeated_citation_return_can_use_a_fresh_read_source():
         ["I used my inhaler yesterday."], ["这部分我不清楚。", "I used my inhaler yesterday."]]
 
 
+@pytest.mark.parametrize(("status", "verified_allowed"), [
+    ("unknown", False), ("confirmed_no_current_use", True),
+])
+def test_ips_citation_retry_matches_the_documented_medication_status(status, verified_allowed):
+    ips = {"medications": {"status": status, "entries": []}}
+    required = {"medicines": "Review the documented medication history."}
+    schema = signed_order_format({
+        "signed_order_lines": [], "required_treatment_options": {"treatment": {}},
+        "required_prescribing_checks": required, "allowed_response_actions": [],
+        "ips_on_demand": True, "checked_history_sources": {"ips": ips},
+        "source_limits_review": {"fresh_citation_sources": ["ips"]},
+    })
+    choices = schema["properties"]["check_results"]["properties"]["medicines"]["oneOf"]
+    ips_statuses = {branch["properties"]["status"]["enum"][0] for branch in choices
+                    if branch["properties"].get("source") == {"enum": ["ips"]}}
+    assert "reviewed_with_limits" in ips_statuses
+    assert ("verified" in ips_statuses) is verified_allowed
+    finding = {"medicines": {"status": "verified", "source": "ips", "finding": "Reviewed medication status."}}
+    assert (not check_findings(required, finding, {"ips": ips}, {})) is verified_allowed
+
+
 def test_alternating_open_checks_do_not_reset_citation_recovery():
     questions = {"medicines": "Review medicines.", "q2": "Review the last dose."}
     evidence = {"medication_history": ["Listed medicine"], "ips": {}, "ed_chart": [], "chart_search_receipts": []}
