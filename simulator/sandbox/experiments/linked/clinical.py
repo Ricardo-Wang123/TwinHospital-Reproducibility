@@ -3059,7 +3059,18 @@ class _Execution:
                     allowed = [name for name in sorted(sources.keys() | sections)
                                if not emergency.check_findings({key: question}, {key: {**finding, 'source': name}},
                                    sources, previous['source_rounds'], allow_question_limits=True)]
-                    citations[key] = {'submitted_source': finding.get('source'), 'matching_read_sources': allowed}
+                    source = finding.get('source')
+                    citations[key] = {'submitted_source': source, 'matching_read_sources': allowed}
+                    quote = finding.get('quote')
+                    if ('complete_prescribing_citations' in source_limits and isinstance(source, str)
+                            and source in sections | {'ed_chart'} and isinstance(quote, str)):
+                        fragments = [part.strip() for part in re.split(r'\.{3}|…|;', quote) if part.strip()]
+                        if len(fragments) > 1:
+                            verified = [part for part in dict.fromkeys(fragments) if not emergency.check_findings(
+                                {key: question}, {key: {**finding, 'quote': part}},
+                                sources, previous['source_rounds'], allow_question_limits=True)]
+                            if verified:
+                                citations[key]['chart_passages'] = {source: verified}
                 if citations:
                     source_limits['source_limits_review']['citation_corrections'] = citations
                     source_limits['source_limits_review']['instruction'] += (

@@ -182,6 +182,41 @@ def test_ips_citation_retry_matches_the_documented_medication_status(status, ver
     assert (not check_findings(required, finding, {"ips": ips}, {})) is verified_allowed
 
 
+def test_citation_retry_offers_only_supported_fragments_of_a_composite_chart_quote():
+    question = "Review the reported laboratory result."
+    passage = "Test result 4 mmol/L"
+    section = "ed_reassessment_reports"
+    finding = {"status": "verified", "source": section, "finding": "Reviewed the measured result.",
+               "quote": passage + "... Unrecorded interpretation"}
+    sources = {"medication_history": [], "ips": {}, "chart_search_receipts": [], "patient": [],
+               "ed_chart": [{"section": section, "common": {}, "columns": ["name", "value_raw", "unit_raw"],
+                             "rows": [["Test result", "4", "mmol/L"]]}]}
+    previous = {"checkpoint": 0, "physician_call": 1, "outcome": "decide_after_source_review",
+                "pending": {"q2": question}, "findings": {"q2": finding}, "treatment_conflicts": {},
+                "fresh_citation_review": True, "source_rounds": {"q2": 1},
+                "return_reason": {"q2": "insufficient_source_for_stated_finding"}}
+    submission = {"decision": "sign", "treatments": {"treatment": {"items": [], "reason": "Reviewed."}}}
+    workflow = SimpleNamespace(
+        prescribing_history_sources=lambda: (sources, sources),
+        result={"artifacts": {"ed_prescribing_checks": [previous]}},
+        primary_treatment_only=True, ed_checkpoint_index=0, post_signature_review=True, ips_on_demand=True,
+        ed_questions={"q2": question}, ed_checked_questions={"q2": 1},
+        calls=[{"response": {}, "submitted_response": submission}], transcript=[], handoff=None,
+    )
+    observation = _Execution.prescribing_check_input(workflow)
+    correction = observation["source_limits_review"]["citation_corrections"]["q2"]
+    assert correction["chart_passages"] == {section: [passage]}
+    assert observation["complete_prescribing_citations"]["prior_submission"] == submission
+    specification = signed_order_format({
+        **observation, "signed_order_lines": [], "required_treatment_options": {"treatment": {}},
+        "allowed_response_actions": [], "ips_on_demand": True,
+    })
+    choices = specification["properties"]["check_results"]["properties"]["q2"]["oneOf"]
+    chart = [branch["properties"]["quote"] for branch in choices
+             if branch["properties"].get("source") == {"enum": [section]}]
+    assert chart and all(option == {"enum": [passage]} for option in chart)
+
+
 def test_alternating_open_checks_do_not_reset_citation_recovery():
     questions = {"medicines": "Review medicines.", "q2": "Review the last dose."}
     evidence = {"medication_history": ["Listed medicine"], "ips": {}, "ed_chart": [], "chart_search_receipts": []}
