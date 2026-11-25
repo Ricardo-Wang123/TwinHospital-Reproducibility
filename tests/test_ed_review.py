@@ -60,6 +60,44 @@ def test_ips_history_lookup_requires_a_specific_term():
     assert not _response_shape_errors("doctor", {"action": "assess"}, request)
 
 
+def test_repeated_question_with_partial_answer_moves_to_working_assessment():
+    class ReachedAssessment(Exception):
+        pass
+
+    question = "When did you last use your inhaler, and what dose?"
+    reply = {"unanswered": True, "source_facts": [{"status": "recorded", "value": "Yesterday"}]}
+    observations = []
+    patient_questions = []
+    events = []
+
+    def prescribe(observation):
+        observations.append(observation)
+        if len(observations) == 3:
+            assert observation.get("require_working_assessment")
+            raise ReachedAssessment
+        return {"action": "ask", "question": question}
+
+    def ask_patient(role, text, phase):
+        patient_questions.append(text)
+        return reply
+
+    workflow = SimpleNamespace(
+        emergency=True, ips_on_demand=True, post_signature_review=True, continuous=True,
+        case={"his_initial": {}, "formulary": []}, history={"queried_pages": []},
+        patient_memory={}, diagnosis_catalogue=[], consultation_interactions_used=0,
+        clinical_context=dict, activity=lambda *args: None, prescribing_response=prescribe,
+        ask_patient=ask_patient, calls=[{"sequence": 2}], history_queries_remaining=lambda *args: 5,
+        work_limit=lambda *args: 3, event=lambda name, **fields: events.append(name),
+    )
+
+    with pytest.raises(ReachedAssessment):
+        _Execution.consult(workflow, resume=True)
+
+    assert len(observations) == 3
+    assert patient_questions == [question]
+    assert events == ["ed_intake_source_exhausted"]
+
+
 def test_ips_prescribing_source_retry_uses_the_available_chart_sections():
     observation = {"action": "locate_ed_prescribing_source", "ips_on_demand": True,
                    "available_chart_sections": ["ed_diagnostic_reports", "current_use_record"],

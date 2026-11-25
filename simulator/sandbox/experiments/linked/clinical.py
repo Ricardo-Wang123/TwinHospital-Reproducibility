@@ -2365,8 +2365,8 @@ class _Execution:
                 require_assessment = True
                 continue
             answer = self.ask_patient('doctor', question, 'consultation')
-            if self.post_signature_review and answer['unanswered'] and not any(
-                    f['status'] != 'unknown' for f in answer['source_facts']):
+            # A partial reply leaves an unanswered part even when it discloses known facts.
+            if self.post_signature_review and answer['unanswered']:
                 unanswered[key] = evidence
             turn += 1
         raise AssertionError("unreachable consultation")
