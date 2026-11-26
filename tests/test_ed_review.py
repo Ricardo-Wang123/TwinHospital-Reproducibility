@@ -9,7 +9,9 @@ from sandbox.experiments.linked.emergency import (NOTE_HEADINGS, chart_excerpt_p
 from sandbox.experiments.linked.clinical import _Execution, _response_shape_errors
 from sandbox.experiments.linked.chart import HistoryChart, NO_MEDICATION_RECORD
 from sandbox.experiments.linked.contracts import TaskCondition
-from sandbox.experiments.linked.ed_treatment_review import complete_administration_instructions, missing_committed_products
+from sandbox.experiments.linked.ed_treatment_review import (
+    complete_administration_instructions, complete_dose_units, missing_committed_products,
+)
 from sandbox.experiments.linked.ollama import response_format, signed_order_format
 
 
@@ -350,6 +352,36 @@ def test_instruction_only_retry_preserves_existing_order_fields():
     schema = response_format([{"role": "user", "content": json.dumps({
         "action": "revise_prescription", "complete_native_instructions": completion})}])
     assert schema["properties"]["administration_instructions"]["required"] == ["1"]
+
+
+def test_dose_unit_retry_preserves_regimen_and_completed_checks():
+    item = {"drug_code": "unchanged", "dose": 1, "dose_unit": "TAB"}
+    returned = {"drug_code": "returned", "frequency": "PRN", "dose": 2.5, "dose_unit": "mL"}
+    prior = {"decision": "sign", "check_results": {"source": {"status": "verified"}},
+             "treatments": {"first": {"items": [item]}, "second": {"items": [returned]}}}
+    completion = {"prior_submission": prior, "lines": {"2": ["NEB", "PUFF"]}}
+    response = {"dose_corrections": {"2": {"dose": 1, "dose_unit": "NEB"}}}
+
+    corrected = complete_dose_units(response, completion)
+    expected = deepcopy(prior)
+    expected["treatments"]["second"]["items"][0].update(dose=1, dose_unit="NEB")
+    assert corrected == expected
+    assert prior["treatments"]["second"]["items"][0]["dose_unit"] == "mL"
+    schema = response_format([{"role": "user", "content": json.dumps({
+        "action": "revise_prescription", "complete_native_dose_units": completion})}])
+    corrections = schema["properties"]["dose_corrections"]
+    assert corrections["required"] == ["2"]
+    assert corrections["properties"]["2"]["properties"]["dose_unit"] == {"enum": ["NEB", "PUFF"]}
+
+    for invalid in (
+        {"1": {"dose": 1, "dose_unit": "NEB"}},
+        {"2": {"dose": 1, "dose_unit": "mL"}},
+        {"2": {"dose": 0, "dose_unit": "NEB"}},
+        {"2": {"dose": float("inf"), "dose_unit": "NEB"}},
+        {"2": {"dose": 1, "dose_unit": "NEB", "drug_code": "replacement"}},
+    ):
+        with pytest.raises(ValueError):
+            complete_dose_units({"dose_corrections": invalid}, completion)
 
 
 def test_chart_lookup_without_results_preserves_unknown():

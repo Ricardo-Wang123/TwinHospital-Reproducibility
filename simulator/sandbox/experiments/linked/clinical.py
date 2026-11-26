@@ -1171,6 +1171,12 @@ class _Execution:
                 'Complete only the administration instructions for the returned line numbers. '
                 'Return {administration_instructions:{line_number:string}}. '
                 'Use the unchanged regimen you selected and the patient information you reviewed.')
+        if base.get('complete_native_dose_units'):
+            base['required_response']['shape_description'] = (
+                'Complete the dose and dose unit for the returned line numbers using the listed product units. '
+                'Return {dose_corrections:{line_number:{dose:number,dose_unit:string}}}. '
+                'Choose the intended dose in the selected unit using the formulation and strength. '
+                'The remaining order fields and completed evidence checks are carried forward.')
         if base.get('complete_prescribing_citations'):
             base['required_response']['shape_description'] = (
                 'Return only {check_results:{check_id:{status,finding,source,quote,affected_treatments,decision_basis}}} '
@@ -1463,6 +1469,8 @@ class _Execution:
                 retained = observation.get('source_limits_review', {}).get('retained_check_results')
                 if completion := observation.get('complete_native_instructions'):
                     response = therapy.complete_administration_instructions(response, completion)
+                if completion := observation.get('complete_native_dose_units'):
+                    response = therapy.complete_dose_units(response, completion)
                 if completion := observation.get('complete_prescribing_citations'):
                     submitted = response.get('check_results')
                     if (set(response) != {'check_results'} or not isinstance(submitted, dict)
@@ -3725,12 +3733,18 @@ class _Execution:
                 submission = prior_call.get('submitted_response', {})
                 options = submission.get('treatments', {})
                 if (self.single_prescription and not self.ed_prescription_signed and options and findings
-                        and all(finding['code'] in {'prn_instructions_missing', 'invalid_administration_instructions'}
-                                for finding in findings)
                         and [item for option in options.values() for item in option['items']] == prescription['items']):
-                    instruction_completion = {'complete_native_instructions': {
-                        'prior_submission': deepcopy(submission),
-                        'lines': [str(finding['item_index'] + 1) for finding in findings]}}
+                    if all(finding['code'] in {'prn_instructions_missing', 'invalid_administration_instructions'}
+                           for finding in findings):
+                        instruction_completion = {'complete_native_instructions': {
+                            'prior_submission': deepcopy(submission),
+                            'lines': [str(finding['item_index'] + 1) for finding in findings]}}
+                    if all(finding['code'] == 'unmapped_dose_unit' and finding.get('accepted_field_values')
+                           for finding in findings):
+                        instruction_completion = {'complete_native_dose_units': {
+                            'prior_submission': deepcopy(submission),
+                            'lines': {str(finding['item_index'] + 1): finding['accepted_field_values']
+                                      for finding in findings}}}
             if any(finding['code'] == 'duplicate_order_lines' for finding in validation.get('findings', [])):
                 followup += (' Merge each duplicate group in business_validation.findings into one order. '
                              'Keep its combined clinical reasons in indication.rationale.')

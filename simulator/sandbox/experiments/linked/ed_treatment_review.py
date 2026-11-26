@@ -1,6 +1,7 @@
 """Therapy options and decision records for the primary-problem ED task."""
 from collections import Counter
 from copy import deepcopy
+from math import isfinite
 import re
 
 from .ed_order_actions import ACTION_TYPES
@@ -370,6 +371,24 @@ def complete_administration_instructions(response, completion):
     items = [item for option in corrected['treatments'].values() for item in option['items']]
     for line, instruction in instructions.items():
         items[int(line) - 1]['administration_instructions'] = instruction
+    return corrected
+
+
+def complete_dose_units(response, completion):
+    corrections = response.get('dose_corrections')
+    if (set(response) != {'dose_corrections'} or not isinstance(corrections, dict)
+            or set(corrections) != set(completion['lines'])):
+        raise ValueError('Supply the dose and unit for each returned order line.')
+    corrected = deepcopy(completion['prior_submission'])
+    items = [item for option in corrected['treatments'].values() for item in option['items']]
+    for line, fields in corrections.items():
+        if not isinstance(fields, dict) or set(fields) != {'dose', 'dose_unit'}:
+            raise ValueError('Correct only the dose and dose unit on each returned line.')
+        dose = fields['dose']
+        if (type(dose) not in (int, float) or dose <= 0 or (isinstance(dose, float) and not isfinite(dose))
+                or fields['dose_unit'] not in completion['lines'][line]):
+            raise ValueError('Supply a positive dose and its listed unit for each returned line.')
+        items[int(line) - 1].update(fields)
     return corrected
 
 
