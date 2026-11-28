@@ -9,9 +9,10 @@ from pathlib import Path
 
 from sandbox.experiments.linked.cases import load_case
 from sandbox.experiments.linked.chart import HistoryChart
-from sandbox.experiments.linked.contracts import runtime_case
+from sandbox.experiments.linked.contracts import digest, runtime_case
 from sandbox.experiments.linked.emergency import PRIOR_REVIEW_SECTIONS, is_triage_reason, triage_reasons
 from sandbox.experiments.linked.ed_treatment_review import SINGLE_PRESCRIPTION
+from sandbox.experiments.linked.formulary_search import FILENAME, FormularyDirectory
 from sandbox.experiments.visibility import assert_visible
 
 
@@ -271,6 +272,11 @@ ol{padding-left:24px}li{margin:.35em 0}
 
 def build(cohort, output, sheet_inputs, *, workbook_available=False):
     manifest = read(cohort / "manifest.json")["cases"]
+    directory = FormularyDirectory(read(cohort / FILENAME))
+    directory.require_mimic_products()
+    allowed = read(cohort / "catalog.json")
+    if set(allowed) != set(directory.products) or digest(allowed) != directory.mapping_hash:
+        raise ValueError("Clinician review requires the same product map used for prescribing.")
     output.mkdir(mode=0o700)
     (output / "病例").mkdir(mode=0o700)
     verify = {}
@@ -279,6 +285,8 @@ def build(cohort, output, sheet_inputs, *, workbook_available=False):
     allergy_sources = read(allergies)["cases"] if allergies.exists() else {}
     for entry in sorted(manifest, key=lambda row: (row["group"], row["case_id"])):
         case = load_case(cohort / entry["path"])
+        if case.get("formulary_directory") != directory.descriptor:
+            raise ValueError("Case and clinician medication directory differ.")
         case_id, label, document, counts = clinical_page(
             case, allergy_source_status=allergy_sources.get(case["case_id"], {}).get("source_status"),
             workbook_available=workbook_available)
@@ -288,12 +296,11 @@ def build(cohort, output, sheet_inputs, *, workbook_available=False):
         (output / "病例" / f"{case_id}.html").write_text(document, encoding="utf-8")
         rows.append([case_id, label])
         verify[case_id] = counts
-    allowed = read(cohort / "catalog.json")
-    products = sorted(read(cohort / "formulary_directory.json")["products"],
+    products = sorted(directory.products.values(),
                       key=lambda product: (product["name"].casefold(), product["drug_code"]))
     formulary = [[p["drug_code"], p["name"], p.get("display_name_zh"), p.get("ingredient"), p.get("strength"),
                   p.get("dosage_form"), ", ".join(p.get("allowed_routes") or [p["route"]])]
-                 for p in products if p["drug_code"] in allowed]
+                 for p in products]
     titles = Counter(label for _, label in rows)
     lead = " · ".join(f"{label} {count} 例" for label, count in titles.items())
     index = '<nav><a href="医生标注.xlsx">打开标注表与院内药品目录</a></nav>' if workbook_available else ""

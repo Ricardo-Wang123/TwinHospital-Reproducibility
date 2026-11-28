@@ -11,12 +11,14 @@ import re
 import tarfile
 import tempfile
 
-from .emergency_cases import default_catalogues
 from sandbox.experiments.linked.contracts import digest
 from sandbox.experiments.linked.formulary_search import CODE_SYSTEM, FILENAME, NAME_SYSTEM
 
 
-VERSION = 'mimic-iv-2.2-ig-1.3.0/formulary-v1'
+VERSION = 'mimic-iv-2.2-ig-1.3.0/formulary-v2'
+FREQUENCY_CODES = {code: code for code in (
+    'AC BID BIW HS PC PRN Q12H Q1H Q2D Q2H Q3D Q3H Q4H Q5D Q6H Q8D Q8H QAM QD QID QN QOD QW SOS ST STAT TID TIW'
+).split()}
 ROUTES = set('PO ORAL IV IM SC SUBCUT PR TP TD TRANSDERMAL SL NG NEB INHALATION ID BUCCAL NAS'.split())
 ROUTES.update(('IV BOLUS', 'IV DRIP', 'IV INFUSION', 'BOTH EYES', 'RIGHT EYE', 'LEFT EYE',
                'BOTH EARS', 'RIGHT EAR', 'LEFT EAR', 'G TUBE', 'J TUBE'))
@@ -77,8 +79,7 @@ def products(rows, names, codes):
                 and all(s.isprintable() for s in (name, code, strength)) and len(name) <= 150
                 and not EXCLUDED.search(name)):
             variants[name, code, strength, route, quantity].add(dose)
-    local, mapping = default_catalogues()
-    options = next(iter(mapping.values()))['frequency_codes']
+    catalogue, mapping = [], {}
     ids = set()
     for identity, dose_units in sorted(variants.items()):
         name, code, strength, route, quantity = identity
@@ -91,13 +92,13 @@ def products(rows, names, codes):
         product = {'drug_code': product_id, 'name': name, 'source_formulary_code': code, 'strength': strength,
                    'route': route, 'allowed_routes': [route], 'allowed_dose_units': units,
                    'quantity_unit': quantity}
-        local.append(product)
+        catalogue.append(product)
         mapping[product_id] = {'medicationDefinitionId': str(PRODUCT_BASE + n), 'catalog_bus_no': product_id,
             'quantity_unit_code': unit_code(quantity), 'source_quantity_unit': quantity,
             'source_dose_unit': units[0], 'dose_unit_code': unit_code(units[0]),
             'dose_unit_codes': {u: unit_code(u) for u in units}, 'route_codes': {route: unit_code(route, True)},
-            'frequency_codes': options, 'dispenseLocationId': LOCATION, 'catalogue_version': VERSION}
-    return local, mapping
+            'frequency_codes': FREQUENCY_CODES, 'dispenseLocationId': LOCATION, 'catalogue_version': VERSION}
+    return catalogue, mapping
 
 
 def sql_literal(value):

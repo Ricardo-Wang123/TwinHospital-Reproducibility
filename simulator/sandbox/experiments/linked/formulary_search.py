@@ -32,6 +32,14 @@ class FormularyDirectory:
             text = ' '.join([*keys, p.get('strength', ''), p.get('route', ''), p.get('display_name_zh', '')])
             self.entries.append((set(x.casefold() for x in keys if x), ' '.join(terms(text)), p))
 
+    def require_mimic_products(self):
+        names, codes = set(self.names), set(self.codes)
+        if not self.products or any(
+            not code.startswith('MIM-') or row.get('source_formulary_code') not in codes or row['name'] not in names
+            for code, row in self.products.items()
+        ):
+            raise ValueError('MIMIC ED prescribing requires products from its source medication directory.')
+
     def search(self, query, offset=0):
         words = terms(query)
         if not words or len(query) > 120 or type(offset) is not int or offset < 0:

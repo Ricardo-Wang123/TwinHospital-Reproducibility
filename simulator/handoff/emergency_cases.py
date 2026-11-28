@@ -16,9 +16,6 @@ from sandbox.experiments.linked.cases import VERSION, validate_patient_splits, w
 from sandbox.experiments.linked.chart import HistoryChart
 from handoff.ed_workup import lab_fields
 
-DEFAULT_FORMULARY = Path(__file__).resolve().parents[1] / 'deploy/openhis-experiment/outpatient_catalogue/formulary.json'
-
-
 def table(directory, name, subjects=None, subject_column=0):
     path = directory / (name + '.csv.gz')
     stream = gzip.open(path, 'rt', newline='') if path.exists() else (directory / (name + '.csv')).open(newline='')
@@ -36,18 +33,8 @@ def table(directory, name, subjects=None, subject_column=0):
                     yield dict(zip(header, fields, strict=True))
 
 
-def default_catalogues():
-    base = DEFAULT_FORMULARY.parent
-    formulary = json.loads(DEFAULT_FORMULARY.read_text())
-    mapping = json.loads((base / 'catalog_mapping.json').read_text())
-    for row in json.loads((base.parent / 'emergency_iv_products.json').read_text()):
-        formulary.append(row['product'])
-        mapping[row['product']['drug_code']] = row['native_mapping']
-    return formulary, mapping
-
-
-def prepare(cohort, hosp, identity_key, formulary, destination, native_mapping, primary_per_stratum=None,
-            medication_directory=None):
+def prepare(cohort, hosp, identity_key, destination, native_mapping, medication_directory,
+            primary_per_stratum=None):
     if len(identity_key) < 32:
         raise ValueError('Use a private identity key of at least 32 bytes.')
     def identifier(kind, value):
@@ -55,11 +42,6 @@ def prepare(cohort, hosp, identity_key, formulary, destination, native_mapping, 
         return prefix + hmac.new(identity_key, (kind + '/' + value).encode(), hashlib.sha256).hexdigest()[:24]
     def offsets(t, origin):
         return round((datetime.fromisoformat(t) - datetime.fromisoformat(origin)).total_seconds() / 3600, 5)
-    codes = {p['drug_code'] for p in formulary}
-    if not formulary or len(codes) != len(formulary) or not all(p.get('ingredient') or p.get('name') for p in formulary):
-        raise ValueError('A shared formulary with distinct named product codes is required.')
-    if not codes.issubset(native_mapping) or (medication_directory is None and codes != set(native_mapping)):
-        raise ValueError('The shared formulary and native product map must cover the same codes.')
     indexed = {r['source_subject_id']: r for r in cohort}
     if not indexed or len(indexed) != len(cohort) or len({r['source_hadm_id'] for r in cohort}) != len(cohort):
         raise ValueError('Duplicate or missing index patient/encounter')
@@ -165,26 +147,26 @@ def prepare(cohort, hosp, identity_key, formulary, destination, native_mapping, 
             'allergy_record': {'status': 'unknown', 'items': []}, 'current_use_record': {'status': 'unknown', 'items': []}}
         cases.append({'schema_version': VERSION, 'case_id': cid, 'patient_key': identifier('patient', subject),
             'encounter_setting': 'emergency', 'group': row['disease'], 'split': 'test', 'data_kind': 'mimic_derived',
-            'patient_initial': {'demographics': demographics, 'patient_facts': [], 'interview_source': 'unrecorded'}, 'his_initial': chart, 'formulary': formulary})
+            'patient_initial': {'demographics': demographics, 'patient_facts': [], 'interview_source': 'unrecorded'}, 'his_initial': chart, 'formulary': []})
         references[cid] = {'drug_names': sorted({d['match_name'] for d in row['reference_drugs']}),
                            'disposition': 'admit', 'source_order_count': len(row['recorded_medication_orders']),
                            'source_subject_id': subject, 'source_hadm_id': row['source_hadm_id'],
                            'hospital_primary_icd': row['hospital_primary_icd'], 'ed_start': start, 'ed_end': row['cut'],
                            'first_ward_time': row['encounter_evidence']['first_ward_time']}
-    return write_dataset(cases, references, formulary, destination, native_mapping, primary_per_stratum, medication_directory)
+    return write_dataset(cases, references, destination, native_mapping, medication_directory, primary_per_stratum)
 
 
-def write_dataset(cases, references, formulary, destination, native_mapping, primary_per_stratum=None,
-                  medication_directory=None):
+def write_dataset(cases, references, destination, native_mapping, medication_directory, primary_per_stratum=None):
     from .emergency_results import catalogue_coverage
+    from .mimic_formulary import fixture
     from sandbox.experiments.linked.contracts import digest, runtime_case
     from sandbox.experiments.linked.formulary_search import FILENAME, FormularyDirectory
 
-    directory = None
-    if medication_directory is not None:
-        directory = FormularyDirectory(json.loads(medication_directory.read_bytes()))
-        if directory.mapping_hash != digest(native_mapping) or set(directory.products) != set(native_mapping):
-            raise ValueError('Shared orderable products and the OpenHIS binding differ')
+    directory = FormularyDirectory(json.loads(medication_directory.read_bytes()))
+    directory.require_mimic_products()
+    if directory.mapping_hash != digest(native_mapping) or set(directory.products) != set(native_mapping):
+        raise ValueError('Shared orderable products and the OpenHIS binding differ')
+    product_fixture = fixture(directory.products.values(), native_mapping)
 
     validate_patient_splits(cases)
     if destination.exists() or not cases:
@@ -205,18 +187,18 @@ def write_dataset(cases, references, formulary, destination, native_mapping, pri
     def write_partition(folder, selected):
         records, summaries, outcomes = [], {}, {}
         for case in selected:
-            if directory is not None:
-                case = dict(case, formulary_directory=directory.descriptor)
+            case = dict(case, formulary=[], formulary_directory=directory.descriptor)
             cid = case['case_id']
             path = Path('cases') / (cid + '.json')
             write_case(folder / path, case)
             records.append({**{k: case[k] for k in ('case_id','patient_key','group','split','data_kind')}, 'path': str(path)})
             summaries[cid] = HistoryChart(case['his_initial']).initial_view()['opening_summary']
             outcomes[cid] = dict(references[cid], runtime_input_hash=digest(runtime_case(case)))
-        coverage = catalogue_coverage(outcomes, directory.products.values() if directory else formulary)
-        if directory:
-            shutil.copyfile(medication_directory, folder / FILENAME)
-            (folder / FILENAME).chmod(0o600)
+        coverage = catalogue_coverage(outcomes, directory.products.values())
+        shutil.copyfile(medication_directory, folder / FILENAME)
+        (folder / FILENAME).chmod(0o600)
+        (folder / 'products.sql').write_text(product_fixture)
+        (folder / 'products.sql').chmod(0o600)
         for name, payload in [('manifest.json', {'cases': records}), ('opening_summaries.private.json', summaries),
                               ('reference.private.json', outcomes), ('catalog.json', native_mapping),
                               ('catalogue_coverage.private.json', coverage)]:
@@ -240,31 +222,18 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     for name in ('cohort','hosp','identity-key','output'):
         parser.add_argument('--' + name, type=Path, required=True)
-    parser.add_argument('--formulary', type=Path, help='Optional alternative shared clinical product catalogue')
-    parser.add_argument('--native-catalog', type=Path, help='Corresponding OpenHIS product mapping')
-    parser.add_argument('--medication-directory', type=Path,
+    parser.add_argument('--medication-directory', type=Path, required=True,
                         help='Directory produced by handoff.mimic_formulary for indexed prescribing')
     parser.add_argument('--primary-per-stratum', type=int, help='Fixed number of primary study patients per disease; keep the remainder in reserve')
     args = parser.parse_args()
     with args.cohort.open() as rows:
         cohort = [json.loads(row) for row in rows if row.strip()]
     os.umask(0o077)
-    if args.medication_directory and (args.formulary or args.native_catalog):
-        parser.error('Use --medication-directory or a pair of custom catalogues.')
-    if bool(args.formulary) != bool(args.native_catalog):
-        parser.error('Supply both --formulary and --native-catalog for an alternative catalogue.')
-    if args.formulary:
-        formulary = json.loads(args.formulary.read_text())
-        mapping = json.loads(args.native_catalog.read_text())
-    else:
-        formulary, mapping = default_catalogues()
-    directory_file = None
-    if args.medication_directory:
-        from sandbox.experiments.linked.formulary_search import FILENAME
-        directory_file = args.medication_directory / FILENAME
-        mapping = json.loads((args.medication_directory / 'catalog.json').read_bytes())
-    print(json.dumps(prepare(cohort, args.hosp, args.identity_key.read_bytes(), formulary, args.output, mapping,
-                             args.primary_per_stratum, directory_file)))
+    from sandbox.experiments.linked.formulary_search import FILENAME
+    directory_file = args.medication_directory / FILENAME
+    mapping = json.loads((args.medication_directory / 'catalog.json').read_bytes())
+    print(json.dumps(prepare(cohort, args.hosp, args.identity_key.read_bytes(), args.output, mapping,
+                             directory_file, args.primary_per_stratum)))
 
 
 if __name__ == '__main__':

@@ -10,6 +10,7 @@ import shutil
 
 from sandbox.experiments.linked.campaign import validate_window
 from sandbox.experiments.linked.cases import READABLE_CASE_VERSIONS, load_case
+from sandbox.experiments.linked.cases import VERSION as NATIVE_CASE_VERSION
 from sandbox.experiments.linked.provider import check_data_policy
 from sandbox.experiments.linked.run_batch import select_cases
 
@@ -81,8 +82,12 @@ def inputs(manifest, case_files):
         raise ValueError('A bundle must use one case per source patient.')
     for row in references:
         case = load_case(row['path'])
-        if case.get('schema_version') not in READABLE_CASE_VERSIONS or not case.get('formulary'):
-            raise ValueError('Each case needs a supported linked case version and a nonempty formulary.')
+        if (case.get('schema_version', NATIVE_CASE_VERSION) not in READABLE_CASE_VERSIONS
+                or not (case.get('formulary') or case.get('formulary_directory'))):
+            raise ValueError('Each case needs a supported version and a medication catalogue.')
+        if (case['data_kind'] == 'mimic_derived' and case.get('encounter_setting') == 'emergency'
+                and (not case.get('formulary_directory') or case.get('formulary'))):
+            raise ValueError('MIMIC ED cases must use the shared source medication directory.')
     return references
 
 
@@ -92,14 +97,14 @@ def pack(args):
         raise ValueError('Keep case bundles outside the source checkout.')
     manifest = args.manifest
     if manifest is None and not args.case:
-        dataset = ROOT.parent / 'data' / 'ED-100'
+        data = ROOT.parent / 'data'
+        dataset = data / 'ED-100-aligned'
+        if not dataset.is_dir():
+            dataset = data / 'ED-100'
         manifest = dataset / 'manifest.json'
         if not args.inherit_native:
             deploy = ROOT / 'deploy' / 'openhis-experiment'
             args.diagnosis_catalog = args.diagnosis_catalog or deploy / 'diagnosis_mapping.json'
-            if not args.fixture:
-                args.fixture = [deploy / 'outpatient_catalogue' / 'base_products.sql',
-                                deploy / 'outpatient_catalogue' / 'additional_products.sql', dataset / 'products.sql']
     references = inputs(manifest, args.case)
     release = release_hashes(args.assets)
     sources = {name: getattr(args, key) for key, name in CATALOGUES.items()}
@@ -126,8 +131,19 @@ def pack(args):
         parent = Path(references[0]['path']).parent.parent
         sources[FILENAME] = parent / FILENAME
         sources.setdefault('catalog.json', parent / 'catalog.json')
-        if content_hash(read(sources['catalog.json'])) != directory.mapping_hash:
+        mapping = read(sources['catalog.json'])
+        if content_hash(mapping) != directory.mapping_hash or set(mapping) != set(directory.products):
             raise ValueError('The native product map does not match the medication directory')
+        if any(ref['data_kind'] == 'mimic_derived' and ref['encounter_setting'] == 'emergency' for ref in references):
+            from .mimic_formulary import fixture
+
+            directory.require_mimic_products()
+            if not fixtures:
+                fixtures = ['fixtures/001.sql']
+                sources[fixtures[0]] = parent / 'products.sql'
+            if (len(fixtures) != 1 or not sources[fixtures[0]].is_file()
+                    or sources[fixtures[0]].read_text() != fixture(directory.products.values(), mapping)):
+                raise ValueError('MIMIC ED bundles require the product fixture from their medication directory.')
     if any(not source.is_file() for source in sources.values()):
         raise ValueError('A catalogue, workflow template, or native fixture file is missing.')
 

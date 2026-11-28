@@ -31,10 +31,10 @@ For source-aligned ED replay, enable `--align-source-notes` during single-prescr
 | `patients/<case_id>/原表记录.json` · `FHIR资源.json` | Native patient data and the mapped FHIR collection. |
 | `patients/<case_id>/开诊摘要.json` | The opening complaint and triage observations, the physician's runtime IPS-based summary, and dated historical evidence. |
 | `manifest.json` · `cases/<case_id>.json` | Selected cases and their time-restricted MAS inputs. |
-| `formulary_directory.json` · `catalog.json` · `products.sql` | Shared searchable drug directory, native product mapping and OpenHIS fixture. The same directory is used in every condition. |
+| `formulary_directory.json` · `catalog.json` · `products.sql` | Shared searchable products derived from MIMIC-IV prescriptions, native product mapping and OpenHIS fixture. The same source directory is used in every condition and in clinician review. |
 | `reference.private.json` | Evaluator-only primary-condition ingredients, continuation/addition status, medication evidence, ED disposition and visit linkage. |
 
-Run the existing packer from the simulator directory with this manifest, catalogue, product fixture and shared OpenHIS fixtures. The packer resolves the shared directory beside the manifest. [Pack the cases](../simulator/README.md#pack-the-cases)
+Run the packer from the simulator directory with this manifest, native product map and source product fixture. The packer resolves the shared directory beside the case files. [Pack the cases](../simulator/README.md#pack-the-cases)
 
 ## Runtime case JSON
 
@@ -47,7 +47,7 @@ Source-extracted ED cases use a structured version 1 chart and `encounter_settin
 | `group`, `split`, `data_kind` | One of the five group IDs below, a declared split such as `engineering` or `test`, and explicit origin (`mimic_derived`, `hospital_derived`, or `synthetic_independent`). |
 | `patient_initial` | Demographics as perceived by the patient, communication profile, and facts from the patient view. Each fact has a unique `fact_id` and status `reported`, `denied`, or `unknown`. Include a complaint only if the source records one. |
 | `his_initial` | Authorized demographics, historical encounters and orders, optional administration, lab, microbiology and outpatient history, current observations, current medication-use and allergy records, and timing basis. |
-| `formulary` | Allowed virtual products. Preserve product code, ingredient, strength, formulation, route, and separate dose and dispensed quantity units. Use the corresponding native product dictionary. |
+| `formulary` | Inline products for synthetic cases. Indexed MIMIC ED cases use an empty array and the shared directory. |
 | `formulary_directory` | Indexed ED cases carry the version and SHA-256 of the shared directory. During prescribing the actor searches this directory by name, formulation or code. |
 | `evaluation`, `provenance` | Evaluator-only reference fields and annotations identifying which facts come from source records and which were constructed. |
 

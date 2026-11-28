@@ -75,12 +75,10 @@ Set `ED_COHORT` to the prepared single-prescription cohort produced by [case pre
   --manifest "$ED_COHORT/manifest.json" --assets "$OPENHIS" --output "$WORK/inputs" \
   --diagnosis-catalog "$ED_DIAGNOSIS_MAPPING" \
   --catalog "$ED_COHORT/catalog.json" \
-  --fixture deploy/openhis-experiment/outpatient_catalogue/base_products.sql \
-  --fixture deploy/openhis-experiment/outpatient_catalogue/additional_products.sql \
-  --fixture "$ED_FORMULARY_SQL"
+  --fixture "$ED_COHORT/products.sql"
 ```
 
-Set `ED_DIAGNOSIS_MAPPING` and `ED_FORMULARY_SQL` to the matching diagnosis mapping and product fixture from the authorized preparation workspace. For one visit, supply `--case`. Case paths are relative to the manifest. Each output directory holds one frozen input bundle. [Case preparation](../data/README.md#index-ed-encounter)
+Set `ED_DIAGNOSIS_MAPPING` to the matching diagnosis mapping from the authorized preparation workspace. The cohort's product fixture and native product map use the same MIMIC medication directory. For one visit, supply `--case`. Case paths are relative to the manifest. Each output directory holds one frozen input bundle. [Case preparation](../data/README.md#index-ed-encounter)
 
 ### Configure the models
 

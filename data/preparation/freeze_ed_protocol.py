@@ -235,7 +235,7 @@ def prepare(source, discharge, ed, output):
             counts.append({'case_id': case_id, 'group': row['group'], 'nodes': len(nodes),
                            'intake_hpi_facts': facts, 'opening_patient_facts': opening_facts})
             all_nodes[case_id] = nodes
-        for name in ('catalog.json', 'formulary_directory.json'):
+        for name in ('catalog.json', 'formulary_directory.json', 'products.sql'):
             shutil.copyfile(source / name, destination / name)
         save(destination / 'manifest.json', manifest)
         save(destination / 'reference.private.json', references)

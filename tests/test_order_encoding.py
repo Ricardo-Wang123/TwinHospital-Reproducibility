@@ -1,7 +1,32 @@
 from copy import deepcopy
 import unittest
 
+from handoff.mimic_formulary import VERSION, products
+from sandbox.experiments.linked.contracts import digest
+from sandbox.experiments.linked.formulary_search import FormularyDirectory
 from sandbox.experiments.linked.order_encoding import encode_items, preflight, OrderEncodingError
+
+
+def test_mimic_catalogue_build_and_search_exclude_local_products():
+    names, codes = ["Fixture tablet"], ["SOURCE1"]
+    entries, mapping = products([
+        (names[0], codes[0], "5 mg tablet", "PO", "TAB", "mg"),
+        ("Local product", "LOCAL1", "10 mg tablet", "PO", "TAB", "mg"),
+    ], names, codes)
+    source, = entries
+    data = {"version": VERSION, "official_names": names, "official_formulary_codes": codes,
+            "products": entries, "native_mapping_sha256": digest(mapping)}
+    directory = FormularyDirectory(data)
+    directory.require_mimic_products()
+    assert set(mapping) == {source["drug_code"]}
+    assert directory.search("Fixture tablet")["products"] == [source]
+    assert directory.search("Local product")["products"] == []
+    mixed = FormularyDirectory({**data, "products": [source, {
+        "name": "Local product", "drug_code": "SIM-LOCAL", "strength": "5 mg tablet", "route": "PO"}]})
+    with unittest.TestCase().assertRaisesRegex(ValueError, "source medication directory"):
+        mixed.require_mimic_products()
+
+
 def new_rx():
     return {'items': [{'drug_code': 'NEW', 'dose': '5', 'dose_unit': 'mg', 'quantity': '7',
                        'quantity_unit': 'tablet', 'frequency': 'QD', 'route': 'oral'}]}

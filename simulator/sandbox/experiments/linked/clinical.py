@@ -377,6 +377,10 @@ class _Execution:
                 self.medication_directory is None or self.medication_directory.descriptor != self.case['formulary_directory']):
             raise ValueError('This encounter requires its frozen medication directory')
         self.emergency = self.case.get("encounter_setting") == "emergency"
+        if self.emergency and self.case['data_kind'] == 'mimic_derived':
+            if self.medication_directory is None or self.case.get('formulary'):
+                raise ValueError('MIMIC ED cases use the shared source medication directory for prescribing.')
+            self.medication_directory.require_mimic_products()
         self.patient_memory = self.case['patient_initial']
         if self.emergency:
             self.patient_memory = emergency.patient_account(self.patient_memory)

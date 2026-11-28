@@ -94,7 +94,7 @@ def prepare_single_prescription(source, output, *, align_source_notes=False):
                 for section, records in chart.items() if section.startswith('ed_') and isinstance(records, list)
             }
             save(index_path, index)
-        for name in ('catalog.json', 'formulary_directory.json', 'history.private.sqlite'):
+        for name in ('catalog.json', 'formulary_directory.json', 'products.sql', 'history.private.sqlite'):
             shutil.copy2(source / name, destination / name)
         if file_sha256(destination / 'history.private.sqlite') != audit['history_library_sha256']:
             raise ValueError('The shared history catalogue changed')
