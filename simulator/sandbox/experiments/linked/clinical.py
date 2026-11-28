@@ -1086,6 +1086,9 @@ class _Execution:
             if treatment_orders:
                 shape['shape_description'] = (therapy.SINGLE_PRESCRIPTION_FORMAT if self.single_prescription
                                               else therapy.SIGN_FORMAT + action_format)
+                if self.single_prescription:
+                    base['record_omission_decisions'] = True
+                    shape['shape_description'] += therapy.OMISSION_FORMAT
                 if base.get('prescribing_stage') == 'proposal_for_AI_review':
                     shape['shape_description'] += (
                         ' The returned items are your proposed prescription for AI review. '
@@ -1559,6 +1562,8 @@ class _Execution:
                        observation_hash=call["observation_hash"], response_hash=call.get("response_hash"))
 
     def perform(self, operation, payload, role="doctor", *, write=True):
+        from .continuation import EncounterDeferred
+
         if operation in {'order.save', 'order.attest'} and self.emergency and self.ed_prescribing_phase == 'closed':
             raise WorkflowFailure('The signed ED regimen is fixed for this encounter')
         if (operation == 'history.query' and payload.get('section') in {'ed_reassessment_reports','ed_reassessment_workup'}
@@ -1574,6 +1579,8 @@ class _Execution:
                    scope=deepcopy(context),payload_hash=digest(payload))
         try:
             response = self.runner.backend.execute(operation, deepcopy(payload), context)
+        except EncounterDeferred:
+            raise
         except Exception as exc:
             self.event('business_request_outcome',request_id=request_id,operation=operation,
                        status='unresolved_exception',error_type=type(exc).__name__,native_effect=None)
@@ -3893,6 +3900,8 @@ class _Execution:
                 protocol = {'prescribing_schedule': therapy.SINGLE_PRESCRIPTION,
                             'pharmacy_followup': {key: {'issue': issue, 'finding': decision['check_results'][key]}
                                                   for key, issue in returned.items()}}
+                if 'considered_not_ordered' in decision:
+                    protocol['considered_not_ordered'] = decision['considered_not_ordered']
             self.perform('order.save', {'order_id': self.order_id, 'items': prescription['items'],
                 'parent_order_id': parent, 'decision_reason': decision['reason'], 'order_actions': actions,
                 'decision_offset_seconds': offset, 'physician_call': seq,
@@ -4765,8 +4774,10 @@ class _Execution:
             self.result.update(status=status, workflow_complete=False,
                                error_type=type(exc).__name__, failure_reason=str(exc)[:1000])
             if isinstance(exc, EncounterDeferred):
-                self.result['provider_interruption'] = deepcopy(exc.issue)
-                self.event('provider_retry_queued', issue=deepcopy(exc.issue), same_encounter=True,
+                native = exc.issue['reason_code'] == 'registration_readback_pending'
+                self.result['native_interruption' if native else 'provider_interruption'] = deepcopy(exc.issue)
+                self.event('native_registration_retry_queued' if native else 'provider_retry_queued',
+                           issue=deepcopy(exc.issue), same_encounter=True,
                            verified_complete=False, queue_position='tail')
             else:
                 self.event("run_failed", error_type=type(exc).__name__, reason=str(exc)[:1000])
@@ -4783,17 +4794,26 @@ class _Execution:
                 self.result['wall_seconds'] = time.monotonic() - self.clock_origin
                 issues = self.result.setdefault('workflow_issues', [])
                 for interruption in self.runner.continuation.data['interruptions']:
-                    issue_id = digest([self.context['run_id'], 'provider', interruption['number']])[:24]
+                    native = interruption['reason_code'] == 'registration_readback_pending'
+                    issue_id = digest([self.context['run_id'], 'registration' if native else 'provider',
+                                       interruption['number']])[:24]
                     existing = next((i for i in issues if i['issue_id'] == issue_id), None)
                     if existing is None:
                         existing = {'issue_id': issue_id, **deepcopy(self.context),
-                            'event_class':'model_execution', 'code':'provider_interruption', 'owner':'dispatcher',
+                            'event_class': interruption['event_class'],
+                            'code': 'registration_readback_pending' if native else 'provider_interruption', 'owner':'dispatcher',
                             'review_status':'not_reviewed', 'clinical_validity_inferred':False}
                         issues.append(existing)
                     existing.update({k: deepcopy(interruption[k]) for k in
                         ('status', 'reason_code', 'request_id', 'occurred_at', 'resolved_at', 'entry_position')})
                     recovery = interruption.get('recovery_request_id')
-                    if recovery:
+                    if recovery and native:
+                        observation = next((event for event in self.events if event['event'] == 'business_request_outcome'
+                                            and event['request_id'] == recovery and event['status'] == 'response_observed'), None)
+                        if observation:
+                            existing.update(resolution_event_sequence=observation['sequence'],
+                                            resolution_execution_segment=observation['execution_segment'])
+                    elif recovery:
                         recovered_call = next((call for call in self.calls if call.get('request_id') == recovery), None)
                         if recovered_call:
                             observation = next((event for event in self.events if event['event'] == 'role_call'

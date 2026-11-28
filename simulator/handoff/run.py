@@ -84,6 +84,9 @@ class RunConfig:
                    '--his-credentials', self.credentials, '--his-url', self.his_url,
                    '--workers', str(self.fields.get('workers', 1)), '--close-prescription-loop']
         command += ['--scenario-design', self.scenario_design, '--his-interface', self.his_interface]
+        if self.fields.get('historical_examples'):
+            command += ['--historical-examples', self.path('historical_examples'),
+                        '--history-library-sha256', self.fields['history_library_sha256']]
         if self.fields.get('uncapped') is True:
             command += ['--uncapped-budget']
         if self.mode in {'comparison', 'factorial', 'heldout', 'recover', 'repeat'}:

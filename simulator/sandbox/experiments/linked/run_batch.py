@@ -297,6 +297,7 @@ def execute_case(case, *, args, config, mapping, ledger, batch_root, stop_event=
             if getattr(args, 'close_prescription_loop', False):
                 continuation = EncounterContinuation(attempt_root/'continuation.json', {
                     'run': expected, 'implementation': code_fingerprint(),
+                    'history_library_sha256': getattr(args, 'history_library_sha256', None),
                     'generation': {k: config.get(k) for k in ('endpoint', 'role_model', 'tool_models', 'generation_policy', 'provider_profile')}})
                 factory = continuation.factory(factory)
             backend = PaperProtocolPort(NativeOpenHISPort(attempt_root/'native', catalog_mapping=mapping,
@@ -335,6 +336,8 @@ def execute_case(case, *, args, config, mapping, ledger, batch_root, stop_event=
             stop_event.set()
         record = {key: result.get(key) for key in ('status', 'native_complete', 'call_count',
                     'config_id', 'error_type', 'evaluation_unit')}
+        if 'native_interruption' in result:
+            record['retry_reason'] = result['native_interruption']['reason_code']
         record['result_path'] = str(result_path)
         save_attempt(label, record)
         print(json.dumps({'case_id': case['case_id'], 'group': case.get('group'),
@@ -668,7 +671,9 @@ def execute_continuation_schedule(cases, acceptance, *, args, config, mapping, l
 
     def requeue(unit, dispatch, delay):
         ref, label = unit
-        record_batch_event(session_log, 'provider_retry_queued', session_id=session_id,
+        reason = indices[ref['case_id']]['attempts'][label].get('retry_reason')
+        event = 'native_registration_retry_queued' if reason == 'registration_readback_pending' else 'provider_retry_queued'
+        record_batch_event(session_log, event, session_id=session_id,
             case_id=ref['case_id'], acceptance_profile=label, dispatch_number=dispatch,
             queue_position='tail', retry_after_seconds=delay, verified_complete=False)
 
@@ -698,6 +703,8 @@ def main():
     parser.add_argument('--output', required=True, type=Path)
     parser.add_argument('--batch', required=True)
     parser.add_argument('--catalog', type=Path, default=Path('deploy/openhis-experiment/catalog_mapping.json'))
+    parser.add_argument('--historical-examples', type=Path)
+    parser.add_argument('--history-library-sha256')
     parser.add_argument('--diagnosis-catalog', type=Path,
         default=Path('deploy/openhis-experiment/diagnosis_mapping.json'),
         help='Explicit versioned native diagnosis mapping; code systems are not inferred')
@@ -792,6 +799,20 @@ def main():
             raise ValueError('A nonempty development-partition manifest is required.')
         if {row['patient_key'] for row in development} & {case['patient_key'] for case in cases}:
             raise ValueError('A source patient occurs in both partitions.')
+    if bool(args.historical_examples) != bool(args.history_library_sha256):
+        parser.error('The historical example index and its checksum must be supplied together.')
+    if args.historical_examples is not None:
+        from .history_examples import HistoricalExamples
+
+        if file_sha256(args.historical_examples) != args.history_library_sha256:
+            raise ValueError('The historical example index differs from the frozen input bundle.')
+        args.historical_examples = HistoricalExamples(args.historical_examples)
+    elif args.scenario_design == scenarios.EMERGENCY:
+        from .ed_treatment_review import SINGLE_PRESCRIPTION
+
+        if any(load_case(ref['path'])['his_initial'].get('time_basis', {}).get('ed_prescribing_schedule')
+               == SINGLE_PRESCRIPTION for ref in cases if ref['data_kind'] == 'mimic_derived'):
+            parser.error('The prepared MIMIC cohort requires its frozen historical example index.')
     config, mapping = _read(args.provider_config), _read(args.catalog)
     if any('formulary_directory' in case for case in cases):
         from .formulary_search import directory_for_case
@@ -880,6 +901,7 @@ def main():
         'data_policy_provenance': policy_provenance,
         'generation': {k: config.get(k) for k in ('temperature', 'max_completion_tokens', 'max_attempts', 'max_calls_per_run')},
         'catalog_hash': digest(mapping), 'diagnosis_catalog_hash': digest(args.diagnosis_mapping),
+        'history_library_sha256': args.history_library_sha256,
         'diagnosis_code_systems': sorted({row['system'] for row in args.diagnosis_mapping.values()}),
         'code_hashes': code_fingerprint(),
         'rules': rule_metadata,

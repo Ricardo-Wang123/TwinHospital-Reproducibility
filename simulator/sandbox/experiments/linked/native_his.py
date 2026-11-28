@@ -10,6 +10,7 @@ import copy, datetime as dt, fcntl, hashlib, json, os, secrets, threading, calen
 from decimal import Decimal
 from pathlib import Path
 from urllib.parse import urlsplit
+from zoneinfo import ZoneInfo
 import requests
 from .chart import HistoryChart
 from .order_encoding import encode_items, preflight as preflight_encoding, OrderEncodingError
@@ -41,7 +42,11 @@ def write_private(path,value):
     fd=os.open(temp,os.O_CREAT|os.O_EXCL|os.O_WRONLY,0o600)
     with os.fdopen(fd,'w') as f: json.dump(value,f,ensure_ascii=False,indent=2); f.flush(); os.fsync(f.fileno())
     os.replace(temp,path)
-def now():return dt.datetime.now(dt.timezone(dt.timedelta(hours=8))).replace(tzinfo=None).isoformat(timespec='seconds')
+HOSPITAL_TIME_ZONE = ZoneInfo('Asia/Shanghai')
+
+
+def now():
+    return dt.datetime.now(HOSPITAL_TIME_ZONE).replace(tzinfo=None).isoformat(timespec='seconds')
 
 ALLOWED={
  '/auth/login','/auth/selectTenant','/auth/selectHospital','/auth/selectOrganizationUnit','/auth/getAvailableOrganizations',
@@ -157,7 +162,9 @@ class NativeOpenHISPort:
                     order=self._binding(ctx).get('orders',{}).get(payload.get('order_id'),{}) if op in {'order.attest', 'order.review'} else {}
                     resumable = {'order.attest': 'prepared', 'order.review': 'signed'}
                     observe_note = op == old.get('operation') and op in {'note.attest', 'note.revise'}
-                    if not observe_note and (not order.get('course') or order.get('status') != resumable.get(op)):
+                    observe_registration = op == old.get('operation') == 'registration.create'
+                    if not (observe_note or observe_registration) and (
+                            not order.get('course') or order.get('status') != resumable.get(op)):
                         raise NativeBlocked('Previous request is unresolved; reconcile native state before retry')
                 role=ctx.get('role','')
                 if op in ('order.save','order.attest','order.history','note.attest','consultation.save','encounter.begin_consultation') and role not in ('doctor','physician','attending_physician'):
@@ -173,9 +180,13 @@ class NativeOpenHISPort:
                 if op=='history.import' and role not in ('administrator','administrative','doctor','physician','attending_physician'):
                     raise NativeBlocked('History import is restricted to the encounter runtime')
                 if op!='registration.create':self._binding(ctx)
-                self.state['idempotency'][key]={'state':'in_flight','fingerprint':finger,'operation':op};self._save()
+                pending = {'state':'in_flight','fingerprint':finger,'operation':op}
+                if op == 'registration.create' and (old is None or old.get('registration_v2')):
+                    pending['registration_v2'] = True
+                self.state['idempotency'][key] = pending
+                self._save()
                 try:
-                    result=self._dispatch(op,payload,ctx,recovering=old is not None)
+                    result=self._dispatch(op,payload,ctx,recovering=old is not None and not pending.get('registration_v2'))
                     self.state['idempotency'][key].update(state='complete',result=result);self._save()
                 except Exception as e:
                     self.state['idempotency'][key].update(state='unresolved',error=type(e).__name__);self._save()
@@ -201,7 +212,7 @@ class NativeOpenHISPort:
                 raise NativeBlocked('Native request is not in an authorized payable signed state')
         return selected
     def _dispatch(self,op,p,ctx,*,recovering=False):
-        if op=='registration.create':return self._register(p,ctx)
+        if op=='registration.create':return self._register(p,ctx,legacy_recovery=recovering)
         b=self._binding(ctx); pair={'patientId':b['patient_id'],'encounterId':b['encounter_id']}; store=b.setdefault('artifacts',{})
         if op=='encounter.begin_consultation':
             c=self._client('doctor');principal=str(c.identity.get('practitionerId') or '')
@@ -300,45 +311,196 @@ class NativeOpenHISPort:
             if not match or Decimal(str(match.get('displayAmount'))) != Decimal(bill['amount']):raise NativeError('Payment read-back amount/identity mismatch')
             bill.update(status='paid',payment_id=str(paid['paymentId']),transaction_id=p.get('transaction_id'));return self._result(bill,rb)
         raise NativeBlocked('Unsupported operation '+op)
-    def _register(self,p,ctx):
-        c=self._client('cashier');d=p.get('demographics',{}); key=ctx['run_id']+':'+ctx['case_id']
-        if key in self.state['bindings']:raise NativeBlocked('Case/run already registered')
-        code=hashlib.sha256(key.encode()).hexdigest();age=int(d.get('age',d.get('age_years',55)) or 55);year=dt.date.today().year-min(max(age,18),89)
-        # Construct a nonclinical registration identity, never use it as source age evidence.
-        # 99xxxx reserved synthetic prefix + hash month/day/sequence avoids the old 999/year cap.
-        for attempt in range(12):
-            token=hashlib.sha256((key+':identity:'+str(attempt)).encode()).hexdigest()
-            month=int(token[4:8],16)%12+1; day=int(token[8:12],16)%calendar.monthrange(year,month)[1]+1
-            birth=f'{year:04d}-{month:02d}-{day:02d}'
-            base='99'+str(int(token[:4],16)%10000).zfill(4)+birth.replace('-','')+str(int(token[12:18],16)%999+1).zfill(3)
-            weights=[7,9,10,5,8,4,2,1,6,3,7,9,10,5,8,4,2]
-            identity=base+'10X98765432'[sum(int(n)*w for n,w in zip(base,weights))%11]
-            matches=c.post('/patient/getPatientPage',{'pageNo':1,'pageSize':100,'keyword':identity})
-            if not matches.get('content'):break
-        else:raise NativeBlocked('Synthetic identity allocation exhausted; no record adopted')
-        patient={'name':'虚构实验'+code[:10],'genderEnum':'FEMALE' if str(d.get('sex',d.get('gender',''))).lower() in ('f','female','女') else 'MALE','birthDate':birth+' 00:00:00','idCard':identity,'phone':'000'+str(int(code[:8],16)%100000000).zfill(8),'activeFlag':True,'patientIdInfoList':[]}
-        created=c.post('/patient/createPatient',patient);pid=str(created.get('patientId',created.get('id'))) if isinstance(created,dict) else str(created)
-        rbpatient=c.post('/patient/getPatient',{'value':pid})
-        if rbpatient.get('idCard')!=identity:raise NativeError('Created patient identity not verified')
-        init=c.post('/outpatientRegistration/loadRegisterFormInit',{'organizationId':'322663218269917184','practitionerId':ROLE_SETTINGS['doctor'][2]})
-        contract=next((x['value'] for x in init.get('contractOptions',[]) if init.get('contractCategoryById',{}).get(str(x['value'])) in ('SELF_PAY','SELF') or x.get('label')=='自费'),None)
-        if not contract:raise NativeBlocked('No verified self-pay contract')
-        service=next((x['value'] for x in init.get('serviceTypeOptions',[]) if str(x['value'])=='322957264586018816'),None)
-        if not service:raise NativeBlocked('Expected ordinary outpatient service unavailable')
-        request={'patientId':pid,'name':patient['name'],'gender':patient['genderEnum'],'birthDate':patient['birthDate'][:10],'idCardNo':identity,'phone':patient['phone'],'organizationId':'322663218269917184','practitionerId':ROLE_SETTINGS['doctor'][2],'serviceTypeId':service,'contractId':contract,'ybRegisterFee':False,'ybUseAcctPay':False}
-        slots=c.post('/outpatientRegistration/listBookableSlotHints',{'organizationId':request['organizationId'],'practitionerId':request['practitionerId'],'healthcareServiceId':service,'registrationDate':dt.date.today().isoformat()})
-        slot=next((x for x in slots.get('hints',[]) if (x.get('remainingCount') or 0)>0),None)
-        if slot:request['slotId']=slot['slotId']
-        draft=c.post('/outpatientRegistration/preRegisterSettlement',request)
-        pay=c.post('/outpatientRegistration/payRegisterFee',{'paymentDraftId':str(draft['paymentDraftId']),'paymentDetails':[{'payChannelCode':'CASH','payAmount':draft['totalAmount']}]})
-        eid=str(pay.get('encounterId') or draft.get('encounterId'));b={'case_id':ctx['case_id'],'run_id':ctx['run_id'],'patient_id':pid,'encounter_id':eid,'contract_id':str(contract),'patient_key':p.get('patient_key'),'registration_demographics_provenance':{'name':'constructed_unique_identifier','id_card':'constructed_nonclinical_identifier','phone':'constructed_nonclinical_identifier','date_of_birth':'constructed_hash_date_for_registration_only','source_age':d.get('age',d.get('age_years')),'source_age_status':d.get('age_status'),'must_not_use_for_clinical_age':True},'registration_name':patient['name'],'artifacts':{},'orders':{},'registration_payment_id':str(pay['paymentId'])}
-        rows=c.post('/outpatientRegistration/pageClinicRegisters',{'dateFrom':dt.date.today().isoformat(),'dateTo':dt.date.today().isoformat(),'patientId':pid,'pageNo':1,'pageSize':100})
-        record=next((x for x in rows.get('content',[]) if str(x.get('encounterId'))==eid),None)
-        if not record:raise NativeError('Registered encounter not observed')
+    def _registration_row(self, client, progress, *, legacy=False):
+        day = dt.date.fromisoformat(progress['date'])
+        primary = progress.get('draft') or progress.get('payment') or {}
+        expected = primary.get('encounterId')
+        rows = client.post('/outpatientRegistration/pageClinicRegisters', {
+            'dateFrom': (day - dt.timedelta(days=int(legacy))).isoformat(),
+            'dateTo': (day + dt.timedelta(days=1)).isoformat(),
+            'patientId': progress['patient_id'], 'pageNo': 1, 'pageSize': 100,
+        })
+        matches = [row for row in rows.get('content', [])
+                   if not expected or str(row.get('encounterId')) == str(expected)]
+        if not matches:
+            raise NativeTransportError('Registered encounter has not been read back for this patient and date')
+        if len(matches) != 1 or matches[0].get('statusEnum') in {'CANCELLED', 'ENTERED_IN_ERROR'}:
+            raise NativeBlocked('Existing registration is ambiguous or cancelled; reconcile it before continuing')
+        return matches[0]
+
+    def _registration_form(self, client):
+        organization = ROLE_SETTINGS['doctor'][1]
+        init = client.post('/outpatientRegistration/loadRegisterFormInit', {
+            'organizationId': organization, 'practitionerId': ROLE_SETTINGS['doctor'][2],
+        })
+        contract = next((x['value'] for x in init.get('contractOptions', [])
+                         if init.get('contractCategoryById', {}).get(str(x['value'])) in ('SELF_PAY', 'SELF')
+                         or x.get('label') == '自费'), None)
+        if not contract:
+            raise NativeBlocked('No verified self-pay contract')
+        service = next((x['value'] for x in init.get('serviceTypeOptions', [])
+                        if str(x['value']) == '322957264586018816'), None)
+        if not service:
+            raise NativeBlocked('Expected ordinary outpatient service unavailable')
+        return str(contract), service
+
+    def _registration_patient(self, client, demographics, key, progress):
+        code = hashlib.sha256(key.encode()).hexdigest()
+        if 'identity' not in progress:
+            age = int(demographics.get('age', demographics.get('age_years', 55)) or 55)
+            year = dt.date.fromisoformat(progress['date']).year - min(max(age, 18), 89)
+            for attempt in range(12):
+                token = hashlib.sha256((key + ':identity:' + str(attempt)).encode()).hexdigest()
+                month = int(token[4:8], 16) % 12 + 1
+                day = int(token[8:12], 16) % calendar.monthrange(year, month)[1] + 1
+                birth = f'{year:04d}-{month:02d}-{day:02d}'
+                base = '99' + str(int(token[:4], 16) % 10000).zfill(4) + birth.replace('-', '')
+                base += str(int(token[12:18], 16) % 999 + 1).zfill(3)
+                weights = [7, 9, 10, 5, 8, 4, 2, 1, 6, 3, 7, 9, 10, 5, 8, 4, 2]
+                identity = base + '10X98765432'[sum(int(n) * w for n, w in zip(base, weights)) % 11]
+                matches = client.post('/patient/getPatientPage', {'pageNo': 1, 'pageSize': 100, 'keyword': identity})
+                if not matches.get('content'):
+                    break
+            else:
+                raise NativeBlocked('Synthetic identity allocation exhausted; no record adopted')
+            patient = {'name': '虚构实验' + code[:10],
+                       'genderEnum': 'FEMALE' if str(demographics.get('sex', demographics.get('gender', ''))).lower()
+                       in ('f', 'female', '女') else 'MALE',
+                       'birthDate': birth + ' 00:00:00', 'idCard': identity,
+                       'phone': '000' + str(int(code[:8], 16) % 100000000).zfill(8),
+                       'activeFlag': True, 'patientIdInfoList': []}
+            progress['identity'] = identity
+            self._save()
+            created = client.post('/patient/createPatient', patient)
+            patient_id = created.get('patientId', created.get('id')) if isinstance(created, dict) else created
+            if patient_id is None:
+                raise NativeTransportError('Patient creation receipt has no patient ID')
+            progress['patient_id'] = str(patient_id)
+            self._save()
+        if 'patient_id' not in progress:
+            matches = client.post('/patient/getPatientPage', {
+                'pageNo': 1, 'pageSize': 100, 'keyword': progress['identity'],
+            }).get('content', [])
+            matches = [row for row in matches if row.get('name') == '虚构实验' + code[:10]]
+            if len(matches) > 1:
+                raise NativeBlocked('Patient creation is ambiguous; reconcile it before continuing')
+            if not matches:
+                raise NativeTransportError('Patient creation has not been read back')
+            progress['patient_id'] = str(matches[0].get('patientId', matches[0].get('id')))
+        patient = client.post('/patient/getPatient', {'value': progress['patient_id']})
+        if patient.get('idCard') != progress['identity'] or patient.get('name') != '虚构实验' + code[:10]:
+            raise NativeBlocked('Registration patient identity could not be verified')
+        return patient
+
+    def _read_legacy_registration(self, client, ctx, key):
+        if not self.journal.is_file():
+            raise NativeBlocked('An older unresolved registration has no read-back evidence')
+        observed = None
+        with self.journal.open() as journal:
+            for line in journal:
+                event = json.loads(line)
+                if (event.get('run_id'), event.get('case_id'), event.get('operation'), event.get('error')) == (
+                        ctx['run_id'], ctx['case_id'], 'registration.create', 'Registered encounter not observed'):
+                    observed = event
+        if observed is None:
+            raise NativeBlocked('The older registration has no confirmed attempt to recover by read-back')
+        code = hashlib.sha256(key.encode()).hexdigest()
+        name = '虚构实验' + code[:10]
+        phone = '000' + str(int(code[:8], 16) % 100000000).zfill(8)
+        matches = client.post('/patient/getPatientPage', {
+            'pageNo': 1, 'pageSize': 100, 'keyword': name,
+        }).get('content', [])
+        matches = [row for row in matches if row.get('name') == name]
+        if len(matches) != 1:
+            raise NativeBlocked('The older synthetic patient cannot be identified uniquely')
+        patient_id = str(matches[0].get('patientId', matches[0].get('id')))
+        patient = client.post('/patient/getPatient', {'value': patient_id})
+        if patient.get('name') != name or patient.get('phone') != phone or not patient.get('idCard'):
+            raise NativeBlocked('The older synthetic patient identity could not be verified')
+        contract, _ = self._registration_form(client)
+        return {'date': observed['at'][:10], 'identity': patient['idCard'], 'patient_id': patient_id,
+                'contract': contract, 'draft_started': True, 'payment_started': True, 'legacy': True}
+
+    def _register(self, payload, ctx, *, legacy_recovery=False):
+        client = self._client('cashier')
+        demographics = payload.get('demographics', {})
+        key = ctx['run_id'] + ':' + ctx['case_id']
+        if key in self.state['bindings']:
+            raise NativeBlocked('Case/run already registered')
+        registrations = self.state.setdefault('registrations', {})
+        if key not in registrations:
+            registrations[key] = (self._read_legacy_registration(client, ctx, key) if legacy_recovery else
+                                  {'date': dt.datetime.now(HOSPITAL_TIME_ZONE).date().isoformat()})
+            self._save()
+        progress = registrations[key]
+        patient = self._registration_patient(client, demographics, key, progress)
+        patient_id = progress['patient_id']
+        if not progress.get('draft_started'):
+            contract, service = self._registration_form(client)
+            progress['contract'] = contract
+            request = {'patientId': patient_id, 'name': patient['name'], 'gender': patient['genderEnum'],
+                       'birthDate': patient['birthDate'][:10], 'idCardNo': progress['identity'],
+                       'phone': patient['phone'], 'organizationId': ROLE_SETTINGS['doctor'][1],
+                       'practitionerId': ROLE_SETTINGS['doctor'][2], 'serviceTypeId': service,
+                       'contractId': contract, 'ybRegisterFee': False, 'ybUseAcctPay': False}
+            slots = client.post('/outpatientRegistration/listBookableSlotHints', {
+                'organizationId': request['organizationId'], 'practitionerId': request['practitionerId'],
+                'healthcareServiceId': service, 'registrationDate': progress['date'],
+            })
+            slot = next((row for row in slots.get('hints', []) if (row.get('remainingCount') or 0) > 0), None)
+            if slot:
+                request['slotId'] = slot['slotId']
+            progress['draft_started'] = True
+            self._save()
+            progress['draft'] = client.post('/outpatientRegistration/preRegisterSettlement', request)
+            self._save()
+
+        if not progress.get('payment_started'):
+            draft = progress.get('draft')
+            if not draft or not draft.get('paymentDraftId'):
+                row = self._registration_row(client, progress)
+                if not row.get('paymentDraftId') or row.get('amount') is None or row.get('paymentId'):
+                    raise NativeBlocked('Registration draft could not be verified as unpaid')
+                draft = {'encounterId': row['encounterId'], 'paymentDraftId': row['paymentDraftId'],
+                         'totalAmount': row['amount']}
+                progress['draft'] = draft
+            progress['payment_started'] = True
+            self._save()
+            progress['payment'] = client.post('/outpatientRegistration/payRegisterFee', {
+                'paymentDraftId': str(draft['paymentDraftId']),
+                'paymentDetails': [{'payChannelCode': 'CASH', 'payAmount': draft['totalAmount']}],
+            })
+            self._save()
+
+        record = self._registration_row(client, progress, legacy=progress.get('legacy', False))
+        payment_id = record.get('paymentId')
+        if not payment_id or record.get('statusEnum') == 'PLANNED':
+            raise NativeTransportError('Registration payment has not been read back')
+        encounter_id = str(record['encounterId'])
+        payment = progress.get('payment') or {'encounterId': encounter_id, 'paymentId': payment_id,
+                                              'evidence': 'observed_registration_payment'}
+        if str(payment.get('paymentId')) != str(payment_id):
+            raise NativeBlocked('Registration payment read-back did not match the existing payment')
+        b = {'case_id': ctx['case_id'], 'run_id': ctx['run_id'], 'patient_id': patient_id,
+             'encounter_id': encounter_id, 'contract_id': progress['contract'],
+             'patient_key': payload.get('patient_key'), 'registration_name': patient['name'],
+             'registration_business_date': progress['date'], 'artifacts': {}, 'orders': {},
+             'registration_payment_id': str(payment_id), 'registration_demographics_provenance': {
+                 'name': 'constructed_unique_identifier', 'id_card': 'constructed_nonclinical_identifier',
+                 'phone': 'constructed_nonclinical_identifier', 'date_of_birth': 'constructed_hash_date_for_registration_only',
+                 'source_age': demographics.get('age', demographics.get('age_years')),
+                 'source_age_status': demographics.get('age_status'), 'must_not_use_for_clinical_age': True}}
         if not self.defer_consultation_start:
-            doctor=self._client('doctor');doctor.post('/doctorStationEncounterManage/startOutpatientReception',{'encounterId':eid,'doctorId':ROLE_SETTINGS['doctor'][2],'operatorId':ROLE_SETTINGS['doctor'][2]});b['consultation_started']=True
-        self.state['bindings'][key]=b;self.state['cases'].setdefault(ctx['case_id'],[]).append(key)
-        return self._result({'patient_id':pid,'encounter_id':eid},{'patient':rbpatient,'registration':record,'registration_payment':pay})
+            doctor = self._client('doctor')
+            doctor.post('/doctorStationEncounterManage/startOutpatientReception', {
+                'encounterId': encounter_id, 'doctorId': ROLE_SETTINGS['doctor'][2], 'operatorId': ROLE_SETTINGS['doctor'][2],
+            })
+            b['consultation_started'] = True
+        self.state['bindings'][key] = b
+        self.state['cases'].setdefault(ctx['case_id'], []).append(key)
+        del registrations[key]
+        return self._result({'patient_id': patient_id, 'encounter_id': encounter_id},
+                            {'patient': patient, 'registration': record, 'registration_payment': payment})
     def read_encounter(self,ctx):
         # Fresh native observer read, not an idempotency-cached response.
         b=self._binding(ctx);name=b.get('registration_name')

@@ -32,7 +32,8 @@ OPERATIONS = {
     'order.save': {'order_id': 'Identifier', 'items': 'Attachment', 'parent_order_id': 'Identifier',
                    'decision_reason': 'string', 'decision_offset_seconds': 'unsignedInt', 'order_actions': 'Attachment',
                    'physician_call': 'unsignedInt', 'withheld_treatments': 'Attachment', 'treatment_review': 'Attachment',
-                   'review_protocol': 'code', 'prescribing_schedule': 'code', 'pharmacy_followup': 'Attachment'},
+                   'review_protocol': 'code', 'prescribing_schedule': 'code', 'pharmacy_followup': 'Attachment',
+                   'considered_not_ordered': 'Attachment'},
     'order.history': {'order_id': 'Identifier'},
     'order.attest': {'order_id': 'Identifier', 'signatory_id': 'Identifier'},
     'order.review': {'order_id': 'Identifier', 'review': 'Attachment'},
@@ -51,13 +52,13 @@ SCOPE = {'case_id': 'Identifier', 'run_id': 'Identifier', 'config_id': 'Identifi
          'action_request_id': 'Identifier'}
 OPTIONAL = {'config_id', 'idempotency_key', 'action_request_id', 'parent_order_id', 'parent_version', 'codes',
             'decision_reason', 'decision_offset_seconds', 'order_actions', 'physician_call', 'withheld_treatments',
-            'treatment_review', 'review_protocol', 'prescribing_schedule', 'pharmacy_followup'}
+            'treatment_review', 'review_protocol', 'prescribing_schedule', 'pharmacy_followup', 'considered_not_ordered'}
 NULL_FIELDS = 'nullOptionalFields'
 OPTIONAL.add(NULL_FIELDS)
 REFERENCES = {'patient_id': 'Patient', 'encounter_id': 'Encounter'}
 ARTIFACT_TYPES = {'demographics': dict, 'content': dict, 'chart_context': dict, 'transcript': list, 'items': list, 'receipt': dict,
                   'codes': list, 'order_actions': list, 'withheld_treatments': list, 'treatment_review': dict,
-                  'review': dict, 'pharmacy_followup': dict, NULL_FIELDS:list}
+                  'review': dict, 'pharmacy_followup': dict, 'considered_not_ordered': list, NULL_FIELDS:list}
 
 
 def operation_code(operation):

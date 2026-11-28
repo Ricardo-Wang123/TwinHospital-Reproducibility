@@ -783,6 +783,10 @@ def signed_medications(run, patient, encounter):
                             'signed ED orders differ from the physician\'s treatment commitments')
                 state.update(physician_call=seq)
                 state[reason_field] = current[reason_field]
+                if 'considered_not_ordered' in current or 'considered_not_ordered' in call['response']:
+                    require(current.get('considered_not_ordered') == call['response'].get('considered_not_ordered'),
+                            'signed omitted-product decisions differ from the verifying physician response')
+                    state['considered_not_ordered'] = current['considered_not_ordered']
             if policy:
                 require('order_actions' in current, 'missing signed ED transactions')
                 codes = {'primary': set(), 'other': set()}

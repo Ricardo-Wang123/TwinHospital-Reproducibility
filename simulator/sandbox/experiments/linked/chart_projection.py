@@ -12,7 +12,8 @@ import json
 import math
 
 from .chart import (json_bytes, PAGE_BYTE_LIMIT, _ORDER, _OBS, _ED_OBSERVATION, _ED_WORKUP, _DIAGNOSIS,
-                    _ENCOUNTER, _ITEM, _STATUS, _DEMOGRAPHICS, _TIME_BASIS, _ADMIN, _MICRO, _FHIR_EVENT)
+                    _ENCOUNTER, _ITEM, _STATUS, _DEMOGRAPHICS, _TIME_BASIS, _ADMIN, _MICRO, _FHIR_EVENT,
+                    _PROBLEM_LIST)
 
 VERSION = "clinical_field_projection_v2_supplemental_history"
 READABLE_VERSIONS = frozenset({"clinical_field_projection_v1", VERSION})
@@ -32,7 +33,8 @@ COMMON_PATHS = (
 )
 SCHEMAS = {
     "historical_orders": _ORDER, "historical_observations": _OBS,
-    "current_observations": _OBS, "ed_diagnostic_reports": _ED_OBSERVATION, "ed_reassessment_reports": _ED_OBSERVATION,
+    "current_observations": _OBS, "ed_lab_reports": _ED_OBSERVATION,
+    "ed_diagnostic_reports": _ED_OBSERVATION, "ed_reassessment_reports": _ED_OBSERVATION,
     "ed_closing_reports": _ED_OBSERVATION, "diagnoses": _DIAGNOSIS,
     "ed_workup": _ED_WORKUP, "ed_reassessment_workup": _ED_WORKUP, "ed_closing_workup": _ED_WORKUP,
     "historical_administrations": _ADMIN, "historical_microbiology": _MICRO,
@@ -42,6 +44,7 @@ SCHEMAS = {
     "encounter_headers": {**_ENCOUNTER, "component_counts": {"diagnoses":None,"order_refs":None,"observation_refs":None}},
     "allergy_record": _STATUS, "current_use_record": _STATUS,
     "allergy_items": _ITEM, "current_use_items": _ITEM,
+    "problem_list": _PROBLEM_LIST, "problem_items": _DIAGNOSIS,
     "demographics": _DEMOGRAPHICS, "time_basis": _TIME_BASIS,
     "encounter_order_refs": {"record_id":None,"source_encounter_ref":None},
     "encounter_observation_refs": {"record_id":None,"source_encounter_ref":None},

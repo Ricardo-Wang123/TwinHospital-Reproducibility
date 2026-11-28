@@ -8,6 +8,7 @@ import sqlite3
 from .contracts import digest
 
 
+FILENAME = 'history.private.sqlite'
 TERMS = re.compile(r'\b(?:copd|chronic obstructive pulmonary disease|dyspn(?:ea|oea)|shortness of breath|'
                    r'wheez(?:e|ing)|heart failure|pneumonia|hypoxi[ac]|cough|dysuria|urinary tract infection|'
                    r'pyelonephritis|hyperglyc(?:emia|aemia)|diabetes|hypoglyc(?:emia|aemia)|edema)\b', re.I)

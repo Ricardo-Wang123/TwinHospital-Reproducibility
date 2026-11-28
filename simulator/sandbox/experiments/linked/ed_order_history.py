@@ -3,7 +3,7 @@ from copy import deepcopy
 import json
 
 from .ed_order_actions import apply_actions, signed_actions, validate_withheld_treatments
-from .ed_treatment_review import SINGLE_PRESCRIPTION
+from .ed_treatment_review import SINGLE_PRESCRIPTION, validate_omitted_products
 from .native_his import NativeBlocked, NativeError, ROLE_SETTINGS, VALID_SIGNED_REQUEST_STATES
 
 ADVICE = '/doctorStationAdvice/'
@@ -78,6 +78,13 @@ def prepare(port, payload, ctx, binding, pair):
         if type(payload.get('physician_call')) is not int or payload['physician_call'] < 1:
             raise NativeBlocked('Signed treatment reasons require the verifying physician call')
         attestation = {k: deepcopy(payload[k]) for k in ('physician_call', 'withheld_treatments')}
+    if 'considered_not_ordered' in payload:
+        try:
+            validate_omitted_products(payload['considered_not_ordered'], visible_codes=port.catalog_mapping,
+                                      active_codes={item['drug_code'] for item in items})
+        except ValueError as exc:
+            raise NativeBlocked(str(exc)) from exc
+        attestation['considered_not_ordered'] = deepcopy(payload['considered_not_ordered'])
     if actions is not None:
         active = [{'request_id': rid, 'item': item} for rid, item in remaining]
         try:
@@ -199,6 +206,8 @@ def attest(port, order_id, ctx, binding, pair):
         record.update(physician_call=spec['physician_call'], withheld_treatments=spec['withheld_treatments'])
     if 'treatment_review' in spec:
         record.update(physician_call=spec['physician_call'], treatment_review=spec['treatment_review'])
+    if 'considered_not_ordered' in spec:
+        record['considered_not_ordered'] = spec['considered_not_ordered']
     # Keep the original signed decision when OpenHIS reverts a withdrawn, unfilled line to DRAFT.
     if spec.get('review_protocol'):
         record['review_protocol'] = spec['review_protocol']

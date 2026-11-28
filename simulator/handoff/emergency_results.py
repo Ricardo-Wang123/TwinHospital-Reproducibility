@@ -155,7 +155,6 @@ class MedicationIndex:
     def __init__(self, formulary, scope):
         self.scope = scope
         self.by_code = {}
-        self.aliases = defaultdict(set)
         for product in formulary:
             code = product['drug_code']
             if code in self.by_code:
@@ -165,37 +164,7 @@ class MedicationIndex:
             if not names or '' in names:
                 raise ValueError(f'Missing medication identity for {code}')
             self.by_code[code] = names
-            for ingredient in names:
-                self.aliases[ingredient].update((ingredient, code.casefold()))
-                if len(names) == 1:
-                    if product.get('name'):
-                        self.aliases[ingredient].add(product['name'].casefold())
-                    display = product.get('display_name_zh', '')
-                    if isinstance(display, str):
-                        stem = re.sub(r'(?:注射液|缓释片|肠溶片|颗粒|胶囊|片|喷雾剂)$', '', display.strip())
-                        if re.fullmatch(r'[\u3400-\u9fff]{3,}', stem):
-                            self.aliases[ingredient].add(stem)
         self.available = frozenset().union(*self.by_code.values())
-
-    def mentions(self, ingredient, text):
-        aliases = self.aliases.get(ingredient, set()) | {ingredient}
-        aliases |= {alias for alias, canonical in LABELS.items() if canonical == ingredient}
-        aliases |= set(_NATIVE_INGREDIENTS.get(ingredient, ()))
-        return any((alias in text if re.fullmatch(r'[\u3400-\u9fff]+', alias) else
-                    re.search(r'(?<!\w)' + re.escape(alias) + r'(?!\w)', text)) for alias in aliases if alias)
-
-
-def named_omission_reasons(index, ingredient, review, reason):
-    named = [entry for entry in review if entry['decision'] in ('omit', 'stop')
-             and index.mentions(ingredient, entry['reason'].casefold())]
-    for sentence in re.split(r'(?<=[.!?])\s+|[。；;\n]', reason or ''):
-        lowered = sentence.casefold()
-        if (re.search(r'\b(?:withhold\w*|hold|held|omit\w*|avoid\w*|defer\w*|stopp\w*|'
-                      r'not (?:start\w*|prescrib\w*|indicated|order\w*|give|given))\b'
-                      r'|暂不|不予|未开|未给予|不推荐|无需|停用|避免', lowered)
-                and index.mentions(ingredient, lowered)):
-            named.append({'decision': 'not_ordered', 'reason': sentence.strip(), 'source': 'signed_reason'})
-    return named
 
 
 def catalogue_coverage(references, formulary):
@@ -289,19 +258,30 @@ def compare(evidence, reference, formulary, *, run=None):
                     decision['class_decisions'] = [entry for entry in options if entry['decision'] == 'omit']
                     if run is not None:
                         decision['review_evidence'] = ed_metrics.prescribing_evidence(run, state['physician_call'])
-                    signed_reason = (run['calls'][state['physician_call'] - 1]['response'].get('reason')
-                                     if run is not None else state.get('reason'))
                     decision['omission_review'] = {}
                     for ingredient in decision['missing']:
-                        named = named_omission_reasons(idx, ingredient, options, signed_reason)
+                        named = [entry for entry in state.get('considered_not_ordered', [])
+                                 if ingredient in idx.by_code.get(entry['drug_code'], ())]
                         signed_actions = state.get('signed_version_transactions', state['transactions'])
                         prior = [entry for entry in options if any(
                             ingredient in idx.by_code.get(signed_actions[action].get('prior_code'), ())
                             for action in entry.get('action_indices', []))]
                         advised = [entry for entry in options if any(ingredient in idx.by_code.get(code, ())
                                    for code in entry.get('advice_codes', []))]
+                        trace = decision.get('review_evidence', {})
+                        visible = {code for code in trace.get('visible_product_codes', [])
+                                   if ingredient in idx.by_code.get(code, ())}
+                        searches = trace.get('formulary_searches', [])
+                        returned = {code for search in searches for code in search['returned_product_codes']
+                                    if ingredient in idx.by_code.get(code, ())}
+                        queried = [search['query'] for search in searches
+                                   if ingredient in (idx.by_code.get(search['query']) or native_ingredients(search['query']))]
                         decision['omission_review'][ingredient] = {
                             'named_decisions': named, 'prior_product_decisions': prior, 'advisory_product_decisions': advised,
+                            'visible_candidate_product_codes': sorted(visible),
+                            'catalogue_trace': {'queried_names_or_codes': sorted(set(queried)),
+                                                'returned_product_codes': sorted(returned),
+                                                'returned_without_delivery': sorted(returned - visible)},
                             'status': ('ingredient_named' if named else 'prior_product_identified' if prior
                                        else 'advisory_product_identified' if advised
                                        else 'no_ingredient_reason_recorded')}
@@ -798,7 +778,7 @@ def write_report(batch, case_rows, reference_path, output):
                 'disposition_agreement': rate(values['disposition_match'], values['scored'])}
     report = {'endpoint': DESIGN, 'planned': planned, 'closed': totals['closed'],
               'closure_rate': totals['closed'] / planned, 'reference_supplied': gold is not None,
-              'measurement_version': 6,
+              'measurement_version': 7,
               'paired_intake_reports_verified': (len(paired_report_hashes) if spec.get('paired_intake_report') else None),
               'evaluation_sha256': {
                   'reference': sha256(reference_bytes).hexdigest() if reference_bytes is not None else None,
@@ -807,6 +787,7 @@ def write_report(batch, case_rows, reference_path, output):
                       Path(scenario_design.__file__))}},
               'medication_reference_scope': scope,
               'medication_attribution': attribution,
+              'omission_attribution': 'signed omitted-product decisions and observed catalogue and chart access',
               'medication_unit': ('distinct active ingredient in the documented primary-condition regimen'
                                   if scope == PRIMARY_SCOPE else 'distinct normalized name per encounter'),
               'totals': measures(totals),

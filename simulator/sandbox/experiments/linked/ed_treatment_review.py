@@ -73,6 +73,12 @@ SINGLE_PRESCRIPTION_FORMAT = (
     'Together the items are your complete prescription. If pharmacy returns the signed order, resubmit '
     'the complete prescription you intend to sign. Use only option keys from your treatments for advice_review.'
 )
+OMISSION_FORMAT = (
+    ' Include considered_not_ordered as an array of {drug_code,reason,check_ids}. '
+    'Use exact codes of medicines you saw and decided to omit. Give the reason for each product. '
+    'Use check_ids to point to prescribing checks you used, or [] if no check applies. '
+    'Return [] when you considered no omitted products.'
+)
 
 CHECK_FORMAT = (
     ' Return check_results keyed by every ID in required_prescribing_checks. '
@@ -295,11 +301,37 @@ def complete_advice_review(submitted, correction):
     return response
 
 
+def validate_omitted_products(rows, *, visible_codes, active_codes, check_ids=None):
+    if not isinstance(rows, list):
+        raise ValueError('Return considered_not_ordered as a list of explicitly omitted products.')
+    used = set()
+    for row in rows:
+        if not isinstance(row, dict) or set(row) != {'drug_code', 'reason', 'check_ids'}:
+            raise ValueError('Each considered_not_ordered entry needs a product code, reason and check_ids.')
+        code = row['drug_code']
+        if (not isinstance(code, str) or code in used or code not in visible_codes or code in active_codes
+                or not isinstance(row['reason'], str) or not row['reason'].strip()
+                or not _string_list(row['check_ids'])
+                or (check_ids is not None and set(row['check_ids']) - check_ids)):
+            raise ValueError('Use distinct visible, unprescribed product codes and valid prescribing check IDs.')
+        used.add(code)
+
+
 def materialize_treatment_orders(submitted, observation):
+    record_omissions = observation.get('record_omission_decisions')
+    active_codes = set()
     if observation.get('single_prescription'):
         submitted = single_prescription_actions(submitted, observation['signed_order_lines'])
+        if record_omissions:
+            retained = {rid for option in submitted['treatments'].values() for rid in option['maintained_order_ids']}
+            active_codes = {line['item']['drug_code'] for line in observation['signed_order_lines']
+                            if line['request_id'] in retained}
+            active_codes.update(order['item'].get('drug_code') for option in submitted['treatments'].values()
+                                for order in option['orders'] if order['kind'] == 'new')
     decisions = submitted.get('treatments')
     fields = {'decision', 'reason', 'outstanding_checks', 'check_results', 'treatments', 'advice_review'}
+    if record_omissions:
+        fields.add('considered_not_ordered')
     if (submitted.get('decision') != 'sign' or set(submitted) != fields or not isinstance(decisions, dict)
             or set(observation['required_treatment_options']) - decisions.keys()):
         raise ValueError('Submit decision=sign with one entry in treatments for each required option and all prescribing checks.')
@@ -319,6 +351,11 @@ def materialize_treatment_orders(submitted, observation):
                           'maintained_order_ids': retained, 'advice_codes': []}
         actions.extend(selected)
     response = {key: submitted[key] for key in ('reason', 'outstanding_checks', 'check_results')}
+    if record_omissions:
+        rows = submitted['considered_not_ordered']
+        validate_omitted_products(rows, visible_codes=set(observation['orderable_drug_codes']),
+                                  active_codes=active_codes, check_ids=set(observation['required_prescribing_checks']))
+        response['considered_not_ordered'] = deepcopy(rows)
     if isinstance(response['check_results'], dict):
         findings = {}
         for key, finding in response['check_results'].items():

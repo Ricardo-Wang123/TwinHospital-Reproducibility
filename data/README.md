@@ -32,6 +32,7 @@ For source-aligned ED replay, enable `--align-source-notes` during single-prescr
 | `patients/<case_id>/开诊摘要.json` | The opening complaint and triage observations, the physician's runtime IPS-based summary, and dated historical evidence. |
 | `manifest.json` · `cases/<case_id>.json` | Selected cases and their time-restricted MAS inputs. |
 | `formulary_directory.json` · `catalog.json` · `products.sql` | Shared searchable products derived from MIMIC-IV prescriptions, native product mapping and OpenHIS fixture. The same source directory is used in every condition and in clinician review. |
+| `history.private.sqlite` | Frozen index of other-patient histories for the assisted conditions. Cohort preparation excludes the study patients. The private input bundle records its checksum. |
 | `reference.private.json` | Evaluator-only primary-condition ingredients, continuation/addition status, medication evidence, ED disposition and visit linkage. |
 
 Run the packer from the simulator directory with this manifest, native product map and source product fixture. The packer resolves the shared directory beside the case files. [Pack the cases](../simulator/README.md#pack-the-cases)

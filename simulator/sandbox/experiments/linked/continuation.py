@@ -10,12 +10,13 @@ import time
 
 from .contracts import digest
 from .json_boundary import DuplicateJSONKeyError
+from .native_his import NativeTransportError
 from .provider import ModelCallError
 from .response_contracts import ResponseBoundaryError
 
-POLICY = {'version': 'encounter_continuation_v1',
+POLICY = {'version': 'encounter_continuation_v2',
     'retry_unit': 'same_run_same_encounter_same_condition',
-    'dispatch': 'retryable_provider_interruptions_go_to_queue_tail',
+    'dispatch': 'retryable_provider_and_registration_interruptions_go_to_queue_tail',
     'completed_effects': 'reconstruct_from_recorded_responses_without_repeating_requests',
     'uncertain_business_effects': 'require_reconciliation_before_replay',
     'completion': 'verified_payment_not_queue_removal'}
@@ -23,7 +24,7 @@ POLICY = {'version': 'encounter_continuation_v1',
 
 class EncounterDeferred(RuntimeError):
     def __init__(self, issue):
-        super().__init__('Provider interrupted; encounter is waiting for retry')
+        super().__init__('Encounter is waiting for retry')
         self.issue = deepcopy(issue)
 
 
@@ -37,7 +38,7 @@ class EncounterContinuation:
              'started_at': datetime.now(timezone.utc).isoformat(), 'monotonic_origin': time.monotonic()})
         if self.data['identity'] != identity or self.data['policy'] != POLICY:
             raise ValueError('Continuation requires the unchanged case, condition, models and implementation')
-        if self.data.get('inflight'):
+        if self.data.get('inflight') and self.data['inflight'].get('operation') != 'registration.create':
             raise ValueError('Unresolved external request requires reconciliation before continuation')
         self.clock_origin = self.data.get('monotonic_origin')
         if self.clock_origin is None:
@@ -74,7 +75,13 @@ class EncounterContinuation:
             if 'error' in entry:
                 self.raise_recorded(entry['error'])
             return deepcopy(entry['value'])
-        self.data['inflight'] = {'kind': kind, 'request_hash': request_hash}
+        registration = kind == 'business' and request.get('operation') == 'registration.create'
+        inflight = {'kind': kind, 'request_hash': request_hash}
+        if registration:
+            inflight['operation'] = 'registration.create'
+        if self.data.get('inflight') and self.data['inflight'] != inflight:
+            raise ValueError('The resumed request differs from the registered in-flight operation')
+        self.data['inflight'] = inflight
         self.save()
         started = time.monotonic()
         entry = {'kind': kind, 'request_hash': request_hash,
@@ -100,6 +107,19 @@ class EncounterContinuation:
             self.data['interruptions'].append(issue)
             self.save()
             raise EncounterDeferred(issue) from None
+        except NativeTransportError:
+            if not registration:
+                raise
+            issue = {'number': len(self.data['interruptions']) + 1,
+                     'occurred_at': datetime.now(timezone.utc).isoformat(),
+                     'request_id': request['context']['action_request_id'],
+                     'reason_code': 'registration_readback_pending',
+                     'entry_position': self.position, 'request_hash': request_hash,
+                     'status': 'waiting_retry', 'event_class': 'model_execution',
+                     'owner': 'dispatcher', 'resolved_at': None}
+            self.data['interruptions'].append(issue)
+            self.save()
+            raise EncounterDeferred(issue) from None
         except BaseException:
             if kind != 'business':
                 self.data.pop('inflight', None)
@@ -122,7 +142,7 @@ class EncounterContinuation:
         return deepcopy(value)
 
     def observe_event(self, row):
-        transient = row['event'] in {'provider_retry_queued', 'run_failed'} or (
+        transient = row['event'] in {'provider_retry_queued', 'native_registration_retry_queued', 'run_failed'} or (
             row['event'] == 'role_call' and row.get('status') == 'waiting_retry')
         if transient:
             return row, False
@@ -201,7 +221,8 @@ class EncounterContinuation:
                 return getattr(original, name)
             def execute(self, operation, payload, context):
                 return continuation.invoke('business', {'operation': operation, 'payload': payload, 'context': context},
-                    lambda: original.execute(operation, payload, context))
+                    lambda: original.execute(operation, payload, context),
+                    lambda: {'last_request_id': context.get('action_request_id')})
         return Backend()
 
     def timestamp(self, key):

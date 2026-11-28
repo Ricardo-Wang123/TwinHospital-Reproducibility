@@ -11,6 +11,8 @@ import shutil
 from sandbox.experiments.linked.campaign import validate_window
 from sandbox.experiments.linked.cases import READABLE_CASE_VERSIONS, load_case
 from sandbox.experiments.linked.cases import VERSION as NATIVE_CASE_VERSION
+from sandbox.experiments.linked.ed_treatment_review import SINGLE_PRESCRIPTION
+from sandbox.experiments.linked.history_examples import FILENAME as HISTORY_FILENAME, HistoricalExamples
 from sandbox.experiments.linked.provider import check_data_policy
 from sandbox.experiments.linked.run_batch import select_cases
 
@@ -144,6 +146,24 @@ def pack(args):
             if (len(fixtures) != 1 or not sources[fixtures[0]].is_file()
                     or sources[fixtures[0]].read_text() != fixture(directory.products.values(), mapping)):
                 raise ValueError('MIMIC ED bundles require the product fixture from their medication directory.')
+    history = getattr(args, 'historical_examples', None)
+    if history is None and manifest and (manifest.parent / HISTORY_FILENAME).is_file():
+        history = manifest.parent / HISTORY_FILENAME
+    if history is None and args.case:
+        adjacent = Path(references[0]['path']).parent.parent / HISTORY_FILENAME
+        if adjacent.is_file():
+            history = adjacent
+    if history is not None:
+        HistoricalExamples(history)
+        audit_path = (manifest.parent if manifest else Path(references[0]['path']).parent.parent) / '病例核验.json'
+        if audit_path.is_file():
+            expected_history = read(audit_path).get('history_library_sha256')
+            if expected_history and digest(history) != expected_history:
+                raise ValueError('The historical example index differs from the prepared cohort.')
+        sources[HISTORY_FILENAME] = history
+    elif any(load_case(ref['path'])['his_initial'].get('time_basis', {}).get('ed_prescribing_schedule')
+             == SINGLE_PRESCRIPTION for ref in references if ref['data_kind'] == 'mimic_derived'):
+        raise ValueError('The prepared MIMIC cohort requires its private historical example index.')
     if any(not source.is_file() for source in sources.values()):
         raise ValueError('A catalogue, workflow template, or native fixture file is missing.')
 
@@ -231,6 +251,9 @@ def configure(args):
         fields['development_manifest'] = str(args.development_manifest.resolve())
     if args.quick:
         fields['quick'] = True
+    if HISTORY_FILENAME in receipt['files']:
+        fields['historical_examples'] = str(bundle / HISTORY_FILENAME)
+        fields['history_library_sha256'] = receipt['files'][HISTORY_FILENAME]
     for field, name in CATALOGUES.items():
         if name in receipt['files']:
             fields[field] = str(bundle / name)
@@ -288,6 +311,8 @@ def main():
         make.add_argument('--' + key.replace('_', '-'), type=Path)
     make.add_argument('--fixture', action='append', type=Path, default=[])
     make.add_argument('--workflow-policy', type=Path)
+    make.add_argument('--historical-examples', type=Path,
+                      help='Private SQLite index from the authorized case preparation, normally beside the manifest.')
     make.add_argument('--inherit-native', type=Path,
                       help='Reuse a verified bundle’s catalogues, fixtures, and workflow policy.')
     make.set_defaults(action_function=pack)

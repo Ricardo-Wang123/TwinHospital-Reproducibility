@@ -131,6 +131,18 @@ def artifact_measures(run, stages, reference, group, *, note_checks=None):
     return result
 
 
+def _sent_record_refs(value):
+    """Identify actual chart records inside a physician observation."""
+    if isinstance(value, dict):
+        if isinstance(ref := value.get('record_ref'), str) and isinstance(value.get('record'), dict):
+            yield ref
+        for item in value.values():
+            yield from _sent_record_refs(item)
+    elif isinstance(value, list):
+        for item in value:
+            yield from _sent_record_refs(item)
+
+
 def prescribing_evidence(run, physician_call):
     """Bind the released chart and advisory payload to the response that was signed."""
     calls = {call['sequence']: call for call in run['calls'] if call['sequence'] <= physician_call}
@@ -138,9 +150,14 @@ def prescribing_evidence(run, physician_call):
     boundary = next(event['sequence'] for event in run['events']
                     if event['event'] == 'role_call' and event['call_sequence'] == physician_call)
     available, delivered, read = set(), set(), set()
-    inventories, receipts, chart_searches = [], [], []
+    inventories, receipts, chart_searches, formulary_searches = [], [], [], []
     on_demand = bool(run.get('artifacts', {}).get('physician_opening_ips'))
     complete_inventory = not on_demand
+    physician_observations = [call['observation'] for call in calls.values() if call['role'] == 'doctor'
+                              and ('response' in call or (call.get('response_parse') or {}).get('finish_reason'))]
+    sent_refs = {ref for observation in physician_observations for ref in _sent_record_refs(observation)}
+    visible_codes = {product['drug_code'] for observation in physician_observations
+                     for product in observation.get('formulary', [])}
 
     for event in run['events']:
         if event['sequence'] >= boundary:
@@ -156,10 +173,17 @@ def prescribing_evidence(run, physician_call):
                 receipts.append({'event_sequence': event['sequence'], 'physician_call': call['sequence'],
                                  'source': 'ips'})
         elif on_demand and kind == 'history_lookup' and event.get('request', {}).get('term'):
+            returned = set(event.get('returned_refs', []))
+            shown = returned & sent_refs
+            delivered.update((event['section'], ref) for ref in shown)
             chart_searches.append({'event_sequence': event['sequence'], 'section': event['section'],
                                    'term': event['request']['term'], 'status': event['result_status'],
-                                   'returned_refs': event.get('returned_refs', []),
+                                   'returned_refs': sorted(returned), 'delivered_refs': sorted(shown),
+                                   'returned_without_delivery': sorted(returned - shown),
                                    'accepted_into_context': event.get('accepted_into_context', False)})
+        elif kind == 'formulary_searched' and event.get('role') == 'doctor':
+            formulary_searches.extend({'query': query, 'returned_product_codes': codes}
+                                      for query, codes in zip(event['queries'], event['returned'], strict=True))
         elif kind == 'ed_source_inventory_requested':
             inventories.append(event['sequence'])
             sources = event.get('sources')
@@ -196,6 +220,8 @@ def prescribing_evidence(run, physician_call):
         'read_rows': len(read),
         'available_without_delivery': sorted(available - delivered) if complete_inventory and inventories else None,
         'delivered_without_receipt': sorted(delivered - read),
+        'visible_product_codes': sorted(visible_codes),
+        'formulary_searches': formulary_searches,
         'advisory_prescription': signed['observation'].get('medication_advice'),
         'advisory_reason': signed['observation'].get('current_advice_reason'),
         'advisory_outstanding_checks': signed['observation'].get('current_advice_outstanding_checks'),

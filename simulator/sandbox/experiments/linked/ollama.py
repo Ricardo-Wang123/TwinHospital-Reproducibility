@@ -282,6 +282,13 @@ def signed_order_format(observation):
     fields = {'decision': {'enum': ['sign']}, 'treatments': treatments, 'check_results': check_fields(affected_treatments),
               'advice_review': advice_review, 'outstanding_checks': {'type': 'array', 'maxItems': 0} if limit_checks else strings,
               'reason': string}
+    if observation.get('record_omission_decisions'):
+        codes = observation['orderable_drug_codes']
+        omissions = {'type': 'array', 'maxItems': len(codes)}
+        if codes:
+            omissions['items'] = closed_object({'drug_code': {'enum': codes}, 'reason': string,
+                                                'check_ids': strings})
+        fields['considered_not_ordered'] = omissions
     signed = closed_object(fields)
     conflicts = limits.get('treatments_marked_as_both_selected_and_blocked') or {}
     if conflicts and not preserve_no_actions and not correction.get('complete_declared_order'):
